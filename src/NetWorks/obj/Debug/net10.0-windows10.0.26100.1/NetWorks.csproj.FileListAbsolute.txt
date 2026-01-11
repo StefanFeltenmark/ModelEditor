@@ -1,0 +1,9 @@
+C:\Users\stefan.feltenmark\source\repos\NetWorks\NetWorks\obj\Debug\net10.0-windows10.0.26100.1\NetWorks.Form1.resources
+C:\Users\stefan.feltenmark\source\repos\NetWorks\NetWorks\obj\Debug\net10.0-windows10.0.26100.1\NetWorks.csproj.GenerateResource.cache
+C:\Users\stefan.feltenmark\source\repos\NetWorks\NetWorks\obj\Debug\net10.0-windows10.0.26100.1\NetWorks.GeneratedMSBuildEditorConfig.editorconfig
+C:\Users\stefan.feltenmark\source\repos\NetWorks\NetWorks\obj\Debug\net10.0-windows10.0.26100.1\NetWorks.AssemblyInfoInputs.cache
+C:\Users\stefan.feltenmark\source\repos\NetWorks\NetWorks\obj\Debug\net10.0-windows10.0.26100.1\NetWorks.AssemblyInfo.cs
+C:\Users\stefan.feltenmark\source\repos\NetWorks\NetWorks\obj\Debug\net10.0-windows10.0.26100.1\NetWorks.csproj.CoreCompileInputs.cache
+C:\Users\stefan.feltenmark\source\repos\NetWorks\NetWorks\obj\Debug\net10.0-windows10.0.26100.1\NetWorks.dll
+C:\Users\stefan.feltenmark\source\repos\NetWorks\NetWorks\obj\Debug\net10.0-windows10.0.26100.1\refint\NetWorks.dll
+C:\Users\stefan.feltenmark\source\repos\NetWorks\NetWorks\obj\Debug\net10.0-windows10.0.26100.1\NetWorks.pdb
