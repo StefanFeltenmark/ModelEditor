@@ -1,5 +1,0 @@
-<Solution>
-  <Project Path="Core/Core.csproj" Id="55dac3a9-91b3-4397-ab88-c936144e71ec" />
-  <Project Path="NetWorks/NetWorks.csproj" />
-  <Project Path="Tests/Tests.csproj" Id="34bb4d72-d8bc-460e-973f-630e4d63fb84" />
-</Solution>

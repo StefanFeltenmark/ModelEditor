@@ -1,10 +1,12 @@
 {
   "version": 2,
-  "dgSpecHash": "08HyJVm0BO4=",
+  "dgSpecHash": "RFzKCqytkao=",
   "success": true,
-  "projectFilePath": "C:\\Users\\stefan.feltenmark\\source\\repos\\NetWorks\\Tests\\Tests.csproj",
+  "projectFilePath": "C:\\Users\\stefan.feltenmark\\Documents\\ModelEditor\\src\\Tests\\Tests.csproj",
   "expectedPackageFiles": [
+    "C:\\Users\\stefan.feltenmark\\.nuget\\packages\\acornima\\1.2.0\\acornima.1.2.0.nupkg.sha512",
     "C:\\Users\\stefan.feltenmark\\.nuget\\packages\\coverlet.collector\\6.0.4\\coverlet.collector.6.0.4.nupkg.sha512",
+    "C:\\Users\\stefan.feltenmark\\.nuget\\packages\\jint\\4.5.0\\jint.4.5.0.nupkg.sha512",
     "C:\\Users\\stefan.feltenmark\\.nuget\\packages\\microsoft.codecoverage\\17.14.1\\microsoft.codecoverage.17.14.1.nupkg.sha512",
     "C:\\Users\\stefan.feltenmark\\.nuget\\packages\\microsoft.net.test.sdk\\17.14.1\\microsoft.net.test.sdk.17.14.1.nupkg.sha512",
     "C:\\Users\\stefan.feltenmark\\.nuget\\packages\\microsoft.testplatform.objectmodel\\17.14.1\\microsoft.testplatform.objectmodel.17.14.1.nupkg.sha512",

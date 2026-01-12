@@ -57,7 +57,7 @@ namespace Tests
 
             // Assert
             AssertHasError(result);
-            Assert.Contains("Statement 1", result.Errors[0]);
+            Assert.Contains("Line 1", result.Errors[0].Message);
         }
 
         [Fact]

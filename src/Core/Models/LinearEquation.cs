@@ -1,4 +1,4 @@
-﻿    namespace Core.Models
+﻿namespace Core.Models
 {
     /// <summary>
     /// Represents a linear equation or inequality with any number of variables
@@ -27,14 +27,19 @@
         public string? Label { get; set; }
 
         /// <summary>
+        /// Base name for indexed equations (e.g., "constraint" in constraint[1])
+        /// </summary>
+        public string? BaseName { get; set; }
+
+        /// <summary>
         /// Optional index for the equation (e.g., constraint[1], constraint[2])
         /// </summary>
         public int? Index { get; set; }
 
         /// <summary>
-        /// Base name for indexed equations (e.g., "constraint" in constraint[1])
+        /// Optional second index for two-dimensional constraints
         /// </summary>
-        public string? BaseName { get; set; }
+        public int? SecondIndex { get; set; }
 
         public LinearEquation()
         {
@@ -50,6 +55,11 @@
             Operator = op;
             Label = label;
         }
+
+        /// <summary>
+        /// Checks if the equation is two-dimensional (i.e., has a second index)
+        /// </summary>
+        public bool IsTwoDimensional => SecondIndex.HasValue;
 
         /// <summary>
         /// Gets all variable names in sorted order
@@ -115,48 +125,56 @@
 
         public override string ToString()
         {
-            var result = new System.Text.StringBuilder();
+            var sb = new System.Text.StringBuilder();
             
-            // Add label or indexed identifier if present
-            string identifier = GetFullIdentifier();
-            if (identifier != "unlabeled")
+            if (!string.IsNullOrEmpty(Label))
             {
-                result.Append($"[{identifier}] ");
+                sb.Append($"{Label}: ");
+            }
+            else if (!string.IsNullOrEmpty(BaseName))
+            {
+                if (IsTwoDimensional)
+                    sb.Append($"{BaseName}[{Index},{SecondIndex}]: ");
+                else if (Index.HasValue)
+                    sb.Append($"{BaseName}[{Index}]: ");
             }
 
-            if (Coefficients.Count == 0)
+            bool first = true;
+            foreach (var kvp in Coefficients.OrderBy(k => k.Key))
             {
-                result.Append($"0 {GetOperatorSymbol()} {Constant}");
-            }
-            else
-            {
-                var terms = new List<string>();
-                foreach (var variable in GetVariables())
+                double coeff = kvp.Value;
+                string variable = kvp.Key;
+
+                if (!first && coeff >= 0)
+                    sb.Append(" + ");
+                else if (coeff < 0)
+                    sb.Append(" - ");
+
+                if (Math.Abs(coeff) != 1 || first)
                 {
-                    double coeff = Coefficients[variable];
-                    if (coeff == 0)
-                        continue;
-
-                    string term;
-                    if (coeff == 1)
-                        term = variable;
-                    else if (coeff == -1)
-                        term = $"-{variable}";
-                    else
-                        term = $"{coeff}*{variable}";
-
-                    if (terms.Count > 0 && coeff > 0)
-                        term = $"+ {term}";
-                    else if (terms.Count > 0)
-                        term = $"- {(Math.Abs(coeff) == 1 ? variable : $"{Math.Abs(coeff)}*{variable}")}";
-
-                    terms.Add(term);
+                    sb.Append($"{Math.Abs(coeff):G}");
                 }
 
-                result.Append($"{string.Join(" ", terms)} {GetOperatorSymbol()} {Constant}");
+                sb.Append(variable);
+                first = false;
             }
 
-            return result.ToString();
+            sb.Append($" {OperatorToString(Operator)} {Constant:G}");
+
+            return sb.ToString();
+        }
+
+        private string OperatorToString(RelationalOperator op)
+        {
+            return op switch
+            {
+                RelationalOperator.Equal => "==",
+                RelationalOperator.LessThanOrEqual => "≤",
+                RelationalOperator.GreaterThanOrEqual => "≥",
+                RelationalOperator.LessThan => "<",
+                RelationalOperator.GreaterThan => ">",
+                _ => "=="
+            };
         }
     }
 

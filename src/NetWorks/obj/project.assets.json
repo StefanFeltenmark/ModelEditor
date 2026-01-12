@@ -2,9 +2,41 @@
   "version": 3,
   "targets": {
     "net10.0-windows7.0": {
+      "Acornima/1.2.0": {
+        "type": "package",
+        "compile": {
+          "lib/net8.0/Acornima.dll": {
+            "related": ".xml"
+          }
+        },
+        "runtime": {
+          "lib/net8.0/Acornima.dll": {
+            "related": ".xml"
+          }
+        }
+      },
+      "Jint/4.5.0": {
+        "type": "package",
+        "dependencies": {
+          "Acornima": "1.2.0"
+        },
+        "compile": {
+          "lib/net8.0/Jint.dll": {
+            "related": ".xml"
+          }
+        },
+        "runtime": {
+          "lib/net8.0/Jint.dll": {
+            "related": ".xml"
+          }
+        }
+      },
       "Core/1.0.0": {
         "type": "project",
         "framework": ".NETCoreApp,Version=v10.0",
+        "dependencies": {
+          "Jint": "4.5.0"
+        },
         "compile": {
           "bin/placeholder/Core.dll": {}
         },
@@ -15,6 +47,46 @@
     }
   },
   "libraries": {
+    "Acornima/1.2.0": {
+      "sha512": "pT3kn/WrVzz4NmrzN5zOAVDOK2VuQFJ7VivKviKmKbbzppMVEToEvnAaVhxerXclptvjpBUudhOwUtDsRjrMYQ==",
+      "type": "package",
+      "path": "acornima/1.2.0",
+      "files": [
+        ".nupkg.metadata",
+        ".signature.p7s",
+        "README.md",
+        "acornima.1.2.0.nupkg.sha512",
+        "acornima.nuspec",
+        "lib/net462/Acornima.dll",
+        "lib/net462/Acornima.xml",
+        "lib/net8.0/Acornima.dll",
+        "lib/net8.0/Acornima.xml",
+        "lib/netstandard2.0/Acornima.dll",
+        "lib/netstandard2.0/Acornima.xml",
+        "lib/netstandard2.1/Acornima.dll",
+        "lib/netstandard2.1/Acornima.xml"
+      ]
+    },
+    "Jint/4.5.0": {
+      "sha512": "NMl4Zs77Qb6BChgwlrD+BaDkPIwoRt7gPuxko2/4CU9dfwScf7K/Ksn8RPKUat7CP8OqztXPY+3qW8oia2Uvmw==",
+      "type": "package",
+      "path": "jint/4.5.0",
+      "files": [
+        ".nupkg.metadata",
+        ".signature.p7s",
+        "README.md",
+        "jint.4.5.0.nupkg.sha512",
+        "jint.nuspec",
+        "lib/net462/Jint.dll",
+        "lib/net462/Jint.xml",
+        "lib/net8.0/Jint.dll",
+        "lib/net8.0/Jint.xml",
+        "lib/netstandard2.0/Jint.dll",
+        "lib/netstandard2.0/Jint.xml",
+        "lib/netstandard2.1/Jint.dll",
+        "lib/netstandard2.1/Jint.xml"
+      ]
+    },
     "Core/1.0.0": {
       "type": "project",
       "path": "../Core/Core.csproj",
@@ -33,11 +105,11 @@
   "project": {
     "version": "1.0.0",
     "restore": {
-      "projectUniqueName": "C:\\Users\\stefan.feltenmark\\source\\repos\\NetWorks\\NetWorks\\NetWorks.csproj",
-      "projectName": "NetWorks",
-      "projectPath": "C:\\Users\\stefan.feltenmark\\source\\repos\\NetWorks\\NetWorks\\NetWorks.csproj",
+      "projectUniqueName": "C:\\Users\\stefan.feltenmark\\Documents\\ModelEditor\\src\\NetWorks\\ModelEditorApp.csproj",
+      "projectName": "ModelEditorApp",
+      "projectPath": "C:\\Users\\stefan.feltenmark\\Documents\\ModelEditor\\src\\NetWorks\\ModelEditorApp.csproj",
       "packagesPath": "C:\\Users\\stefan.feltenmark\\.nuget\\packages\\",
-      "outputPath": "C:\\Users\\stefan.feltenmark\\source\\repos\\NetWorks\\NetWorks\\obj\\",
+      "outputPath": "C:\\Users\\stefan.feltenmark\\Documents\\ModelEditor\\src\\NetWorks\\obj\\",
       "projectStyle": "PackageReference",
       "fallbackFolders": [
         "C:\\Program Files (x86)\\Microsoft Visual Studio\\Shared\\NuGetPackages"
@@ -60,8 +132,8 @@
         "net10.0-windows7.0": {
           "targetAlias": "net10.0-windows7.0",
           "projectReferences": {
-            "C:\\Users\\stefan.feltenmark\\source\\repos\\NetWorks\\Core\\Core.csproj": {
-              "projectPath": "C:\\Users\\stefan.feltenmark\\source\\repos\\NetWorks\\Core\\Core.csproj"
+            "C:\\Users\\stefan.feltenmark\\Documents\\ModelEditor\\src\\Core\\Core.csproj": {
+              "projectPath": "C:\\Users\\stefan.feltenmark\\Documents\\ModelEditor\\src\\Core\\Core.csproj"
             }
           }
         }

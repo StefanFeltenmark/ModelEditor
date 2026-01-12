@@ -1,17 +1,17 @@
 {
   "format": 1,
   "restore": {
-    "C:\\Users\\stefan.feltenmark\\source\\repos\\NetWorks\\Tests\\Tests.csproj": {}
+    "C:\\Users\\stefan.feltenmark\\Documents\\ModelEditor\\src\\Tests\\Tests.csproj": {}
   },
   "projects": {
-    "C:\\Users\\stefan.feltenmark\\source\\repos\\NetWorks\\Core\\Core.csproj": {
+    "C:\\Users\\stefan.feltenmark\\Documents\\ModelEditor\\src\\Core\\Core.csproj": {
       "version": "1.0.0",
       "restore": {
-        "projectUniqueName": "C:\\Users\\stefan.feltenmark\\source\\repos\\NetWorks\\Core\\Core.csproj",
+        "projectUniqueName": "C:\\Users\\stefan.feltenmark\\Documents\\ModelEditor\\src\\Core\\Core.csproj",
         "projectName": "Core",
-        "projectPath": "C:\\Users\\stefan.feltenmark\\source\\repos\\NetWorks\\Core\\Core.csproj",
+        "projectPath": "C:\\Users\\stefan.feltenmark\\Documents\\ModelEditor\\src\\Core\\Core.csproj",
         "packagesPath": "C:\\Users\\stefan.feltenmark\\.nuget\\packages\\",
-        "outputPath": "C:\\Users\\stefan.feltenmark\\source\\repos\\NetWorks\\Core\\obj\\",
+        "outputPath": "C:\\Users\\stefan.feltenmark\\Documents\\ModelEditor\\src\\Core\\obj\\",
         "projectStyle": "PackageReference",
         "fallbackFolders": [
           "C:\\Program Files (x86)\\Microsoft Visual Studio\\Shared\\NuGetPackages"
@@ -51,6 +51,12 @@
       "frameworks": {
         "net10.0": {
           "targetAlias": "net10.0",
+          "dependencies": {
+            "Jint": {
+              "target": "Package",
+              "version": "[4.5.0, )"
+            }
+          },
           "imports": [
             "net461",
             "net462",
@@ -345,14 +351,14 @@
         }
       }
     },
-    "C:\\Users\\stefan.feltenmark\\source\\repos\\NetWorks\\Tests\\Tests.csproj": {
+    "C:\\Users\\stefan.feltenmark\\Documents\\ModelEditor\\src\\Tests\\Tests.csproj": {
       "version": "1.0.0",
       "restore": {
-        "projectUniqueName": "C:\\Users\\stefan.feltenmark\\source\\repos\\NetWorks\\Tests\\Tests.csproj",
+        "projectUniqueName": "C:\\Users\\stefan.feltenmark\\Documents\\ModelEditor\\src\\Tests\\Tests.csproj",
         "projectName": "Tests",
-        "projectPath": "C:\\Users\\stefan.feltenmark\\source\\repos\\NetWorks\\Tests\\Tests.csproj",
+        "projectPath": "C:\\Users\\stefan.feltenmark\\Documents\\ModelEditor\\src\\Tests\\Tests.csproj",
         "packagesPath": "C:\\Users\\stefan.feltenmark\\.nuget\\packages\\",
-        "outputPath": "C:\\Users\\stefan.feltenmark\\source\\repos\\NetWorks\\Tests\\obj\\",
+        "outputPath": "C:\\Users\\stefan.feltenmark\\Documents\\ModelEditor\\src\\Tests\\obj\\",
         "projectStyle": "PackageReference",
         "fallbackFolders": [
           "C:\\Program Files (x86)\\Microsoft Visual Studio\\Shared\\NuGetPackages"
@@ -375,8 +381,8 @@
           "net10.0": {
             "targetAlias": "net10.0",
             "projectReferences": {
-              "C:\\Users\\stefan.feltenmark\\source\\repos\\NetWorks\\Core\\Core.csproj": {
-                "projectPath": "C:\\Users\\stefan.feltenmark\\source\\repos\\NetWorks\\Core\\Core.csproj"
+              "C:\\Users\\stefan.feltenmark\\Documents\\ModelEditor\\src\\Core\\Core.csproj": {
+                "projectPath": "C:\\Users\\stefan.feltenmark\\Documents\\ModelEditor\\src\\Core\\Core.csproj"
               }
             }
           }

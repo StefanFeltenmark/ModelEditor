@@ -105,6 +105,138 @@ namespace Tests
             Assert.Equal(10.0, (double)param.Value, 2);
         }
 
+        [Fact]
+        public void Parse_FloatParameterWithExpression_ShouldNotParseAsEquation()
+        {
+            // Arrange
+            var manager = CreateModelManager();
+            var parser = CreateParser(manager);
+            string input = "float result = 2.5 * 4;";
+
+            // Act
+            var result = parser.Parse(input);
+
+            // Assert
+            AssertNoErrors(result);
+            Assert.Equal(1, result.SuccessCount);
+            
+            // Should be parsed as a parameter, not an equation
+            Assert.Single(manager.Parameters);
+            Assert.Empty(manager.ParsedEquations);
+            
+            var param = manager.GetParameter("result");
+            Assert.NotNull(param);
+            Assert.Equal(ParameterType.Float, param.Type);
+            Assert.Equal(10.0, (double)param.Value, 2);
+        }
+
+        [Fact]
+        public void Parse_IntParameterWithExpression_ShouldNotParseAsEquation()
+        {
+            // Arrange
+            var manager = CreateModelManager();
+            var parser = CreateParser(manager);
+            string input = "int count = 5 + 3 * 2;";
+
+            // Act
+            var result = parser.Parse(input);
+
+            // Assert
+            AssertNoErrors(result);
+            Assert.Single(manager.Parameters);
+            Assert.Empty(manager.ParsedEquations);
+            
+            var param = manager.GetParameter("count");
+            Assert.Equal(11, param.Value); // 5 + (3 * 2) = 11
+        }
+
+        [Fact]
+        public void Parse_ParameterVsEquation_ShouldDistinguish()
+        {
+            // Arrange
+            var manager = CreateModelManager();
+            var parser = CreateParser(manager);
+            string input = @"
+                float capacity = 100.5;
+                var float x;
+                var float y;
+                constraint: x + y == capacity;
+            ";
+
+            // Act
+            var result = parser.Parse(input);
+
+            // Assert
+            AssertNoErrors(result);
+            
+            // Should have 1 parameter and 1 equation
+            Assert.Single(manager.Parameters);
+            Assert.Single(manager.ParsedEquations);
+            
+            var param = manager.GetParameter("capacity");
+            Assert.NotNull(param);
+            Assert.Equal(100.5, (double)param.Value, 2);
+            
+            var equation = manager.ParsedEquations[0];
+            Assert.Equal(RelationalOperator.Equal, equation.Operator);
+        }
+
+        [Fact]
+        public void Parse_SingleEqualsInEquation_ShouldFail()
+        {
+            // Arrange
+            var parser = CreateParser();
+            var manager = CreateModelManager();
+            string input = @"
+                var float x;
+                var float y;
+                x + y = 5;
+            ";
+
+            // Act
+            var result = parser.Parse(input);
+
+            // Assert
+            AssertHasError(result, "Use '==' for equality");
+        }
+
+        [Theory]
+        [InlineData("int x = 10;", true)]
+        [InlineData("float y = 5.5;", true)]
+        [InlineData("string s = \"text\";", true)]
+        [InlineData("x + y == 10;", false)]
+        [InlineData("2*x + 3*y <= 5;", false)]
+        public void Parse_StatementType_ShouldBeCorrect(string input, bool shouldBeParameter)
+        {
+            // Arrange
+            var manager = CreateModelManager();
+            var parser = CreateParser(manager);
+            
+            if (!shouldBeParameter)
+            {
+                // Need to declare variables for equations
+                parser.Parse("var float x; var float y;");
+                manager = parser.GetModelManager(); // Get updated manager
+            }
+
+            // Act
+            var result = parser.Parse(input);
+
+            // Assert
+            if (shouldBeParameter)
+            {
+                AssertNoErrors(result);
+                Assert.NotEmpty(manager.Parameters);
+                Assert.Empty(manager.ParsedEquations);
+            }
+            else
+            {
+                // Should be equation
+                AssertNoErrors(result);
+                Assert.NotEmpty(manager.ParsedEquations);
+            }
+        }
+
         [Theory]
         [InlineData("int x = ;")]
         [InlineData("float y")]

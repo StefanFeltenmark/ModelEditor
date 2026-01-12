@@ -47,7 +47,7 @@ namespace Tests
             var parser = CreateParser(manager);
             string input = @"
                 range I = 1..2;
-                equation eq[I]: 2*x[i] + 3*y[i] = 15;
+                equation eq[I]: 2*x[i] + 3*y[i] == 15;
             ";
 
             // Act
@@ -111,7 +111,7 @@ namespace Tests
             var parser = CreateParser(manager);
             string input = @"
                 range I = 1..2;
-                equation eq[I]: 5*x[i] = 10;
+                equation eq[I]: 5*x[i] == 10;
             ";
 
             // Act

@@ -30,7 +30,7 @@ namespace Tests
                 var bool z[J];
                 
                 // Define equations
-                objective: 2*x + 3*y1 = 100;
+                objective: 2*x + 3*y1 == 100;
                 equation capacity[I]: y[i] <= T;
                 constraint: x + y1 >= 5;
             ";
@@ -115,7 +115,7 @@ namespace Tests
                 int T = 10;
                 range I = 1..T;
                 var y[I];
-                equation eq[I]: x + y[i] = T;
+                equation eq[I]: x + y[i] == T;
             ";
 
             // Act

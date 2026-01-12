@@ -1,6 +1,6 @@
 ﻿using System.Runtime.InteropServices;
 using System.Text.RegularExpressions;
-using NetWorks.Extensions;  // Add this using statement
+using NetWorks.Extensions;
 
 namespace NetWorks.Services
 {
@@ -11,6 +11,20 @@ namespace NetWorks.Services
     {
         private readonly RichTextBox richTextBox;
         private bool isHighlighting = false;
+
+        // Color scheme
+        private static readonly Color CommentColor = Color.Gray;
+        private static readonly Color StringColor = Color.Brown;
+        private static readonly Color KeywordColor = Color.Blue;
+        private static readonly Color TypeColor = Color.DarkBlue;
+        private static readonly Color NumberColor = Color.DarkOrange;
+        private static readonly Color OperatorColor = Color.Red;
+        private static readonly Color LabelColor = Color.DarkCyan;
+        private static readonly Color ArithmeticOperatorColor = Color.Crimson;
+        private static readonly Color BracketColor = Color.DarkMagenta;
+        private static readonly Color SemicolonColor = Color.Purple;
+        private static readonly Color IdentifierColor = Color.DarkGreen;
+        private static readonly Color RangeOperatorColor = Color.DarkViolet;
 
         // Windows API to prevent painting
         [DllImport("user32.dll")]
@@ -47,19 +61,19 @@ namespace NetWorks.Services
                 string text = richTextBox.Text;
                 var highlightedPositions = new HashSet<int>();
 
-                // Apply highlighting in order of priority
-                HighlightPatternWithTracking(text, @"//.*$", Color.Gray, RegexOptions.Multiline, highlightedPositions, FontStyle.Italic);
-                HighlightPatternWithTracking(text, @"""[^""]*""", Color.Brown, RegexOptions.None, highlightedPositions);
-                HighlightPatternWithTracking(text, @"\.\.", Color.DarkViolet, RegexOptions.None, highlightedPositions);
-                HighlightPatternWithTracking(text, @"(<=|>=|≤|≥|<|>|=)", Color.Red, RegexOptions.None, highlightedPositions, FontStyle.Bold);
-                HighlightPatternWithTracking(text, @"\b(var|range|equation)\b", Color.Blue, RegexOptions.None, highlightedPositions, FontStyle.Bold);
-                HighlightPatternWithTracking(text, @"\b(float|int|bool|string)\b", Color.DarkBlue, RegexOptions.None, highlightedPositions, FontStyle.Bold);
-                HighlightPatternWithTracking(text, @"\b\d+(?:\.\d+)?\b|\.\d+\b", Color.DarkOrange, RegexOptions.None, highlightedPositions);
-                HighlightLabelPattern(text, @"([a-zA-Z][a-zA-Z0-9_]*)\s*:", Color.DarkCyan, highlightedPositions, FontStyle.Bold);
-                HighlightPatternWithTracking(text, @"[+\-*]", Color.Crimson, RegexOptions.None, highlightedPositions);
-                HighlightPatternWithTracking(text, @"[\[\]]", Color.DarkMagenta, RegexOptions.None, highlightedPositions);
-                HighlightPatternWithTracking(text, @";", Color.Purple, RegexOptions.None, highlightedPositions);
-                HighlightPatternWithTracking(text, @"\b[a-zA-Z][a-zA-Z0-9_]*\b", Color.DarkGreen, RegexOptions.None, highlightedPositions);
+                // Apply highlighting in order of priority (first wins for overlapping regions)
+                HighlightPatternWithTracking(text, @"//.*$", CommentColor, RegexOptions.Multiline, highlightedPositions, FontStyle.Italic);
+                HighlightPatternWithTracking(text, @"""[^""]*""", StringColor, RegexOptions.None, highlightedPositions);
+                HighlightPatternWithTracking(text, @"\.\.", RangeOperatorColor, RegexOptions.None, highlightedPositions);
+                HighlightPatternWithTracking(text, @"(==|<=|>=|≤|≥|<|>)", OperatorColor, RegexOptions.None, highlightedPositions, FontStyle.Bold);
+                HighlightPatternWithTracking(text, @"\b(var|range|equation|execute)\b", KeywordColor, RegexOptions.None, highlightedPositions, FontStyle.Bold);
+                HighlightPatternWithTracking(text, @"\b(float|int|bool|string)\b", TypeColor, RegexOptions.None, highlightedPositions, FontStyle.Bold);
+                HighlightPatternWithTracking(text, @"\b\d+(?:\.\d+)?\b|\.\d+\b", NumberColor, RegexOptions.None, highlightedPositions);
+                HighlightLabelPattern(text, @"([a-zA-Z][a-zA-Z0-9_]*)\s*:", LabelColor, highlightedPositions, FontStyle.Bold);
+                HighlightPatternWithTracking(text, @"[+\-*]", ArithmeticOperatorColor, RegexOptions.None, highlightedPositions);
+                HighlightPatternWithTracking(text, @"[\[\],{}]", BracketColor, RegexOptions.None, highlightedPositions);
+                HighlightPatternWithTracking(text, @";", SemicolonColor, RegexOptions.None, highlightedPositions);
+                HighlightPatternWithTracking(text, @"\b[a-zA-Z][a-zA-Z0-9_]*\b", IdentifierColor, RegexOptions.None, highlightedPositions);
 
                 // Restore selection and scroll position
                 richTextBox.Select(selectionStart, selectionLength);
@@ -79,14 +93,14 @@ namespace NetWorks.Services
 
         private int GetScrollPos()
         {
-            return richTextBox.GetFirstVisibleLineIndex();  // Now uses the extension method
+            return richTextBox.GetFirstVisibleLineIndex();
         }
 
         private void SetScrollPos(int position)
         {
             if (position >= 0)
             {
-                int currentFirstLine = richTextBox.GetFirstVisibleLineIndex();  // Now uses the extension method
+                int currentFirstLine = richTextBox.GetFirstVisibleLineIndex();
                 if (currentFirstLine != position)
                 {
                     richTextBox.SelectionStart = richTextBox.GetFirstCharIndexFromLine(position);
@@ -132,7 +146,8 @@ namespace NetWorks.Services
                 var labelGroup = match.Groups[1];
                 
                 string labelText = labelGroup.Value.ToLower();
-                if (labelText == "var" || labelText == "range" || labelText == "equation" || 
+                // Skip keywords that shouldn't be highlighted as labels
+                if (labelText == "var" || labelText == "range" || labelText == "equation" || labelText == "execute" ||
                     labelText == "float" || labelText == "int" || labelText == "bool" || labelText == "string")
                 {
                     continue;

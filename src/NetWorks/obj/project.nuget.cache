@@ -1,8 +1,11 @@
 {
   "version": 2,
-  "dgSpecHash": "2AdqiKuclto=",
+  "dgSpecHash": "C2rqWjA5AfE=",
   "success": true,
-  "projectFilePath": "C:\\Users\\stefan.feltenmark\\source\\repos\\NetWorks\\NetWorks\\NetWorks.csproj",
-  "expectedPackageFiles": [],
+  "projectFilePath": "C:\\Users\\stefan.feltenmark\\Documents\\ModelEditor\\src\\NetWorks\\ModelEditorApp.csproj",
+  "expectedPackageFiles": [
+    "C:\\Users\\stefan.feltenmark\\.nuget\\packages\\acornima\\1.2.0\\acornima.1.2.0.nupkg.sha512",
+    "C:\\Users\\stefan.feltenmark\\.nuget\\packages\\jint\\4.5.0\\jint.4.5.0.nupkg.sha512"
+  ],
   "logs": []
 }

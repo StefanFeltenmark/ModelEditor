@@ -162,7 +162,7 @@ namespace NetWorks
                         errorMsg.AppendLine($"Parsed {result.SuccessCount} statement(s) successfully, but {result.Errors.Count} error(s) occurred:\n");
                         foreach (var error in result.Errors)
                         {
-                            errorMsg.AppendLine(error);
+                            errorMsg.AppendLine(error.Message);
                             errorMsg.AppendLine();
                         }
                         MessageBox.Show(errorMsg.ToString(), "Parsing Warnings", MessageBoxButtons.OK, MessageBoxIcon.Warning);
@@ -175,7 +175,7 @@ namespace NetWorks
                     errorMsg.AppendLine("Errors encountered:\n");
                     foreach (var error in result.Errors)
                     {
-                        errorMsg.AppendLine(error);
+                        errorMsg.AppendLine(error.Message);
                         errorMsg.AppendLine();
                     }
                     errorMsg.AppendLine("\nSupported formats:");
@@ -184,8 +184,8 @@ namespace NetWorks
                     errorMsg.AppendLine("  Index sets: range I = 1..10 or range I = 1..T");
                     errorMsg.AppendLine("  Variables: var float x[I]; var int y[J]; var bool z[K]");
                     errorMsg.AppendLine("  Indexed equations: equation constraint[I]: x[i] + y[i] <= 10");
-                    errorMsg.AppendLine("  Equations: 2x + 3y = 5");
-                    errorMsg.AppendLine("  Labeled equations: eq1: 2x + 3y = 5");
+                    errorMsg.AppendLine("  Equations: 2x + 3y == 5  (use == for equality)");
+                    errorMsg.AppendLine("  Labeled equations: eq1: 2x + 3y == 5");
                     
                     MessageBox.Show(errorMsg.ToString(), "Parse Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
                 }

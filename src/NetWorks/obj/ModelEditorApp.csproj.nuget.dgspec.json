@@ -1,7 +1,7 @@
 {
   "format": 1,
   "restore": {
-    "C:\\Users\\stefan.feltenmark\\Documents\\ModelEditor\\src\\NetWorks\\NetWorks.csproj": {}
+    "C:\\Users\\stefan.feltenmark\\Documents\\ModelEditor\\src\\NetWorks\\ModelEditorApp.csproj": {}
   },
   "projects": {
     "C:\\Users\\stefan.feltenmark\\Documents\\ModelEditor\\src\\Core\\Core.csproj": {
@@ -51,6 +51,12 @@
       "frameworks": {
         "net10.0": {
           "targetAlias": "net10.0",
+          "dependencies": {
+            "Jint": {
+              "target": "Package",
+              "version": "[4.5.0, )"
+            }
+          },
           "imports": [
             "net461",
             "net462",
@@ -345,12 +351,12 @@
         }
       }
     },
-    "C:\\Users\\stefan.feltenmark\\Documents\\ModelEditor\\src\\NetWorks\\NetWorks.csproj": {
+    "C:\\Users\\stefan.feltenmark\\Documents\\ModelEditor\\src\\NetWorks\\ModelEditorApp.csproj": {
       "version": "1.0.0",
       "restore": {
-        "projectUniqueName": "C:\\Users\\stefan.feltenmark\\Documents\\ModelEditor\\src\\NetWorks\\NetWorks.csproj",
-        "projectName": "NetWorks",
-        "projectPath": "C:\\Users\\stefan.feltenmark\\Documents\\ModelEditor\\src\\NetWorks\\NetWorks.csproj",
+        "projectUniqueName": "C:\\Users\\stefan.feltenmark\\Documents\\ModelEditor\\src\\NetWorks\\ModelEditorApp.csproj",
+        "projectName": "ModelEditorApp",
+        "projectPath": "C:\\Users\\stefan.feltenmark\\Documents\\ModelEditor\\src\\NetWorks\\ModelEditorApp.csproj",
         "packagesPath": "C:\\Users\\stefan.feltenmark\\.nuget\\packages\\",
         "outputPath": "C:\\Users\\stefan.feltenmark\\Documents\\ModelEditor\\src\\NetWorks\\obj\\",
         "projectStyle": "PackageReference",

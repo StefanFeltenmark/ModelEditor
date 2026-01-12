@@ -29,7 +29,7 @@ namespace Tests
             
             if (!string.IsNullOrEmpty(expectedErrorFragment))
             {
-                Assert.Contains(result.Errors, e => e.Contains(expectedErrorFragment, StringComparison.OrdinalIgnoreCase));
+                Assert.Contains(result.Errors, e => e.Message.Contains(expectedErrorFragment, StringComparison.OrdinalIgnoreCase));
             }
         }
     }

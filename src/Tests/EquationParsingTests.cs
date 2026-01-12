@@ -14,7 +14,7 @@ namespace Tests
             // Arrange
             var manager = CreateModelManager();
             var parser = CreateParser(manager);
-            string input = "2*x + 3*y = 10;";
+            string input = "2*x + 3*y == 10;";
 
             // Act
             var result = parser.Parse(input);
@@ -37,7 +37,7 @@ namespace Tests
             // Arrange
             var manager = CreateModelManager();
             var parser = CreateParser(manager);
-            string input = "1.5*x + 2.7*y = 5.3;";
+            string input = "1.5*x + 2.7*y == 5.3;";
 
             // Act
             var result = parser.Parse(input);
@@ -56,7 +56,7 @@ namespace Tests
             // Arrange
             var manager = CreateModelManager();
             var parser = CreateParser(manager);
-            string input = "eq1: x + y = 5;";
+            string input = "eq1: x + y == 5;";
 
             // Act
             var result = parser.Parse(input);
@@ -69,7 +69,7 @@ namespace Tests
         }
 
         [Theory]
-        [InlineData("x + y = 5", RelationalOperator.Equal)]
+        [InlineData("x + y == 5", RelationalOperator.Equal)]
         [InlineData("x + y <= 5", RelationalOperator.LessThanOrEqual)]
         [InlineData("x + y >= 5", RelationalOperator.GreaterThanOrEqual)]
         [InlineData("x + y < 5", RelationalOperator.LessThan)]
@@ -94,7 +94,7 @@ namespace Tests
             // Arrange
             var manager = CreateModelManager();
             var parser = CreateParser(manager);
-            string input = "x + y = 5;";
+            string input = "x + y == 5;";
 
             // Act
             var result = parser.Parse(input);
@@ -112,7 +112,7 @@ namespace Tests
             // Arrange
             var manager = CreateModelManager();
             var parser = CreateParser(manager);
-            string input = "-2*x + 3*y = 10;";
+            string input = "-2*x + 3*y == 10;";
 
             // Act
             var result = parser.Parse(input);
@@ -131,8 +131,8 @@ namespace Tests
             var manager = CreateModelManager();
             var parser = CreateParser(manager);
             string input = @"
-                eq1: x + y = 5;
-                eq2: 2*x - y = 3;
+                eq1: x + y == 5;
+                eq2: 2*x - y == 3;
                 eq3: x + 2*y <= 10;
             ";
 
@@ -146,10 +146,24 @@ namespace Tests
             Assert.Equal(3, manager.LabeledEquations.Count);
         }
 
+        [Fact]
+        public void Parse_SingleEqualSign_ShouldFail()
+        {
+            // Arrange
+            var parser = CreateParser();
+            string input = "x + y = 5;";
+
+            // Act
+            var result = parser.Parse(input);
+
+            // Assert
+            AssertHasError(result, "Use '==' for equality");
+        }
+
         [Theory]
         [InlineData("x +")]
-        [InlineData("= 5")]
-        [InlineData("x y = 5")]
+        [InlineData("== 5")]
+        [InlineData("x y == 5")]
         [InlineData("x + y")]
         public void Parse_InvalidEquationSyntax_ShouldFail(string input)
         {
