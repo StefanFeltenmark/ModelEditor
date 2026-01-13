@@ -1,4 +1,5 @@
 ﻿using System.Runtime.InteropServices;
+using System.Text.RegularExpressions;
 using Core;
 using NetWorks.Services;
 
@@ -11,6 +12,8 @@ namespace NetWorks
         private readonly EquationParser parser;
         private readonly SyntaxHighlighter syntaxHighlighter;
         private System.Windows.Forms.Timer highlightTimer;
+        private bool hasUnsavedChanges = false;
+        private bool isLoadingFile = false; // Flag to prevent TextChanged during file load
 
         public Form1()
         {
@@ -31,6 +34,20 @@ namespace NetWorks
             typeof(RichTextBox).InvokeMember("DoubleBuffered",
                 System.Reflection.BindingFlags.SetProperty | System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic,
                 null, richTextBox1, new object[] { true });
+            
+            // Handle form closing event
+            this.FormClosing += Form1_FormClosing;
+            
+            UpdateTitle();
+            UpdateStatusBar();
+        }
+
+        private void Form1_FormClosing(object sender, FormClosingEventArgs e)
+        {
+            if (!ConfirmSaveChanges())
+            {
+                e.Cancel = true;
+            }
         }
 
         // File Menu Events
@@ -38,10 +55,15 @@ namespace NetWorks
         {
             if (ConfirmSaveChanges())
             {
+                isLoadingFile = true;
                 richTextBox1.Clear();
                 currentFilePath = string.Empty;
                 modelManager.Clear();
+                hasUnsavedChanges = false;
+                isLoadingFile = false;
                 UpdateTitle();
+                UpdateStatusBar();
+                SetParseStatus("Ready", false);
             }
         }
 
@@ -51,19 +73,26 @@ namespace NetWorks
             {
                 using (OpenFileDialog openFileDialog = new OpenFileDialog())
                 {
-                    openFileDialog.Filter = "Text Files (*.txt)|*.txt|All Files (*.*)|*.*";
-                    openFileDialog.DefaultExt = "txt";
+                    openFileDialog.Filter = "Model Files (*.mod)|*.mod|All Files (*.*)|*.*";
+                    openFileDialog.DefaultExt = "mod";
+                    openFileDialog.Title = "Open Model File";
 
                     if (openFileDialog.ShowDialog() == DialogResult.OK)
                     {
                         try
                         {
+                            isLoadingFile = true;
                             richTextBox1.Text = File.ReadAllText(openFileDialog.FileName);
                             currentFilePath = openFileDialog.FileName;
+                            hasUnsavedChanges = false;
+                            isLoadingFile = false;
                             UpdateTitle();
+                            UpdateStatusBar();
+                            SetParseStatus("File loaded - Ready to parse", false);
                         }
                         catch (Exception ex)
                         {
+                            isLoadingFile = false;
                             MessageBox.Show($"Error opening file: {ex.Message}", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
                         }
                     }
@@ -123,11 +152,23 @@ namespace NetWorks
             richTextBox1.SelectAll();
         }
 
-        // Syntax Highlighting
+        // RichTextBox Events
         private void richTextBox1_TextChanged(object sender, EventArgs e)
         {
+            // Don't mark as unsaved if we're loading a file
+            if (!isLoadingFile)
+            {
+                hasUnsavedChanges = true;
+            }
+            UpdateTitle();
+            UpdateStatusBar();
             highlightTimer.Stop();
             highlightTimer.Start();
+        }
+
+        private void richTextBox1_SelectionChanged(object sender, EventArgs e)
+        {
+            UpdateCursorPosition();
         }
 
         private void HighlightTimer_Tick(object sender, EventArgs e)
@@ -142,11 +183,13 @@ namespace NetWorks
             try
             {
                 modelManager.Clear();
+                SetParseStatus("Parsing...", false);
                 
                 string text = richTextBox1.Text;
 
                 if (string.IsNullOrWhiteSpace(text))
                 {
+                    SetParseStatus("No text to parse", false);
                     MessageBox.Show("No text to parse.", "Information", MessageBoxButtons.OK, MessageBoxIcon.Information);
                     return;
                 }
@@ -158,6 +201,8 @@ namespace NetWorks
                     
                     if (result.HasErrors)
                     {
+                        SetParseStatus($"Parsed with warnings: {result.SuccessCount} statements, {result.Errors.Count} errors", true);
+                        
                         var errorMsg = new System.Text.StringBuilder();
                         errorMsg.AppendLine($"Parsed {result.SuccessCount} statement(s) successfully, but {result.Errors.Count} error(s) occurred:\n");
                         foreach (var error in result.Errors)
@@ -167,9 +212,15 @@ namespace NetWorks
                         }
                         MessageBox.Show(errorMsg.ToString(), "Parsing Warnings", MessageBoxButtons.OK, MessageBoxIcon.Warning);
                     }
+                    else
+                    {
+                        SetParseStatus($"Parse successful: {result.SuccessCount} statements", false);
+                    }
                 }
                 else
                 {
+                    SetParseStatus($"Parse failed: {result.Errors.Count} errors", true);
+                    
                     var errorMsg = new System.Text.StringBuilder();
                     errorMsg.AppendLine("No valid statements found.\n");
                     errorMsg.AppendLine("Errors encountered:\n");
@@ -192,6 +243,7 @@ namespace NetWorks
             }
             catch (Exception ex)
             {
+                SetParseStatus("Critical error during parsing", true);
                 MessageBox.Show($"Unexpected error parsing: {ex.Message}\n\nStack trace:\n{ex.StackTrace}", 
                     "Critical Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
@@ -203,6 +255,10 @@ namespace NetWorks
             try
             {
                 File.WriteAllText(filePath, richTextBox1.Text);
+                currentFilePath = filePath;
+                hasUnsavedChanges = false;
+                UpdateTitle();
+                SetParseStatus("File saved successfully", false);
                 MessageBox.Show("File saved successfully!", "Success", MessageBoxButtons.OK, MessageBoxIcon.Information);
             }
             catch (Exception ex)
@@ -215,39 +271,123 @@ namespace NetWorks
         {
             using (SaveFileDialog saveFileDialog = new SaveFileDialog())
             {
-                saveFileDialog.Filter = "Text Files (*.txt)|*.txt|All Files (*.*)|*.*";
-                saveFileDialog.DefaultExt = "txt";
+                saveFileDialog.Filter = "Model Files (*.mod)|*.mod|All Files (*.*)|*.*";
+                saveFileDialog.DefaultExt = "mod";
+                saveFileDialog.Title = "Save Model File As";
+                
+                // Suggest current file name or default
+                if (!string.IsNullOrEmpty(currentFilePath))
+                {
+                    saveFileDialog.FileName = Path.GetFileName(currentFilePath);
+                }
+                else
+                {
+                    saveFileDialog.FileName = "Untitled.mod";
+                }
 
                 if (saveFileDialog.ShowDialog() == DialogResult.OK)
                 {
                     SaveFile(saveFileDialog.FileName);
-                    currentFilePath = saveFileDialog.FileName;
-                    UpdateTitle();
                 }
             }
         }
 
         private bool ConfirmSaveChanges()
         {
+            if (hasUnsavedChanges)
+            {
+                string fileName = string.IsNullOrEmpty(currentFilePath) 
+                    ? "Untitled" 
+                    : Path.GetFileName(currentFilePath);
+                
+                DialogResult result = MessageBox.Show(
+                    $"Do you want to save changes to {fileName}?",
+                    "Unsaved Changes",
+                    MessageBoxButtons.YesNoCancel,
+                    MessageBoxIcon.Question);
+
+                switch (result)
+                {
+                    case DialogResult.Yes:
+                        if (string.IsNullOrEmpty(currentFilePath))
+                        {
+                            SaveFileAs();
+                            // Check if user cancelled the save dialog
+                            return !hasUnsavedChanges;
+                        }
+                        else
+                        {
+                            SaveFile(currentFilePath);
+                            return true;
+                        }
+                    case DialogResult.No:
+                        return true;
+                    case DialogResult.Cancel:
+                        return false;
+                    default:
+                        return false;
+                }
+            }
+            
             return true;
         }
 
         private void UpdateTitle()
         {
-            if (string.IsNullOrEmpty(currentFilePath))
-            {
-                this.Text = "Simple Text Editor - Untitled";
-            }
-            else
-            {
-                this.Text = $"Simple Text Editor - {Path.GetFileName(currentFilePath)}";
-            }
+            string fileName = string.IsNullOrEmpty(currentFilePath) 
+                ? "Untitled" 
+                : Path.GetFileName(currentFilePath);
+            
+            string unsavedIndicator = hasUnsavedChanges ? "*" : "";
+            
+            this.Text = $"Model Editor - {fileName}{unsavedIndicator}";
         }
 
         private void ShowParseResults()
         {
             string report = modelManager.GenerateParseResultsReport();
             MessageBox.Show(report, "Parse Results", MessageBoxButtons.OK, MessageBoxIcon.Information);
+        }
+
+        // Status Bar Update Methods
+        private void UpdateStatusBar()
+        {
+            UpdateCursorPosition();
+            UpdateCharacterAndWordCount();
+        }
+
+        private void UpdateCursorPosition()
+        {
+            int currentLine = richTextBox1.GetLineFromCharIndex(richTextBox1.SelectionStart) + 1;
+            int currentColumn = richTextBox1.SelectionStart - richTextBox1.GetFirstCharIndexOfCurrentLine() + 1;
+            
+            toolStripStatusLabelLine.Text = $"Ln: {currentLine}";
+            toolStripStatusLabelColumn.Text = $"Col: {currentColumn}";
+        }
+
+        private void UpdateCharacterAndWordCount()
+        {
+            int charCount = richTextBox1.Text.Length;
+            int wordCount = CountWords(richTextBox1.Text);
+            
+            toolStripStatusLabelCharCount.Text = $"Characters: {charCount}";
+            toolStripStatusLabelWordCount.Text = $"Words: {wordCount}";
+        }
+
+        private int CountWords(string text)
+        {
+            if (string.IsNullOrWhiteSpace(text))
+                return 0;
+            
+            // Count words using regex (sequences of non-whitespace characters)
+            var matches = Regex.Matches(text, @"\S+");
+            return matches.Count;
+        }
+
+        private void SetParseStatus(string message, bool isError)
+        {
+            toolStripStatusLabelParseStatus.Text = message;
+            toolStripStatusLabelParseStatus.ForeColor = isError ? Color.Red : Color.Black;
         }
 
         // Public API (if needed by other forms/components)

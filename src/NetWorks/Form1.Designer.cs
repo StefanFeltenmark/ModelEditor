@@ -45,8 +45,18 @@
             richTextBox1 = new RichTextBox();
             panel1 = new Panel();
             btnParse = new Button();
+            statusStrip1 = new StatusStrip();
+            toolStripStatusLabelLine = new ToolStripStatusLabel();
+            toolStripStatusLabelColumn = new ToolStripStatusLabel();
+            toolStripStatusLabelSeparator1 = new ToolStripStatusLabel();
+            toolStripStatusLabelCharCount = new ToolStripStatusLabel();
+            toolStripStatusLabelWordCount = new ToolStripStatusLabel();
+            toolStripStatusLabelSeparator2 = new ToolStripStatusLabel();
+            toolStripStatusLabelParseStatus = new ToolStripStatusLabel();
+            toolStripStatusLabelEncoding = new ToolStripStatusLabel();
             menuStrip1.SuspendLayout();
             panel1.SuspendLayout();
+            statusStrip1.SuspendLayout();
             SuspendLayout();
             // 
             // menuStrip1
@@ -54,7 +64,7 @@
             menuStrip1.Items.AddRange(new ToolStripItem[] { fileToolStripMenuItem, editToolStripMenuItem });
             menuStrip1.Location = new Point(0, 0);
             menuStrip1.Name = "menuStrip1";
-            menuStrip1.Size = new Size(800, 24);
+            menuStrip1.Size = new Size(1200, 24);
             menuStrip1.TabIndex = 0;
             menuStrip1.Text = "menuStrip1";
             // 
@@ -159,19 +169,20 @@
             richTextBox1.Font = new Font("Consolas", 11F);
             richTextBox1.Location = new Point(0, 24);
             richTextBox1.Name = "richTextBox1";
-            richTextBox1.Size = new Size(800, 386);
+            richTextBox1.Size = new Size(1200, 585);
             richTextBox1.TabIndex = 1;
             richTextBox1.Text = "";
             richTextBox1.WordWrap = false;
             richTextBox1.TextChanged += richTextBox1_TextChanged;
+            richTextBox1.SelectionChanged += richTextBox1_SelectionChanged;
             //  
             // panel1
             // 
             panel1.Controls.Add(btnParse);
             panel1.Dock = DockStyle.Bottom;
-            panel1.Location = new Point(0, 410);
+            panel1.Location = new Point(0, 609);
             panel1.Name = "panel1";
-            panel1.Size = new Size(800, 40);
+            panel1.Size = new Size(1200, 40);
             panel1.TabIndex = 2;
             // 
             // btnParse
@@ -184,13 +195,83 @@
             btnParse.UseVisualStyleBackColor = true;
             btnParse.Click += btnParse_Click;
             // 
+            // statusStrip1
+            // 
+            statusStrip1.Items.AddRange(new ToolStripItem[] { toolStripStatusLabelLine, toolStripStatusLabelColumn, toolStripStatusLabelSeparator1, toolStripStatusLabelCharCount, toolStripStatusLabelWordCount, toolStripStatusLabelSeparator2, toolStripStatusLabelParseStatus, toolStripStatusLabelEncoding });
+            statusStrip1.Location = new Point(0, 649);
+            statusStrip1.Name = "statusStrip1";
+            statusStrip1.Size = new Size(1200, 26);
+            statusStrip1.TabIndex = 3;
+            statusStrip1.Text = "statusStrip1";
+            // 
+            // toolStripStatusLabelLine
+            // 
+            toolStripStatusLabelLine.BorderSides = ToolStripStatusLabelBorderSides.Right;
+            toolStripStatusLabelLine.Name = "toolStripStatusLabelLine";
+            toolStripStatusLabelLine.Size = new Size(47, 21);
+            toolStripStatusLabelLine.Text = "Ln: 1";
+            toolStripStatusLabelLine.ToolTipText = "Line Number";
+            // 
+            // toolStripStatusLabelColumn
+            // 
+            toolStripStatusLabelColumn.BorderSides = ToolStripStatusLabelBorderSides.Right;
+            toolStripStatusLabelColumn.Name = "toolStripStatusLabelColumn";
+            toolStripStatusLabelColumn.Size = new Size(51, 21);
+            toolStripStatusLabelColumn.Text = "Col: 1";
+            toolStripStatusLabelColumn.ToolTipText = "Column Number";
+            // 
+            // toolStripStatusLabelSeparator1
+            // 
+            toolStripStatusLabelSeparator1.Name = "toolStripStatusLabelSeparator1";
+            toolStripStatusLabelSeparator1.Size = new Size(13, 21);
+            toolStripStatusLabelSeparator1.Text = "|";
+            // 
+            // toolStripStatusLabelCharCount
+            // 
+            toolStripStatusLabelCharCount.Name = "toolStripStatusLabelCharCount";
+            toolStripStatusLabelCharCount.Size = new Size(94, 21);
+            toolStripStatusLabelCharCount.Text = "Characters: 0";
+            toolStripStatusLabelCharCount.ToolTipText = "Total Character Count";
+            // 
+            // toolStripStatusLabelWordCount
+            // 
+            toolStripStatusLabelWordCount.BorderSides = ToolStripStatusLabelBorderSides.Right;
+            toolStripStatusLabelWordCount.Name = "toolStripStatusLabelWordCount";
+            toolStripStatusLabelWordCount.Size = new Size(72, 21);
+            toolStripStatusLabelWordCount.Text = "Words: 0";
+            toolStripStatusLabelWordCount.ToolTipText = "Total Word Count";
+            // 
+            // toolStripStatusLabelSeparator2
+            // 
+            toolStripStatusLabelSeparator2.Name = "toolStripStatusLabelSeparator2";
+            toolStripStatusLabelSeparator2.Size = new Size(13, 21);
+            toolStripStatusLabelSeparator2.Text = "|";
+            // 
+            // toolStripStatusLabelParseStatus
+            // 
+            toolStripStatusLabelParseStatus.Name = "toolStripStatusLabelParseStatus";
+            toolStripStatusLabelParseStatus.Size = new Size(773, 21);
+            toolStripStatusLabelParseStatus.Spring = true;
+            toolStripStatusLabelParseStatus.Text = "Ready";
+            toolStripStatusLabelParseStatus.TextAlign = ContentAlignment.MiddleLeft;
+            toolStripStatusLabelParseStatus.ToolTipText = "Parse Status";
+            // 
+            // toolStripStatusLabelEncoding
+            // 
+            toolStripStatusLabelEncoding.BorderSides = ToolStripStatusLabelBorderSides.Left;
+            toolStripStatusLabelEncoding.Name = "toolStripStatusLabelEncoding";
+            toolStripStatusLabelEncoding.Size = new Size(56, 21);
+            toolStripStatusLabelEncoding.Text = "UTF-8";
+            toolStripStatusLabelEncoding.ToolTipText = "File Encoding";
+            // 
             // Form1
             // 
             AutoScaleDimensions = new SizeF(7F, 15F);
             AutoScaleMode = AutoScaleMode.Font;
-            ClientSize = new Size(800, 450);
+            ClientSize = new Size(1200, 675);
             Controls.Add(richTextBox1);
             Controls.Add(panel1);
+            Controls.Add(statusStrip1);
             Controls.Add(menuStrip1);
             MainMenuStrip = menuStrip1;
             Name = "Form1";
@@ -198,6 +279,8 @@
             menuStrip1.ResumeLayout(false);
             menuStrip1.PerformLayout();
             panel1.ResumeLayout(false);
+            statusStrip1.ResumeLayout(false);
+            statusStrip1.PerformLayout();
             ResumeLayout(false);
             PerformLayout();
         }
@@ -221,5 +304,14 @@
         private RichTextBox richTextBox1;
         private Panel panel1;
         private Button btnParse;
+        private StatusStrip statusStrip1;
+        private ToolStripStatusLabel toolStripStatusLabelLine;
+        private ToolStripStatusLabel toolStripStatusLabelColumn;
+        private ToolStripStatusLabel toolStripStatusLabelSeparator1;
+        private ToolStripStatusLabel toolStripStatusLabelCharCount;
+        private ToolStripStatusLabel toolStripStatusLabelWordCount;
+        private ToolStripStatusLabel toolStripStatusLabelSeparator2;
+        private ToolStripStatusLabel toolStripStatusLabelParseStatus;
+        private ToolStripStatusLabel toolStripStatusLabelEncoding;
     }
 }

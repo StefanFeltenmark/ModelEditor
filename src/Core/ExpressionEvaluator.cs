@@ -25,7 +25,8 @@ namespace Core
                     return EvaluationResult<int>.Success(directValue);
                 }
 
-                var param = modelManager.GetParameter(expression);
+                ;
+                var param = modelManager.Parameters.ContainsKey(expression) ? modelManager.Parameters[expression] : null;
                 if (param != null)
                 {
                     if (param.Type == ParameterType.Integer)
@@ -55,7 +56,7 @@ namespace Core
                     return EvaluationResult<double>.Success(directValue);
                 }
 
-                var param = modelManager.GetParameter(expression);
+                var param = modelManager.Parameters.GetValueOrDefault(expression);
                 if (param != null)
                 {
                     if (param.Type == ParameterType.Float)

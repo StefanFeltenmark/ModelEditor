@@ -7,22 +7,12 @@ namespace Core
     /// </summary>
     public class ModelManager
     {
-        public List<LinearEquation> ParsedEquations { get; private set; } = new List<LinearEquation>();
-        public Dictionary<string, LinearEquation> LabeledEquations { get; private set; } = new Dictionary<string, LinearEquation>();
-        public Dictionary<string, IndexSet> IndexSets { get; private set; } = new Dictionary<string, IndexSet>();
-        public Dictionary<string, IndexedVariable> IndexedVariables { get; private set; } = new Dictionary<string, IndexedVariable>();
-        public Dictionary<string, IndexedEquation> IndexedEquationTemplates { get; private set; } = new Dictionary<string, IndexedEquation>();
-        public Dictionary<string, Parameter> Parameters { get; private set; } = new Dictionary<string, Parameter>();
-
-        public void Clear()
-        {
-            ParsedEquations.Clear();
-            LabeledEquations.Clear();
-            IndexSets.Clear();
-            IndexedVariables.Clear();
-            IndexedEquationTemplates.Clear();
-            Parameters.Clear();
-        }
+            public Dictionary<string, Parameter> Parameters { get; } = new Dictionary<string, Parameter>();
+        public Dictionary<string, IndexSet> IndexSets { get; } = new Dictionary<string, IndexSet>();
+        public Dictionary<string, IndexedVariable> IndexedVariables { get; } = new Dictionary<string, IndexedVariable>();
+        public Dictionary<string, IndexedEquation> IndexedEquationTemplates { get; } = new Dictionary<string, IndexedEquation>();
+        public Dictionary<string, LinearEquation> LabeledEquations { get; } = new Dictionary<string, LinearEquation>();
+        public List<LinearEquation> ParsedEquations { get; } = new List<LinearEquation>();
 
         public void AddParameter(Parameter parameter)
         {
@@ -54,59 +44,14 @@ namespace Core
             }
         }
 
-        public LinearEquation? GetEquationByLabel(string label)
+        public void Clear()
         {
-            return LabeledEquations.TryGetValue(label, out var equation) ? equation : null;
-        }
-
-        public Parameter? GetParameter(string name)
-        {
-            return Parameters.TryGetValue(name, out var param) ? param : null;
-        }
-
-        public List<LinearEquation> GetEquationsByBaseName(string baseName)
-        {
-            return ParsedEquations.Where(eq => eq.BaseName == baseName).OrderBy(eq => eq.Index).ToList();
-        }
-
-        public LinearEquation? GetIndexedEquation(string baseName, int index)
-        {
-            return ParsedEquations.FirstOrDefault(eq => eq.BaseName == baseName && eq.Index == index);
-        }
-
-        public List<IndexedVariable> GetVariablesByType(VariableType type)
-        {
-            return IndexedVariables.Values.Where(v => v.Type == type).ToList();
-        }
-
-        public VariableType? GetVariableType(string variableName)
-        {
-            return IndexedVariables.TryGetValue(variableName, out var variable) ? variable.Type : null;
-        }
-
-        public double GetIndexedVariableCoefficient(LinearEquation equation, string variableName, int index)
-        {
-            string expandedName = $"{variableName}{index}";
-            return equation.GetCoefficient(expandedName);
-        }
-
-        public List<int> GetUsedIndices(LinearEquation equation, string variableName)
-        {
-            var indices = new List<int>();
-            
-            foreach (var varKey in equation.GetVariables())
-            {
-                if (varKey.StartsWith(variableName))
-                {
-                    string indexPart = varKey.Substring(variableName.Length);
-                    if (int.TryParse(indexPart, out int index))
-                    {
-                        indices.Add(index);
-                    }
-                }
-            }
-            
-            return indices.OrderBy(i => i).ToList();
+            Parameters.Clear();
+            IndexSets.Clear();
+            IndexedVariables.Clear();
+            IndexedEquationTemplates.Clear();
+            LabeledEquations.Clear();
+            ParsedEquations.Clear();
         }
 
         public string GenerateParseResultsReport()
@@ -143,7 +88,6 @@ namespace Core
                 result.AppendLine($"Indexed Variables ({IndexedVariables.Count}):");
                 foreach (var variable in IndexedVariables.Values)
                 {
-                    var indexSet = IndexSets[variable.IndexSetName];
                     string typeStr = variable.Type switch
                     {
                         VariableType.Float => "float",
@@ -151,7 +95,23 @@ namespace Core
                         VariableType.Boolean => "bool",
                         _ => "float"
                     };
-                    result.AppendLine($"  {variable} → Type: {typeStr}, Expands to: {variable.BaseName}[{indexSet.StartIndex}]..{variable.BaseName}[{indexSet.EndIndex}]");
+
+                    // Check if this is a scalar variable (no index set)
+                    if (variable.IsScalar)
+                    {
+                        result.AppendLine($"  var {typeStr} {variable.BaseName} → Scalar variable");
+                    }
+                    else if (variable.IsTwoDimensional)
+                    {
+                        var indexSet1 = IndexSets[variable.IndexSetName];
+                        var indexSet2 = IndexSets[variable.SecondIndexSetName!];
+                        result.AppendLine($"  {variable} → Type: {typeStr}, Expands to: {variable.BaseName}[{indexSet1.StartIndex}..{indexSet1.EndIndex},{indexSet2.StartIndex}..{indexSet2.EndIndex}]");
+                    }
+                    else
+                    {
+                        var indexSet = IndexSets[variable.IndexSetName];
+                        result.AppendLine($"  {variable} → Type: {typeStr}, Expands to: {variable.BaseName}[{indexSet.StartIndex}]..{variable.BaseName}[{indexSet.EndIndex}]");
+                    }
                 }
                 result.AppendLine();
             }
@@ -162,9 +122,19 @@ namespace Core
                 result.AppendLine($"Indexed Equation Templates ({IndexedEquationTemplates.Count}):");
                 foreach (var template in IndexedEquationTemplates.Values)
                 {
-                    var indexSet = IndexSets[template.IndexSetName];
-                    result.AppendLine($"  {template}");
-                    result.AppendLine($"    → Expands to {indexSet.Count} equations");
+                    if (template.IsTwoDimensional)
+                    {
+                        var indexSet1 = IndexSets[template.IndexSetName];
+                        var indexSet2 = IndexSets[template.SecondIndexSetName!];
+                        result.AppendLine($"  {template}");
+                        result.AppendLine($"    → Expands to {indexSet1.Count * indexSet2.Count} equations");
+                    }
+                    else
+                    {
+                        var indexSet = IndexSets[template.IndexSetName];
+                        result.AppendLine($"  {template}");
+                        result.AppendLine($"    → Expands to {indexSet.Count} equations");
+                    }
                 }
                 result.AppendLine();
             }
@@ -206,7 +176,14 @@ namespace Core
                     }
                     if (eq.Index.HasValue)
                     {
-                        result.AppendLine($"   Index: {eq.Index.Value} (Base: {eq.BaseName})");
+                        if (eq.SecondIndex.HasValue)
+                        {
+                            result.AppendLine($"   Indices: [{eq.Index.Value},{eq.SecondIndex.Value}] (Base: {eq.BaseName})");
+                        }
+                        else
+                        {
+                            result.AppendLine($"   Index: {eq.Index.Value} (Base: {eq.BaseName})");
+                        }
                     }
                     result.AppendLine($"   Variables: {string.Join(", ", eq.GetVariables())}");
                     result.AppendLine($"   Constant: {eq.Constant}");

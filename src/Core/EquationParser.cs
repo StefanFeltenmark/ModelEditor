@@ -1051,7 +1051,7 @@ namespace Core
                     constantExpression = Regex.Replace(constantExpression, patternWithMultiply, "|");
                     constantExpression = Regex.Replace(constantExpression, patternImplicit, "|");
 
-                    string[] parts = constantExpression.Split(new[] { '|', '+', '-', '*' }, StringSplitOptions.RemoveEmptyEntries);
+                    string[] parts = constantExpression.Split(['|', '+', '-', '*'], StringSplitOptions.RemoveEmptyEntries);
                     foreach (string part in parts)
                     {
                         string trimmedPart = part.Trim();

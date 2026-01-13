@@ -22,3 +22,11 @@ src/.vs/NetWorks.slnx/DesignTimeBuild/
 *.db
 
 *.bin
+
+*.db-shm
+
+src/.vs/ModelEditor.slnx/copilot-chat/b39ca0fb/sessions/
+
+*.vsidx
+
+*.db-wal
