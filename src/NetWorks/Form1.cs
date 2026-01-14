@@ -14,6 +14,7 @@ namespace NetWorks
         private System.Windows.Forms.Timer highlightTimer;
         private bool hasUnsavedChanges = false;
         private bool isLoadingFile = false; // Flag to prevent TextChanged during file load
+        private bool isApplyingHighlight = false; // Flag to prevent TextChanged during syntax highlighting
 
         public Form1()
         {
@@ -155,15 +156,20 @@ namespace NetWorks
         // RichTextBox Events
         private void richTextBox1_TextChanged(object sender, EventArgs e)
         {
-            // Don't mark as unsaved if we're loading a file
-            if (!isLoadingFile)
+            // Don't mark as unsaved if we're loading a file or applying syntax highlighting
+            if (!isLoadingFile && !isApplyingHighlight)
             {
                 hasUnsavedChanges = true;
             }
             UpdateTitle();
             UpdateStatusBar();
-            highlightTimer.Stop();
-            highlightTimer.Start();
+            
+            // Only restart highlight timer if not currently applying highlighting
+            if (!isApplyingHighlight)
+            {
+                highlightTimer.Stop();
+                highlightTimer.Start();
+            }
         }
 
         private void richTextBox1_SelectionChanged(object sender, EventArgs e)
@@ -174,7 +180,9 @@ namespace NetWorks
         private void HighlightTimer_Tick(object sender, EventArgs e)
         {
             highlightTimer.Stop();
+            isApplyingHighlight = true;
             syntaxHighlighter.ApplySyntaxHighlighting();
+            isApplyingHighlight = false;
         }
 
         // Parse Button Event
@@ -233,7 +241,7 @@ namespace NetWorks
                     errorMsg.AppendLine("  Comments: // This is a comment");
                     errorMsg.AppendLine("  Parameters: int T = 10; float capacity = 100.5; string name = \"value\"");
                     errorMsg.AppendLine("  Index sets: range I = 1..10 or range I = 1..T");
-                    errorMsg.AppendLine("  Variables: var float x[I]; var int y[J]; var bool z[K]");
+                    errorMsg.AppendLine("  Variables: var float x[I]; var int y[J] in 0..100; var bool z[K]");
                     errorMsg.AppendLine("  Indexed equations: equation constraint[I]: x[i] + y[i] <= 10");
                     errorMsg.AppendLine("  Equations: 2x + 3y == 5  (use == for equality)");
                     errorMsg.AppendLine("  Labeled equations: eq1: 2x + 3y == 5");

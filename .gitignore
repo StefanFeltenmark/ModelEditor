@@ -30,3 +30,11 @@ src/.vs/ModelEditor.slnx/copilot-chat/b39ca0fb/sessions/
 *.vsidx
 
 *.db-wal
+
+src/.vs/ModelEditor.slnx/v17/
+
+src/Core/obj/
+
+src/NetWorks/obj/
+
+src/Tests/obj/

@@ -35,7 +35,7 @@ namespace Tests
 
             // Assert
             AssertNoErrors(result);
-            Assert.Equal(10, manager.GetParameter("T")?.Value);
+            Assert.Equal(10, manager.Parameters["T"]?.Value);
         }
 
         [Fact]

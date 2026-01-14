@@ -463,9 +463,80 @@ namespace Core
             variable = null;
             error = string.Empty;
 
-            // Try two-dimensional indexed variable: var [type] name[IndexSet1,IndexSet2]
-            // Updated pattern to handle optional whitespace around the comma
-            string twoDimPattern = @"^\s*var\s+(?:(float|int|bool)\s+)?([a-zA-Z][a-zA-Z0-9_]*)\s*\[\s*([a-zA-Z][a-zA-Z0-9_]*)\s*,\s*([a-zA-Z][a-zA-Z0-9_]*)\s*\]$";
+            // Helper function to parse bounds
+            bool TryParseBounds(string boundsStr, out double? lower, out double? upper, out string parseError)
+            {
+                lower = null;
+                upper = null;
+                parseError = string.Empty;
+
+                var boundsMatch = Regex.Match(boundsStr, @"^\s*(-?[\d.]+|[a-zA-Z][a-zA-Z0-9_]*)\s*\.\.\s*(-?[\d.]+|[a-zA-Z][a-zA-Z0-9_]*)\s*$");
+                if (!boundsMatch.Success)
+                {
+                    parseError = "Invalid bounds format. Expected: in lower..upper";
+                    return false;
+                }
+
+                string lowerStr = boundsMatch.Groups[1].Value;
+                string upperStr = boundsMatch.Groups[2].Value;
+
+                // Try to parse lower bound (could be number or parameter)
+                if (double.TryParse(lowerStr, out double lowerVal))
+                {
+                    lower = lowerVal;
+                }
+                else if (modelManager.Parameters.TryGetValue(lowerStr, out var lowerParam))
+                {
+                    if (lowerParam.Type == ParameterType.Integer || lowerParam.Type == ParameterType.Float)
+                    {
+                        lower = Convert.ToDouble(lowerParam.Value);
+                    }
+                    else
+                    {
+                        parseError = $"Parameter '{lowerStr}' must be numeric for bounds";
+                        return false;
+                    }
+                }
+                else
+                {
+                    parseError = $"Lower bound '{lowerStr}' is not a valid number or declared parameter";
+                    return false;
+                }
+
+                // Try to parse upper bound (could be number or parameter)
+                if (double.TryParse(upperStr, out double upperVal))
+                {
+                    upper = upperVal;
+                }
+                else if (modelManager.Parameters.TryGetValue(upperStr, out var upperParam))
+                {
+                    if (upperParam.Type == ParameterType.Integer || upperParam.Type == ParameterType.Float)
+                    {
+                        upper = Convert.ToDouble(upperParam.Value);
+                    }
+                    else
+                    {
+                        parseError = $"Parameter '{upperStr}' must be numeric for bounds";
+                        return false;
+                    }
+                }
+                else
+                {
+                    parseError = $"Upper bound '{upperStr}' is not a valid number or declared parameter";
+                    return false;
+                }
+
+                if (lower > upper)
+                {
+                    parseError = $"Lower bound ({lower}) cannot be greater than upper bound ({upper})";
+                    return false;
+                }
+
+                return true;
+            }
+
+            // Try two-dimensional indexed variable with optional bounds: var [type] name[IndexSet1,IndexSet2] [in l..u]
+            string twoDimPattern = @"^\s*var\s+(?:(float|int|bool)\s+)?([a-zA-Z][a-zA-Z0-9_]*)\s*\[\s*([a-zA-Z][a-zA-Z0-9_]*)\s*,\s*([a-zA-Z][a-zA-Z0-9_]*)\s*\](?:\s+in\s+(.+))?$";
             var twoDimMatch = Regex.Match(statement.Trim(), twoDimPattern);
 
             if (twoDimMatch.Success)
@@ -474,6 +545,7 @@ namespace Core
                 string varName = twoDimMatch.Groups[2].Value;
                 string indexSetName1 = twoDimMatch.Groups[3].Value;
                 string indexSetName2 = twoDimMatch.Groups[4].Value;
+                string boundsStr = twoDimMatch.Groups[5].Value;
 
                 VariableType varType = VariableType.Float;
                 if (!string.IsNullOrEmpty(typeStr))
@@ -499,12 +571,21 @@ namespace Core
                     return false;
                 }
 
-                variable = new IndexedVariable(varName, indexSetName1, varType, indexSetName2);
+                double? lower = null, upper = null;
+                if (!string.IsNullOrEmpty(boundsStr))
+                {
+                    if (!TryParseBounds(boundsStr, out lower, out upper, out error))
+                    {
+                        return false;
+                    }
+                }
+
+                variable = new IndexedVariable(varName, indexSetName1, varType, indexSetName2, lower, upper);
                 return true;
             }
 
-            // Try single-dimensional indexed variable: var [type] name[IndexSet]
-            string indexedPattern = @"^\s*var\s+(?:(float|int|bool)\s+)?([a-zA-Z][a-zA-Z0-9_]*)\s*\[\s*([a-zA-Z][a-zA-Z0-9_]*)\s*\]$";
+            // Try single-dimensional indexed variable with optional bounds: var [type] name[IndexSet] [in l..u]
+            string indexedPattern = @"^\s*var\s+(?:(float|int|bool)\s+)?([a-zA-Z][a-zA-Z0-9_]*)\s*\[\s*([a-zA-Z][a-zA-Z0-9_]*)\s*\](?:\s+in\s+(.+))?$";
             var indexedMatch = Regex.Match(statement.Trim(), indexedPattern);
 
             if (indexedMatch.Success)
@@ -512,6 +593,7 @@ namespace Core
                 string typeStr = indexedMatch.Groups[1].Value;
                 string varName = indexedMatch.Groups[2].Value;
                 string indexSetName = indexedMatch.Groups[3].Value;
+                string boundsStr = indexedMatch.Groups[4].Value;
 
                 VariableType varType = VariableType.Float;
                 if (!string.IsNullOrEmpty(typeStr))
@@ -531,18 +613,28 @@ namespace Core
                     return false;
                 }
 
-                variable = new IndexedVariable(varName, indexSetName, varType);
+                double? lower = null, upper = null;
+                if (!string.IsNullOrEmpty(boundsStr))
+                {
+                    if (!TryParseBounds(boundsStr, out lower, out upper, out error))
+                    {
+                        return false;
+                    }
+                }
+
+                variable = new IndexedVariable(varName, indexSetName, varType, null, lower, upper);
                 return true;
             }
 
-            // Try scalar variable: var [type] name
-            string scalarPattern = @"^\s*var\s+(?:(float|int|bool)\s+)?([a-zA-Z][a-zA-Z0-9_]*)$";
+            // Try scalar variable with optional bounds: var [type] name [in l..u]
+            string scalarPattern = @"^\s*var\s+(?:(float|int|bool)\s+)?([a-zA-Z][a-zA-Z0-9_]*)(?:\s+in\s+(.+))?$";
             var scalarMatch = Regex.Match(statement.Trim(), scalarPattern);
 
             if (scalarMatch.Success)
             {
                 string typeStr = scalarMatch.Groups[1].Value;
                 string varName = scalarMatch.Groups[2].Value;
+                string boundsStr = scalarMatch.Groups[3].Value;
 
                 VariableType varType = VariableType.Float;
                 if (!string.IsNullOrEmpty(typeStr))
@@ -556,8 +648,17 @@ namespace Core
                     };
                 }
 
+                double? lower = null, upper = null;
+                if (!string.IsNullOrEmpty(boundsStr))
+                {
+                    if (!TryParseBounds(boundsStr, out lower, out upper, out error))
+                    {
+                        return false;
+                    }
+                }
+
                 // Scalar variables use empty string for IndexSetName to distinguish from indexed
-                variable = new IndexedVariable(varName, string.Empty, varType);
+                variable = new IndexedVariable(varName, string.Empty, varType, null, lower, upper);
                 return true;
             }
 

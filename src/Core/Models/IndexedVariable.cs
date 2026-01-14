@@ -1,4 +1,4 @@
-namespace Core.Models
+﻿namespace Core.Models
 {
     /// <summary>
     /// Represents a variable in the optimization model with optional indexing
@@ -9,13 +9,17 @@ namespace Core.Models
         public string IndexSetName { get; set; }
         public string? SecondIndexSetName { get; set; }
         public VariableType Type { get; set; }
+        public double? LowerBound { get; set; }
+        public double? UpperBound { get; set; }
 
-        public IndexedVariable(string baseName, string indexSetName, VariableType type, string? secondIndexSetName = null)
+        public IndexedVariable(string baseName, string indexSetName, VariableType type, string? secondIndexSetName = null, double? lowerBound = null, double? upperBound = null)
         {
             BaseName = baseName;
             IndexSetName = indexSetName;
             SecondIndexSetName = secondIndexSetName;
             Type = type;
+            LowerBound = lowerBound;
+            UpperBound = upperBound;
         }
 
         /// <summary>
@@ -27,6 +31,11 @@ namespace Core.Models
         /// Returns true if this variable has two indices
         /// </summary>
         public bool IsTwoDimensional => !string.IsNullOrEmpty(SecondIndexSetName);
+
+        /// <summary>
+        /// Returns true if the variable has bounds specified
+        /// </summary>
+        public bool HasBounds => LowerBound.HasValue || UpperBound.HasValue;
 
         /// <summary>
         /// Gets the dimensionality of the variable (0 for scalar, 1 for single index, 2 for double index)
@@ -43,12 +52,22 @@ namespace Core.Models
 
         public override string ToString()
         {
+            string varDecl;
             if (IsScalar)
-                return $"{Type} {BaseName}";
+                varDecl = $"{Type} {BaseName}";
             else if (IsTwoDimensional)
-                return $"{Type} {BaseName}[{IndexSetName},{SecondIndexSetName}]";
+                varDecl = $"{Type} {BaseName}[{IndexSetName},{SecondIndexSetName}]";
             else
-                return $"{Type} {BaseName}[{IndexSetName}]";
+                varDecl = $"{Type} {BaseName}[{IndexSetName}]";
+
+            if (HasBounds)
+            {
+                string lower = LowerBound?.ToString() ?? "-∞";
+                string upper = UpperBound?.ToString() ?? "∞";
+                varDecl += $" in {lower}..{upper}";
+            }
+
+            return varDecl;
         }
     }
 }

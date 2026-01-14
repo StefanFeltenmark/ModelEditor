@@ -7,7 +7,7 @@ namespace Core
     /// </summary>
     public class ModelManager
     {
-            public Dictionary<string, Parameter> Parameters { get; } = new Dictionary<string, Parameter>();
+        public Dictionary<string, Parameter> Parameters { get; } = new Dictionary<string, Parameter>();
         public Dictionary<string, IndexSet> IndexSets { get; } = new Dictionary<string, IndexSet>();
         public Dictionary<string, IndexedVariable> IndexedVariables { get; } = new Dictionary<string, IndexedVariable>();
         public Dictionary<string, IndexedEquation> IndexedEquationTemplates { get; } = new Dictionary<string, IndexedEquation>();
@@ -192,6 +192,64 @@ namespace Core
             }
 
             return result.ToString();
+        }
+
+        public Parameter? GetParameter(string name)
+        {
+            return Parameters.TryGetValue(name, out var parameter) ? parameter : null;
+        }
+
+        public LinearEquation? GetEquationByLabel(string label)
+        {
+            return LabeledEquations.TryGetValue(label, out var equation) ? equation : null;
+        }
+
+        public IndexSet? GetIndexSet(string name)
+        {
+            return IndexSets.TryGetValue(name, out var indexSet) ? indexSet : null;
+        }
+
+        public IndexedVariable? GetIndexedVariable(string baseName)
+        {
+            return IndexedVariables.TryGetValue(baseName, out var variable) ? variable : null;
+        }
+
+        public VariableType? GetVariableType(string baseName)
+        {
+            return IndexedVariables.TryGetValue(baseName, out var variable) ? variable.Type : null;
+        }
+
+        public List<IndexedVariable> GetVariablesByType(VariableType type)
+        {
+            return IndexedVariables.Values
+                .Where(v => v.Type == type)
+                .ToList();
+        }
+
+        public List<LinearEquation> GetEquationsByBaseName(string baseName)
+        {
+            return ParsedEquations
+                .Where(eq => eq.BaseName == baseName)
+                .ToList();
+        }
+
+        public LinearEquation? GetIndexedEquation(string baseName, int index)
+        {
+            return ParsedEquations
+                .FirstOrDefault(eq => eq.BaseName == baseName && eq.Index == index);
+        }
+
+        public LinearEquation? GetIndexedEquation(string baseName, int index1, int index2)
+        {
+            return ParsedEquations
+                .FirstOrDefault(eq => eq.BaseName == baseName && eq.Index == index1 && eq.SecondIndex == index2);
+        }
+
+        public double GetIndexedVariableCoefficient(LinearEquation equation, string variableName, int index)
+        {
+            // For indexed variables, the actual variable name is baseName + index (e.g., "x1", "x2")
+            string fullVariableName = $"{variableName}{index}";
+            return equation.GetCoefficient(fullVariableName);
         }
     }
 }
