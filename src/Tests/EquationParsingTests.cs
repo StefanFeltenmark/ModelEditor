@@ -15,16 +15,16 @@ namespace Tests
             var manager = CreateModelManager();
             var parser = CreateParser(manager);
             string input = "2*x + 3*y == 10;";
-
+            input = "var x; var y;" + input;
             // Act
             var result = parser.Parse(input);
 
             // Assert
             AssertNoErrors(result);
-            Assert.Equal(1, result.SuccessCount);
-            Assert.Single(manager.ParsedEquations);
+            Assert.Equal(3, result.SuccessCount);
+            Assert.Single(manager.Equations);
             
-            var equation = manager.ParsedEquations[0];
+            var equation = manager.Equations[0];
             Assert.Equal(RelationalOperator.Equal, equation.Operator);
             Assert.Equal(10, equation.Constant);
             Assert.Equal(2, equation.GetCoefficient("x"));
@@ -37,14 +37,17 @@ namespace Tests
             // Arrange
             var manager = CreateModelManager();
             var parser = CreateParser(manager);
+
             string input = "1.5*x + 2.7*y == 5.3;";
+
+            input = "var x; var y;" + input;
 
             // Act
             var result = parser.Parse(input);
 
             // Assert
             AssertNoErrors(result);
-            var equation = manager.ParsedEquations[0];
+            var equation = manager.Equations[0];
             Assert.Equal(1.5, equation.GetCoefficient("x"), 2);
             Assert.Equal(2.7, equation.GetCoefficient("y"), 2);
             Assert.Equal(5.3, equation.Constant, 2);
@@ -57,6 +60,8 @@ namespace Tests
             var manager = CreateModelManager();
             var parser = CreateParser(manager);
             string input = "eq1: x + y == 5;";
+
+            input = "var x; var y;" + input;
 
             // Act
             var result = parser.Parse(input);
@@ -80,12 +85,14 @@ namespace Tests
             var manager = CreateModelManager();
             var parser = CreateParser(manager);
 
+            string inp = "var x; var y;" + input + ";";
+
             // Act
-            var result = parser.Parse(input + ";");
+            var result = parser.Parse(inp);
 
             // Assert
             AssertNoErrors(result);
-            Assert.Equal(expectedOp, manager.ParsedEquations[0].Operator);
+            Assert.Equal(expectedOp, manager.Equations[0].Operator);
         }
 
         [Fact]
@@ -94,14 +101,14 @@ namespace Tests
             // Arrange
             var manager = CreateModelManager();
             var parser = CreateParser(manager);
-            string input = "x + y == 5;";
+            string input = "var x; var y; x + y == 5;";
 
             // Act
             var result = parser.Parse(input);
 
             // Assert
             AssertNoErrors(result);
-            var equation = manager.ParsedEquations[0];
+            var equation = manager.Equations[0];
             Assert.Equal(1, equation.GetCoefficient("x"));
             Assert.Equal(1, equation.GetCoefficient("y"));
         }
@@ -112,14 +119,14 @@ namespace Tests
             // Arrange
             var manager = CreateModelManager();
             var parser = CreateParser(manager);
-            string input = "-2*x + 3*y == 10;";
+            string input = "var x; var y;-2*x + 3*y == 10;";
 
             // Act
             var result = parser.Parse(input);
 
             // Assert
             AssertNoErrors(result);
-            var equation = manager.ParsedEquations[0];
+            var equation = manager.Equations[0];
             Assert.Equal(-2, equation.GetCoefficient("x"));
             Assert.Equal(3, equation.GetCoefficient("y"));
         }
@@ -130,7 +137,7 @@ namespace Tests
             // Arrange
             var manager = CreateModelManager();
             var parser = CreateParser(manager);
-            string input = @"
+            string input = @"var x; var y;
                 eq1: x + y == 5;
                 eq2: 2*x - y == 3;
                 eq3: x + 2*y <= 10;
@@ -141,8 +148,8 @@ namespace Tests
 
             // Assert
             AssertNoErrors(result);
-            Assert.Equal(3, result.SuccessCount);
-            Assert.Equal(3, manager.ParsedEquations.Count);
+            Assert.Equal(5, result.SuccessCount);
+            Assert.Equal(3, manager.Equations.Count);
             Assert.Equal(3, manager.LabeledEquations.Count);
         }
 
@@ -151,7 +158,7 @@ namespace Tests
         {
             // Arrange
             var parser = CreateParser();
-            string input = "x + y = 5;";
+            string input = "var x; var y;x + y = 5;";
 
             // Act
             var result = parser.Parse(input);
@@ -171,7 +178,7 @@ namespace Tests
             var parser = CreateParser();
 
             // Act
-            var result = parser.Parse(input + ";");
+            var result = parser.Parse("var x; var y;" + input + ";");
 
             // Assert
             AssertHasError(result);

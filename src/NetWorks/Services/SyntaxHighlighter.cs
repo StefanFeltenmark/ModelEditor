@@ -1,8 +1,8 @@
 ﻿using System.Runtime.InteropServices;
 using System.Text.RegularExpressions;
-using NetWorks.Extensions;
+using ModelEditorApp.Extensions;
 
-namespace NetWorks.Services
+namespace ModelEditorApp.Services
 {
     /// <summary>
     /// Handles syntax highlighting for the equation editor

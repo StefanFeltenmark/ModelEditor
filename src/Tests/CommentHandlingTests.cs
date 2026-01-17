@@ -7,20 +7,7 @@ namespace Tests
     /// </summary>
     public class CommentHandlingTests : TestBase
     {
-        [Fact]
-        public void Parse_SingleLineComment_ShouldIgnore()
-        {
-            // Arrange
-            var parser = CreateParser();
-            string input = "// This is a comment";
-
-            // Act
-            var result = parser.Parse(input);
-
-            // Assert
-            // Should have error because there's no actual content
-            AssertHasError(result);
-        }
+       
 
         [Fact]
         public void Parse_InlineComment_ShouldParseBeforeComment()

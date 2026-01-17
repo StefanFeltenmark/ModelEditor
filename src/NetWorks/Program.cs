@@ -1,4 +1,5 @@
-namespace NetWorks
+
+namespace ModelEditorApp
 {
     internal static class Program
     {

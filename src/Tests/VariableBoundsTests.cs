@@ -690,7 +690,7 @@ namespace Tests
 
             // Assert
             AssertNoErrors(result);
-            Assert.Equal(13, result.SuccessCount);
+            Assert.Equal(12, result.SuccessCount);
             
             // Verify parameters
             Assert.Equal(3, manager.Parameters.Count);

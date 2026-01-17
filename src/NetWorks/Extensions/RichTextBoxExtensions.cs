@@ -1,4 +1,4 @@
-namespace NetWorks.Extensions
+namespace ModelEditorApp.Extensions
 {
     public static class RichTextBoxExtensions
     {

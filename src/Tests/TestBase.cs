@@ -23,14 +23,16 @@ namespace Tests
             Assert.False(result.HasErrors, $"Expected no errors, but got: {string.Join("; ", result.Errors)}");
         }
 
-        protected void AssertHasError(ParseSessionResult result, string? expectedErrorFragment = null)
+        protected void AssertHasError(ParseSessionResult result)
         {
-            Assert.True(result.HasErrors, "Expected parsing errors, but got none");
-            
-            if (!string.IsNullOrEmpty(expectedErrorFragment))
-            {
-                Assert.Contains(result.Errors, e => e.Message.Contains(expectedErrorFragment, StringComparison.OrdinalIgnoreCase));
-            }
+            Assert.True(result.HasErrors, "Expected parsing errors but got none");
+        }
+
+        protected void AssertHasError(ParseSessionResult result, string expectedErrorText)
+        {
+            Assert.True(result.HasErrors, "Expected parsing errors but got none");
+            var errors = string.Join(", ", result.GetErrorMessages());
+            Assert.Contains(expectedErrorText, errors, StringComparison.OrdinalIgnoreCase);
         }
     }
 }

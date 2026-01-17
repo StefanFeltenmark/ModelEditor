@@ -12,10 +12,29 @@ namespace Core
         public Dictionary<string, IndexedVariable> IndexedVariables { get; } = new Dictionary<string, IndexedVariable>();
         public Dictionary<string, IndexedEquation> IndexedEquationTemplates { get; } = new Dictionary<string, IndexedEquation>();
         public Dictionary<string, LinearEquation> LabeledEquations { get; } = new Dictionary<string, LinearEquation>();
-        public List<LinearEquation> ParsedEquations { get; } = new List<LinearEquation>();
+        public List<LinearEquation> Equations { get; } = new List<LinearEquation>();
 
         public void AddParameter(Parameter parameter)
         {
+            if (Parameters.ContainsKey(parameter.Name))
+            {
+                throw new InvalidOperationException($"Parameter '{parameter.Name}' is already defined");
+            }
+            
+            // For indexed parameters, validate that the index sets exist
+            if (parameter.IsIndexed)
+            {
+                if (!IndexSets.ContainsKey(parameter.IndexSetName))
+                {
+                    throw new InvalidOperationException($"Index set '{parameter.IndexSetName}' is not defined for parameter '{parameter.Name}'");
+                }
+                
+                if (parameter.IsTwoDimensional && !IndexSets.ContainsKey(parameter.SecondIndexSetName!))
+                {
+                    throw new InvalidOperationException($"Index set '{parameter.SecondIndexSetName}' is not defined for parameter '{parameter.Name}'");
+                }
+            }
+            
             Parameters[parameter.Name] = parameter;
         }
 
@@ -36,7 +55,7 @@ namespace Core
 
         public void AddEquation(LinearEquation equation)
         {
-            ParsedEquations.Add(equation);
+            Equations.Add(equation);
             
             if (!string.IsNullOrEmpty(equation.Label))
             {
@@ -51,7 +70,7 @@ namespace Core
             IndexedVariables.Clear();
             IndexedEquationTemplates.Clear();
             LabeledEquations.Clear();
-            ParsedEquations.Clear();
+            Equations.Clear();
         }
 
         public string GenerateParseResultsReport()
@@ -151,22 +170,22 @@ namespace Core
             }
 
             // Show equations
-            if (ParsedEquations.Count > 0)
+            if (Equations.Count > 0)
             {
-                int equationCount = ParsedEquations.Count(eq => !eq.IsInequality());
-                int inequalityCount = ParsedEquations.Count(eq => eq.IsInequality());
-                int labeledCount = ParsedEquations.Count(eq => !string.IsNullOrEmpty(eq.Label));
-                int indexedCount = ParsedEquations.Count(eq => eq.Index.HasValue);
+                int equationCount = Equations.Count(eq => !eq.IsInequality());
+                int inequalityCount = Equations.Count(eq => eq.IsInequality());
+                int labeledCount = Equations.Count(eq => !string.IsNullOrEmpty(eq.Label));
+                int indexedCount = Equations.Count(eq => eq.Index.HasValue);
                 
-                result.AppendLine($"All Equations & Inequalities ({ParsedEquations.Count}):");
+                result.AppendLine($"All Equations & Inequalities ({Equations.Count}):");
                 result.AppendLine($"  Equations: {equationCount}");
                 result.AppendLine($"  Inequalities: {inequalityCount}");
                 result.AppendLine($"  Labeled: {labeledCount}");
                 result.AppendLine($"  Indexed: {indexedCount}\n");
 
-                for (int i = 0; i < ParsedEquations.Count; i++)
+                for (int i = 0; i < Equations.Count; i++)
                 {
-                    var eq = ParsedEquations[i];
+                    var eq = Equations[i];
                     result.AppendLine($"{i + 1}. {eq}");
                     result.AppendLine($"   Type: {(eq.IsInequality() ? "Inequality" : "Equation")}");
                     result.AppendLine($"   Operator: {eq.GetOperatorSymbol()}");
@@ -228,20 +247,20 @@ namespace Core
 
         public List<LinearEquation> GetEquationsByBaseName(string baseName)
         {
-            return ParsedEquations
+            return Equations
                 .Where(eq => eq.BaseName == baseName)
                 .ToList();
         }
 
         public LinearEquation? GetIndexedEquation(string baseName, int index)
         {
-            return ParsedEquations
+            return Equations
                 .FirstOrDefault(eq => eq.BaseName == baseName && eq.Index == index);
         }
 
         public LinearEquation? GetIndexedEquation(string baseName, int index1, int index2)
         {
-            return ParsedEquations
+            return Equations
                 .FirstOrDefault(eq => eq.BaseName == baseName && eq.Index == index1 && eq.SecondIndex == index2);
         }
 

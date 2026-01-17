@@ -1,4 +1,4 @@
-﻿namespace NetWorks
+﻿namespace ModelEditorApp
 {
     partial class Form1
     {
@@ -31,10 +31,23 @@
             menuStrip1 = new MenuStrip();
             fileToolStripMenuItem = new ToolStripMenuItem();
             newToolStripMenuItem = new ToolStripMenuItem();
+            newModelToolStripMenuItem = new ToolStripMenuItem();
+            newDataFileToolStripMenuItem = new ToolStripMenuItem();
             openToolStripMenuItem = new ToolStripMenuItem();
+            openModelToolStripMenuItem = new ToolStripMenuItem();
+            openDataFileToolStripMenuItem = new ToolStripMenuItem();
+            toolStripSeparator3 = new ToolStripSeparator();
+            closeTabToolStripMenuItem = new ToolStripMenuItem();
+            closeAllTabsToolStripMenuItem = new ToolStripMenuItem();
+            toolStripSeparator4 = new ToolStripSeparator();
             saveToolStripMenuItem = new ToolStripMenuItem();
             saveAsToolStripMenuItem = new ToolStripMenuItem();
+            saveAllToolStripMenuItem = new ToolStripMenuItem();
             toolStripSeparator1 = new ToolStripSeparator();
+            sessionToolStripMenuItem = new ToolStripMenuItem();
+            restoreSessionToolStripMenuItem = new ToolStripMenuItem();
+            clearSessionToolStripMenuItem = new ToolStripMenuItem();
+            toolStripSeparator5 = new ToolStripSeparator();
             exitToolStripMenuItem = new ToolStripMenuItem();
             editToolStripMenuItem = new ToolStripMenuItem();
             cutToolStripMenuItem = new ToolStripMenuItem();
@@ -42,7 +55,7 @@
             pasteToolStripMenuItem = new ToolStripMenuItem();
             toolStripSeparator2 = new ToolStripSeparator();
             selectAllToolStripMenuItem = new ToolStripMenuItem();
-            richTextBox1 = new RichTextBox();
+            tabControl1 = new TabControl();
             panel1 = new Panel();
             btnParse = new Button();
             statusStrip1 = new StatusStrip();
@@ -70,26 +83,82 @@
             // 
             // fileToolStripMenuItem
             // 
-            fileToolStripMenuItem.DropDownItems.AddRange(new ToolStripItem[] { newToolStripMenuItem, openToolStripMenuItem, saveToolStripMenuItem, saveAsToolStripMenuItem, toolStripSeparator1, exitToolStripMenuItem });
+            fileToolStripMenuItem.DropDownItems.AddRange(new ToolStripItem[] { newToolStripMenuItem, openToolStripMenuItem, toolStripSeparator3, closeTabToolStripMenuItem, closeAllTabsToolStripMenuItem, toolStripSeparator4, saveToolStripMenuItem, saveAsToolStripMenuItem, saveAllToolStripMenuItem, toolStripSeparator1, sessionToolStripMenuItem, toolStripSeparator5, exitToolStripMenuItem });
             fileToolStripMenuItem.Name = "fileToolStripMenuItem";
             fileToolStripMenuItem.Size = new Size(37, 20);
             fileToolStripMenuItem.Text = "&File";
             // 
             // newToolStripMenuItem
             // 
+            newToolStripMenuItem.DropDownItems.AddRange(new ToolStripItem[] { newModelToolStripMenuItem, newDataFileToolStripMenuItem });
             newToolStripMenuItem.Name = "newToolStripMenuItem";
-            newToolStripMenuItem.ShortcutKeys = Keys.Control | Keys.N;
             newToolStripMenuItem.Size = new Size(186, 22);
             newToolStripMenuItem.Text = "&New";
-            newToolStripMenuItem.Click += newToolStripMenuItem_Click;
+            // 
+            // newModelToolStripMenuItem
+            // 
+            newModelToolStripMenuItem.Name = "newModelToolStripMenuItem";
+            newModelToolStripMenuItem.ShortcutKeys = Keys.Control | Keys.N;
+            newModelToolStripMenuItem.Size = new Size(195, 22);
+            newModelToolStripMenuItem.Text = "Model File (.mod)";
+            newModelToolStripMenuItem.Click += newModelToolStripMenuItem_Click;
+            // 
+            // newDataFileToolStripMenuItem
+            // 
+            newDataFileToolStripMenuItem.Name = "newDataFileToolStripMenuItem";
+            newDataFileToolStripMenuItem.ShortcutKeys = Keys.Control | Keys.Shift | Keys.N;
+            newDataFileToolStripMenuItem.Size = new Size(195, 22);
+            newDataFileToolStripMenuItem.Text = "Data File (.dat)";
+            newDataFileToolStripMenuItem.Click += newDataFileToolStripMenuItem_Click;
             // 
             // openToolStripMenuItem
             // 
+            openToolStripMenuItem.DropDownItems.AddRange(new ToolStripItem[] { openModelToolStripMenuItem, openDataFileToolStripMenuItem });
             openToolStripMenuItem.Name = "openToolStripMenuItem";
-            openToolStripMenuItem.ShortcutKeys = Keys.Control | Keys.O;
             openToolStripMenuItem.Size = new Size(186, 22);
             openToolStripMenuItem.Text = "&Open";
-            openToolStripMenuItem.Click += openToolStripMenuItem_Click;
+            // 
+            // openModelToolStripMenuItem
+            // 
+            openModelToolStripMenuItem.Name = "openModelToolStripMenuItem";
+            openModelToolStripMenuItem.ShortcutKeys = Keys.Control | Keys.O;
+            openModelToolStripMenuItem.Size = new Size(195, 22);
+            openModelToolStripMenuItem.Text = "Model File (.mod)";
+            openModelToolStripMenuItem.Click += openModelToolStripMenuItem_Click;
+            // 
+            // openDataFileToolStripMenuItem
+            // 
+            openDataFileToolStripMenuItem.Name = "openDataFileToolStripMenuItem";
+            openDataFileToolStripMenuItem.ShortcutKeys = Keys.Control | Keys.Shift | Keys.O;
+            openDataFileToolStripMenuItem.Size = new Size(195, 22);
+            openDataFileToolStripMenuItem.Text = "Data File (.dat)";
+            openDataFileToolStripMenuItem.Click += openDataFileToolStripMenuItem_Click;
+            // 
+            // toolStripSeparator3
+            // 
+            toolStripSeparator3.Name = "toolStripSeparator3";
+            toolStripSeparator3.Size = new Size(183, 6);
+            // 
+            // closeTabToolStripMenuItem
+            // 
+            closeTabToolStripMenuItem.Name = "closeTabToolStripMenuItem";
+            closeTabToolStripMenuItem.ShortcutKeys = Keys.Control | Keys.W;
+            closeTabToolStripMenuItem.Size = new Size(186, 22);
+            closeTabToolStripMenuItem.Text = "&Close Tab";
+            closeTabToolStripMenuItem.Click += closeTabToolStripMenuItem_Click;
+            // 
+            // closeAllTabsToolStripMenuItem
+            // 
+            closeAllTabsToolStripMenuItem.Name = "closeAllTabsToolStripMenuItem";
+            closeAllTabsToolStripMenuItem.ShortcutKeys = Keys.Control | Keys.Shift | Keys.W;
+            closeAllTabsToolStripMenuItem.Size = new Size(186, 22);
+            closeAllTabsToolStripMenuItem.Text = "Close All Tabs";
+            closeAllTabsToolStripMenuItem.Click += closeAllTabsToolStripMenuItem_Click;
+            // 
+            // toolStripSeparator4
+            // 
+            toolStripSeparator4.Name = "toolStripSeparator4";
+            toolStripSeparator4.Size = new Size(183, 6);
             // 
             // saveToolStripMenuItem
             // 
@@ -107,10 +176,44 @@
             saveAsToolStripMenuItem.Text = "Save &As";
             saveAsToolStripMenuItem.Click += saveAsToolStripMenuItem_Click;
             // 
+            // saveAllToolStripMenuItem
+            // 
+            saveAllToolStripMenuItem.Name = "saveAllToolStripMenuItem";
+            saveAllToolStripMenuItem.ShortcutKeys = Keys.Control | Keys.Shift | Keys.A;
+            saveAllToolStripMenuItem.Size = new Size(186, 22);
+            saveAllToolStripMenuItem.Text = "Save All";
+            saveAllToolStripMenuItem.Click += saveAllToolStripMenuItem_Click;
+            // 
             // toolStripSeparator1
             // 
             toolStripSeparator1.Name = "toolStripSeparator1";
             toolStripSeparator1.Size = new Size(183, 6);
+            // 
+            // sessionToolStripMenuItem
+            // 
+            sessionToolStripMenuItem.DropDownItems.AddRange(new ToolStripItem[] { restoreSessionToolStripMenuItem, clearSessionToolStripMenuItem });
+            sessionToolStripMenuItem.Name = "sessionToolStripMenuItem";
+            sessionToolStripMenuItem.Size = new Size(186, 22);
+            sessionToolStripMenuItem.Text = "Session";
+            // 
+            // restoreSessionToolStripMenuItem
+            // 
+            restoreSessionToolStripMenuItem.Name = "restoreSessionToolStripMenuItem";
+            restoreSessionToolStripMenuItem.Size = new Size(180, 22);
+            restoreSessionToolStripMenuItem.Text = "Restore Session...";
+            restoreSessionToolStripMenuItem.Click += restoreSessionToolStripMenuItem_Click;
+            // 
+            // clearSessionToolStripMenuItem
+            // 
+            clearSessionToolStripMenuItem.Name = "clearSessionToolStripMenuItem";
+            clearSessionToolStripMenuItem.Size = new Size(180, 22);
+            clearSessionToolStripMenuItem.Text = "Clear Session Data";
+            clearSessionToolStripMenuItem.Click += clearSessionToolStripMenuItem_Click;
+            // 
+            // toolStripSeparator5
+            // 
+            toolStripSeparator5.Name = "toolStripSeparator5";
+            toolStripSeparator5.Size = new Size(183, 6);
             // 
             // exitToolStripMenuItem
             // 
@@ -163,19 +266,17 @@
             selectAllToolStripMenuItem.Text = "Select &All";
             selectAllToolStripMenuItem.Click += selectAllToolStripMenuItem_Click;
             // 
-            // richTextBox1
+            // tabControl1
             // 
-            richTextBox1.Dock = DockStyle.Fill;
-            richTextBox1.Font = new Font("Consolas", 11F);
-            richTextBox1.Location = new Point(0, 24);
-            richTextBox1.Name = "richTextBox1";
-            richTextBox1.Size = new Size(1200, 585);
-            richTextBox1.TabIndex = 1;
-            richTextBox1.Text = "";
-            richTextBox1.WordWrap = false;
-            richTextBox1.TextChanged += richTextBox1_TextChanged;
-            richTextBox1.SelectionChanged += richTextBox1_SelectionChanged;
-            //  
+            tabControl1.Dock = DockStyle.Fill;
+            tabControl1.Location = new Point(0, 24);
+            tabControl1.Name = "tabControl1";
+            tabControl1.SelectedIndex = 0;
+            tabControl1.Size = new Size(1200, 585);
+            tabControl1.TabIndex = 1;
+            tabControl1.SelectedIndexChanged += tabControl1_SelectedIndexChanged;
+            tabControl1.MouseDown += tabControl1_MouseDown;
+            // 
             // panel1
             // 
             panel1.Controls.Add(btnParse);
@@ -269,13 +370,13 @@
             AutoScaleDimensions = new SizeF(7F, 15F);
             AutoScaleMode = AutoScaleMode.Font;
             ClientSize = new Size(1200, 675);
-            Controls.Add(richTextBox1);
+            Controls.Add(tabControl1);
             Controls.Add(panel1);
             Controls.Add(statusStrip1);
             Controls.Add(menuStrip1);
             MainMenuStrip = menuStrip1;
             Name = "Form1";
-            Text = "Simple Text Editor";
+            Text = "Model Editor";
             menuStrip1.ResumeLayout(false);
             menuStrip1.PerformLayout();
             panel1.ResumeLayout(false);
@@ -290,10 +391,23 @@
         private MenuStrip menuStrip1;
         private ToolStripMenuItem fileToolStripMenuItem;
         private ToolStripMenuItem newToolStripMenuItem;
+        private ToolStripMenuItem newModelToolStripMenuItem;
+        private ToolStripMenuItem newDataFileToolStripMenuItem;
         private ToolStripMenuItem openToolStripMenuItem;
+        private ToolStripMenuItem openModelToolStripMenuItem;
+        private ToolStripMenuItem openDataFileToolStripMenuItem;
+        private ToolStripSeparator toolStripSeparator3;
+        private ToolStripMenuItem closeTabToolStripMenuItem;
+        private ToolStripMenuItem closeAllTabsToolStripMenuItem;
+        private ToolStripSeparator toolStripSeparator4;
         private ToolStripMenuItem saveToolStripMenuItem;
         private ToolStripMenuItem saveAsToolStripMenuItem;
+        private ToolStripMenuItem saveAllToolStripMenuItem;
         private ToolStripSeparator toolStripSeparator1;
+        private ToolStripMenuItem sessionToolStripMenuItem;
+        private ToolStripMenuItem restoreSessionToolStripMenuItem;
+        private ToolStripMenuItem clearSessionToolStripMenuItem;
+        private ToolStripSeparator toolStripSeparator5;
         private ToolStripMenuItem exitToolStripMenuItem;
         private ToolStripMenuItem editToolStripMenuItem;
         private ToolStripMenuItem cutToolStripMenuItem;
@@ -301,7 +415,7 @@
         private ToolStripMenuItem pasteToolStripMenuItem;
         private ToolStripSeparator toolStripSeparator2;
         private ToolStripMenuItem selectAllToolStripMenuItem;
-        private RichTextBox richTextBox1;
+        private TabControl tabControl1;
         private Panel panel1;
         private Button btnParse;
         private StatusStrip statusStrip1;

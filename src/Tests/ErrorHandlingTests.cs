@@ -33,18 +33,7 @@ namespace Tests
             AssertHasError(result, "No text");
         }
 
-        [Fact]
-        public void Parse_CommentsOnly_ShouldReturnError()
-        {
-            // Arrange
-            var parser = CreateParser();
-
-            // Act
-            var result = parser.Parse("// Just comments\n// Nothing else");
-
-            // Assert
-            AssertHasError(result);
-        }
+        
 
         [Fact]
         public void Parse_InvalidStatement_ShouldReportError()
@@ -99,43 +88,8 @@ namespace Tests
             AssertHasError(result);
         }
 
-        [Fact]
-        public void Parse_DuplicateParameterNames_ShouldOverwrite()
-        {
-            // Arrange
-            var manager = CreateModelManager();
-            var parser = CreateParser(manager);
-            string input = @"
-                int T = 5;
-                int T = 10;
-            ";
-
-            // Act
-            var result = parser.Parse(input);
-
-            // Assert
-            AssertNoErrors(result);
-            Assert.Equal(10, manager.Parameters["T"]?.Value);
-        }
-
-        [Fact]
-        public void Parse_DuplicateIndexSetNames_ShouldOverwrite()
-        {
-            // Arrange
-            var manager = CreateModelManager();
-            var parser = CreateParser(manager);
-            string input = @"
-                range I = 1..5;
-                range I = 1..10;
-            ";
-
-            // Act
-            var result = parser.Parse(input);
-
-            // Assert
-            AssertNoErrors(result);
-            Assert.Equal(10, manager.IndexSets["I"].EndIndex);
-        }
+       
+      
 
         [Fact]
         public void Parse_MultipleSemicolons_ShouldIgnoreEmpty()

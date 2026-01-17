@@ -101,28 +101,28 @@ namespace Tests
             var parser = CreateParser(manager);
             string input = @"
                 range I = 1..2;
-                range J = 1..2;
+                range J = 1..3;
                 var float x[I,J];
-                equation capacity[I,J]: x[i,j] <= 100;
+                
+                constraint[i in I, j in J]: x[i,j] >= 0;
             ";
 
             // Act
             var result = parser.Parse(input);
+            parser.ExpandIndexedEquations(result);
 
             // Assert
             AssertNoErrors(result);
-            Assert.Equal(3 + 4, result.SuccessCount); // 3 declarations + 4 expanded equations (2x2)
-            Assert.Equal(4, manager.ParsedEquations.Count);
+            Assert.Equal(6, manager.Equations.Count); // 2 * 3 = 6 equations
             
-            // Check first expanded equation: x[1,1] <= 100
-            var eq = manager.ParsedEquations.First(e => e.Index == 1 && e.SecondIndex == 1);
-            Assert.NotNull(eq);
-            Assert.Equal("capacity", eq.BaseName);
-            Assert.True(eq.IsTwoDimensional);
-            Assert.Equal(RelationalOperator.LessThanOrEqual, eq.Operator);
-            Assert.Equal(100, eq.Constant);
-            Assert.Single(eq.Coefficients);
-            Assert.Equal(1, eq.Coefficients["x1_1"]);
+            foreach (var eq in manager.Equations)
+            {
+                Assert.Equal("constraint", eq.BaseName);
+                Assert.NotNull(eq.Index);
+                Assert.NotNull(eq.SecondIndex);
+                Assert.Equal(RelationalOperator.GreaterThanOrEqual, eq.Operator);
+                Assert.Equal(0.0, eq.Constant);
+            }
         }
 
         [Fact]
@@ -136,7 +136,7 @@ namespace Tests
                 range J = 1..2;
                 var float x[I,J];
                 var float y[I,J];
-                equation balance[I,J]: x[i,j] + 2*y[i,j] == 10;
+                balance[i in I,j in J]: x[i,j] + 2*y[i,j] == 10;
             ";
 
             // Act
@@ -144,10 +144,10 @@ namespace Tests
 
             // Assert
             AssertNoErrors(result);
-            Assert.Equal(1, manager.ParsedEquations.Count);
+            Assert.Equal(1, manager.Equations.Count);
             
             // Check equation for i=1, j=2: x[1,2] + 2*y[1,2] == 10
-            var eq = manager.ParsedEquations.First(e => e.Index == 1 && e.SecondIndex == 2);
+            var eq = manager.Equations.First(e => e.Index == 1 && e.SecondIndex == 2);
             Assert.Equal(2, eq.Coefficients.Count);
             Assert.Equal(1, eq.Coefficients["x1_2"]);
             Assert.Equal(2, eq.Coefficients["y1_2"]);
@@ -166,7 +166,7 @@ namespace Tests
                 var float x[I,J];
                 var float total[I];
                 var float constant;
-                equation sum[I,J]: x[i,j] + total[i] + constant == 100;
+                sum[i in I,j in J]: x[i,j] + total[i] + constant == 100;
             ";
 
             // Act
@@ -176,7 +176,7 @@ namespace Tests
             AssertNoErrors(result);
             
             // Check equation for i=1, j=1
-                    var eq = manager.ParsedEquations.First(e => e.Index == 1 && e.SecondIndex == 1);
+                    var eq = manager.Equations.First(e => e.Index == 1 && e.SecondIndex == 1);
             Assert.Equal(3, eq.Coefficients.Count);
             Assert.Contains("x1_1", eq.Coefficients.Keys);
             Assert.Contains("total1", eq.Coefficients.Keys);

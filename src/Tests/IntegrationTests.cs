@@ -31,33 +31,39 @@ namespace Tests
                 
                 // Define equations
                 objective: 2*x + 3*y1 == 100;
-                equation capacity[I]: y[i] <= T;
+                capacity[i in I]: y[i] <= T;
                 constraint: x + y1 >= 5;
             ";
 
             // Act
             var result = parser.Parse(input);
+            parser.ExpandIndexedEquations(result);
 
             // Assert
             AssertNoErrors(result);
             
             // Verify parameters
             Assert.Equal(3, manager.Parameters.Count);
-            Assert.Equal(10, manager.GetParameter("T")?.Value);
+            var tParam = manager.Parameters["T"];
+            Assert.NotNull(tParam);
+            Assert.Equal(10, tParam.Value);
             
             // Verify index sets
             Assert.Equal(2, manager.IndexSets.Count);
             
             // Verify variables
             Assert.Equal(3, manager.IndexedVariables.Count);
-            Assert.Equal(VariableType.Float, manager.GetVariableType("x"));
-            Assert.Equal(VariableType.Integer, manager.GetVariableType("y"));
-            Assert.Equal(VariableType.Boolean, manager.GetVariableType("z"));
+            Assert.True(manager.IndexedVariables.ContainsKey("x"));
+            Assert.True(manager.IndexedVariables.ContainsKey("y"));
+            Assert.True(manager.IndexedVariables.ContainsKey("z"));
             
-            // Verify equations
-            Assert.True(manager.ParsedEquations.Count >= 3);
-            Assert.NotNull(manager.GetEquationByLabel("objective"));
-            Assert.NotNull(manager.GetEquationByLabel("constraint"));
+            // Verify equations (10 from capacity[i in I] + 2 regular)
+            Assert.Equal(12, manager.Equations.Count);
+            
+            // Check that we have equations with the right base names
+            Assert.Single(manager.Equations.Where(e => e.Label == "objective"));
+            Assert.Single(manager.Equations.Where(e => e.Label == "constraint"));
+            Assert.Equal(10, manager.Equations.Count(e => e.BaseName == "capacity"));
         }
 
         [Fact]
@@ -70,7 +76,7 @@ namespace Tests
                 // This is a comment
                 int T = 10; // inline comment
                 range I = 1..T; // another comment
-                var x; // variable comment
+                var float x; // variable comment
             ";
 
             // Act
@@ -115,7 +121,7 @@ namespace Tests
                 int T = 10;
                 range I = 1..T;
                 var y[I];
-                equation eq[I]: x + y[i] == T;
+                eq[i in I]: x + y[i] == T;
             ";
 
             // Act
@@ -134,7 +140,8 @@ namespace Tests
             var parser = CreateParser(manager);
             string input = @"
                 range I = 1..100;
-                equation constraint[I]: x[i] <= 10;
+                var float x[I];
+                constraint[i in I]: x[i] <= 10;
             ";
 
             // Act

@@ -122,7 +122,7 @@ namespace Tests
             
             // Should be parsed as a parameter, not an equation
             Assert.Single(manager.Parameters);
-            Assert.Empty(manager.ParsedEquations);
+            Assert.Empty(manager.Equations);
             
             var param = manager.GetParameter("result");
             Assert.NotNull(param);
@@ -144,7 +144,7 @@ namespace Tests
             // Assert
             AssertNoErrors(result);
             Assert.Single(manager.Parameters);
-            Assert.Empty(manager.ParsedEquations);
+            Assert.Empty(manager.Equations);
             
             var param = manager.GetParameter("count");
             Assert.Equal(11, param.Value); // 5 + (3 * 2) = 11
@@ -171,13 +171,13 @@ namespace Tests
             
             // Should have 1 parameter and 1 equation
             Assert.Single(manager.Parameters);
-            Assert.Single(manager.ParsedEquations);
+            Assert.Single(manager.Equations);
             
             var param = manager.GetParameter("capacity");
             Assert.NotNull(param);
             Assert.Equal(100.5, (double)param.Value, 2);
             
-            var equation = manager.ParsedEquations[0];
+            var equation = manager.Equations[0];
             Assert.Equal(RelationalOperator.Equal, equation.Operator);
         }
 
@@ -227,13 +227,13 @@ namespace Tests
             {
                 AssertNoErrors(result);
                 Assert.NotEmpty(manager.Parameters);
-                Assert.Empty(manager.ParsedEquations);
+                Assert.Empty(manager.Equations);
             }
             else
             {
                 // Should be equation
                 AssertNoErrors(result);
-                Assert.NotEmpty(manager.ParsedEquations);
+                Assert.NotEmpty(manager.Equations);
             }
         }
 

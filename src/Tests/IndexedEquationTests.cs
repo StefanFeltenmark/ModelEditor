@@ -16,26 +16,29 @@ namespace Tests
             var parser = CreateParser(manager);
             string input = @"
                 range I = 1..3;
-                equation constraint[I]: x[i] + y[i] <= 10;
+                var float x[I];
+                var float y[I];
+                
+                constraint[i in I]: x[i] + y[i] <= 10;
             ";
 
             // Act
             var result = parser.Parse(input);
+            parser.ExpandIndexedEquations(result);
 
             // Assert
             AssertNoErrors(result);
-            Assert.Equal(2, result.SuccessCount); // range + equation template
             
             // Should create 3 expanded equations
-            var equations = manager.GetEquationsByBaseName("constraint");
-            Assert.Equal(3, equations.Count);
+            Assert.Equal(3, manager.Equations.Count);
             
             for (int i = 1; i <= 3; i++)
             {
-                var eq = manager.GetIndexedEquation("constraint", i);
-                Assert.NotNull(eq);
+                var eq = manager.Equations[i - 1];
+                Assert.Equal("constraint", eq.BaseName);
+                Assert.Equal(i, eq.Index);
                 Assert.Equal(RelationalOperator.LessThanOrEqual, eq.Operator);
-                Assert.Equal(10, eq.Constant);
+                Assert.Equal(10.0, eq.Constant);
             }
         }
 
@@ -47,24 +50,27 @@ namespace Tests
             var parser = CreateParser(manager);
             string input = @"
                 range I = 1..2;
-                equation eq[I]: 2*x[i] + 3*y[i] == 15;
+                var float x[I];
+                var float y[I];
+                
+                eq[i in I]: 2*x[i] + 3*y[i] == 15;
             ";
 
             // Act
             var result = parser.Parse(input);
-
+            parser.ExpandIndexedEquations(result);
+            
             // Assert
             AssertNoErrors(result);
+            Assert.Equal(2, manager.Equations.Count);
             
-            var eq1 = manager.GetIndexedEquation("eq", 1);
-            Assert.NotNull(eq1);
-            Assert.Equal(2, eq1.GetCoefficient("x1"));
-            Assert.Equal(3, eq1.GetCoefficient("y1"));
+            var eq1 = manager.Equations[0];
+            Assert.Equal(2.0, eq1.Coefficients["x1"]);
+            Assert.Equal(3.0, eq1.Coefficients["y1"]);
             
-            var eq2 = manager.GetIndexedEquation("eq", 2);
-            Assert.NotNull(eq2);
-            Assert.Equal(2, eq2.GetCoefficient("x2"));
-            Assert.Equal(3, eq2.GetCoefficient("y2"));
+            var eq2 = manager.Equations[1];
+            Assert.Equal(2.0, eq2.Coefficients["x2"]);
+            Assert.Equal(3.0, eq2.Coefficients["y2"]);
         }
 
         [Fact]
@@ -72,13 +78,18 @@ namespace Tests
         {
             // Arrange
             var parser = CreateParser();
-            string input = "equation constraint[I]: x[i] <= 10;";
+            string input = @"
+                var float x;
+                constraint[i in I]: x <= 10;
+            ";
 
             // Act
             var result = parser.Parse(input);
 
             // Assert
             AssertHasError(result);
+            var errors = string.Join(", ", result.GetErrorMessages());
+            Assert.Contains("I", errors);
         }
 
         [Fact]
@@ -90,38 +101,87 @@ namespace Tests
             string input = @"
                 range I = 1..2;
                 range J = 1..2;
-                equation c1[I]: x[i] <= 10;
-                equation c2[J]: y[j] >= 5;
+                var float x[I];
+                var float y[J];
+                
+                c1[i in I]: x[i] <= 10;
+                c2[j in J]: y[j] >= 5;
             ";
 
             // Act
             var result = parser.Parse(input);
+            parser.ExpandIndexedEquations(result);
 
             // Assert
             AssertNoErrors(result);
-            Assert.Equal(2, manager.GetEquationsByBaseName("c1").Count);
-            Assert.Equal(2, manager.GetEquationsByBaseName("c2").Count);
+            Assert.Equal(4, manager.Equations.Count); // 2 + 2
+            
+            // Check c1 equations
+            Assert.Equal(2, manager.Equations.Count(e => e.BaseName == "c1"));
+            // Check c2 equations
+            Assert.Equal(2, manager.Equations.Count(e => e.BaseName == "c2"));
         }
 
         [Fact]
-        public void GetIndexedVariableCoefficient_ShouldReturnCorrectValue()
+        public void Parse_IndexedEquationWithParameters_ShouldSubstituteCorrectly()
+        {
+            // Arrange
+            var manager = CreateModelManager();
+            
+            // Add parameter data
+            var costParam = new Parameter("cost", ParameterType.Float, "I", isExternal: true);
+            costParam.SetIndexedValue(1, 10.0);
+            costParam.SetIndexedValue(2, 20.0);
+            manager.Parameters.Add("cost", costParam);
+            
+            var parser = CreateParser(manager);
+            string input = @"
+                range I = 1..2;                
+                var float x[I];
+                
+                budget[i in I]: cost[i]*x[i] <= 100;
+            ";
+
+            // Act
+            var result = parser.Parse(input);
+            parser.ExpandIndexedEquations(result);
+
+            // Assert
+            AssertNoErrors(result);
+            Assert.Equal(2, manager.Equations.Count);
+            
+            Assert.Equal(10.0, manager.Equations[0].Coefficients["x1"]);
+            Assert.Equal(20.0, manager.Equations[1].Coefficients["x2"]);
+        }
+        
+        [Fact]
+        public void Parse_TwoDimensionalIndexedEquation_ShouldExpand()
         {
             // Arrange
             var manager = CreateModelManager();
             var parser = CreateParser(manager);
             string input = @"
                 range I = 1..2;
-                equation eq[I]: 5*x[i] == 10;
+                range J = 1..2;
+                var float flow[I,J];
+                
+                capacity[i in I, j in J]: flow[i,j] <= 50;
             ";
 
             // Act
-            parser.Parse(input);
-            var equation = manager.GetIndexedEquation("eq", 1);
+            var result = parser.Parse(input);
+            parser.ExpandIndexedEquations(result);
 
             // Assert
-            Assert.NotNull(equation);
-            var coeff = manager.GetIndexedVariableCoefficient(equation, "x", 1);
-            Assert.Equal(5, coeff);
+            AssertNoErrors(result);
+            Assert.Equal(4, manager.Equations.Count); // 2x2 = 4
+            
+            foreach (var eq in manager.Equations)
+            {
+                Assert.Equal("capacity", eq.BaseName);
+                Assert.NotNull(eq.Index);
+                Assert.NotNull(eq.SecondIndex);
+            }
         }
     }
 }
