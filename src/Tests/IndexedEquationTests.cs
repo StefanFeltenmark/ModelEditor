@@ -38,7 +38,7 @@ namespace Tests
                 Assert.Equal("constraint", eq.BaseName);
                 Assert.Equal(i, eq.Index);
                 Assert.Equal(RelationalOperator.LessThanOrEqual, eq.Operator);
-                Assert.Equal(10.0, eq.Constant);
+                Assert.Equal(10.0, eq.Constant.Evaluate(manager));
             }
         }
 
@@ -65,12 +65,12 @@ namespace Tests
             Assert.Equal(2, manager.Equations.Count);
             
             var eq1 = manager.Equations[0];
-            Assert.Equal(2.0, eq1.Coefficients["x1"]);
-            Assert.Equal(3.0, eq1.Coefficients["y1"]);
-            
+            Assert.Equal(2.0, eq1.Coefficients["x1"].Evaluate(manager));
+            Assert.Equal(3.0, eq1.Coefficients["y1"].Evaluate(manager));        
+
             var eq2 = manager.Equations[1];
-            Assert.Equal(2.0, eq2.Coefficients["x2"]);
-            Assert.Equal(3.0, eq2.Coefficients["y2"]);
+            Assert.Equal(2.0, eq2.Coefficients["x2"].Evaluate(manager));
+            Assert.Equal(3.0, eq2.Coefficients["y2"].Evaluate(manager));
         }
 
         [Fact]
@@ -149,9 +149,9 @@ namespace Tests
             // Assert
             AssertNoErrors(result);
             Assert.Equal(2, manager.Equations.Count);
-            
-            Assert.Equal(10.0, manager.Equations[0].Coefficients["x1"]);
-            Assert.Equal(20.0, manager.Equations[1].Coefficients["x2"]);
+
+            Assert.Equal(10.0, manager.Equations[0].Coefficients["x1"].Evaluate(manager));
+            Assert.Equal(20.0, manager.Equations[1].Coefficients["x2"].Evaluate(manager));
         }
         
         [Fact]

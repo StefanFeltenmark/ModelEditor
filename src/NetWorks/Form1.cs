@@ -610,6 +610,9 @@ namespace ModelEditorApp
                     return;
                 }
 
+                var modelTexts = modelTabs.Select(t => t.Editor.Text).ToList();
+                var dataTexts = dataTabs.Select(t => t.Editor.Text).ToList();
+
                 // Call the testable parsing service
                 var result = parsingService.ParseModel(modelTexts, dataTexts);
 

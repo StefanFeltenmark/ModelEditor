@@ -1,20 +1,21 @@
 ﻿namespace Core.Models
 {
     /// <summary>
-    /// Represents a linear equation or inequality with any number of variables
+    /// Represents a linear equation or inequality with symbolic coefficients
     /// Format: a1*v1 + a2*v2 + ... + an*vn {operator} c
+    /// where a1, a2, ..., an, c can be expressions
     /// </summary>
     public class LinearEquation
     {
         /// <summary>
-        /// Dictionary of variable names to their coefficients
+        /// Dictionary of variable names to their coefficient expressions
         /// </summary>
-        public Dictionary<string, double> Coefficients { get; set; }
+        public Dictionary<string, Expression> Coefficients { get; set; }
 
         /// <summary>
-        /// The constant on the right side of the equation/inequality
+        /// The constant expression on the right side of the equation/inequality
         /// </summary>
-        public double Constant { get; set; }
+        public Expression Constant { get; set; }
 
         /// <summary>
         /// The relational operator (=, <, >, <=, >=)
@@ -32,7 +33,7 @@
         public string? BaseName { get; set; }
 
         /// <summary>
-        /// Optional index for the equation (e.g., constraint[1], constraint[2])
+        /// Optional index for the equation
         /// </summary>
         public int? Index { get; set; }
 
@@ -43,42 +44,25 @@
 
         public LinearEquation()
         {
-            Coefficients = new Dictionary<string, double>();
-            Constant = 0;
+            Coefficients = new Dictionary<string, Expression>();
+            Constant = new ConstantExpression(0);
             Operator = RelationalOperator.Equal;
         }
 
-        public LinearEquation(Dictionary<string, double> coefficients, double constant, RelationalOperator op = RelationalOperator.Equal, string? label = null)
+        public LinearEquation(
+            Dictionary<string, Expression> coefficients,
+            Expression constant,
+            RelationalOperator op,
+            string? label = null)
         {
-            Coefficients = coefficients ?? new Dictionary<string, double>();
+            Coefficients = coefficients;
             Constant = constant;
             Operator = op;
             Label = label;
         }
 
         /// <summary>
-        /// Checks if the equation is two-dimensional (i.e., has a second index)
-        /// </summary>
-        public bool IsTwoDimensional => SecondIndex.HasValue;
-
-        /// <summary>
-        /// Gets all variable names in sorted order
-        /// </summary>
-        public IEnumerable<string> GetVariables()
-        {
-            return Coefficients.Keys.OrderBy(k => k);
-        }
-
-        /// <summary>
-        /// Gets the coefficient for a specific variable (returns 0 if not found)
-        /// </summary>
-        public double GetCoefficient(string variable)
-        {
-            return Coefficients.TryGetValue(variable, out double value) ? value : 0;
-        }
-
-        /// <summary>
-        /// Returns true if this is an inequality (not an equality)
+        /// Checks if this is an inequality (not an equality)
         /// </summary>
         public bool IsInequality()
         {
@@ -88,99 +72,162 @@
         /// <summary>
         /// Gets the operator symbol as a string
         /// </summary>
-        public string GetOperatorSymbol()
+        public string GetOperatorSymbol() => Operator switch
         {
-            return Operator switch
-            {
-                RelationalOperator.Equal => "=",
-                RelationalOperator.LessThan => "<",
-                RelationalOperator.GreaterThan => ">",
-                RelationalOperator.LessThanOrEqual => "≤",
-                RelationalOperator.GreaterThanOrEqual => "≥",
-                _ => "="
-            };
+            RelationalOperator.Equal => "==",
+            RelationalOperator.LessThan => "<",
+            RelationalOperator.GreaterThan => ">",
+            RelationalOperator.LessThanOrEqual => "<=",
+            RelationalOperator.GreaterThanOrEqual => ">=",
+            _ => "?"
+        };
+
+        /// <summary>
+        /// Gets all variable names in this equation
+        /// </summary>
+        public IEnumerable<string> GetVariables()
+        {
+            return Coefficients.Keys.OrderBy(k => k);
         }
 
         /// <summary>
-        /// Gets the full identifier including index if present
+        /// Gets the coefficient expression for a specific variable
+        /// Returns a zero constant expression if the variable is not present
         /// </summary>
-        public string GetFullIdentifier()
+        public Expression GetCoefficientExpression(string variableName)
         {
-            if (!string.IsNullOrEmpty(Label))
+            return Coefficients.TryGetValue(variableName, out var expr) 
+                ? expr 
+                : new ConstantExpression(0);
+        }
+
+        /// <summary>
+        /// Gets the evaluated numeric coefficient for a specific variable
+        /// Returns 0 if the variable is not present
+        /// </summary>
+        public double GetCoefficient(string variableName)
+        {
+            if (!Coefficients.TryGetValue(variableName, out var expr))
+                return 0.0;
+            
+            // For now, if it's a constant expression, return the value
+            if (expr is ConstantExpression constExpr)
+                return constExpr.Value;
+            
+            // For non-constant expressions, we need a ModelManager to evaluate
+            throw new InvalidOperationException(
+                $"Cannot get numeric coefficient for variable '{variableName}' - coefficient is a non-constant expression. Use GetCoefficientExpression() or Evaluate() instead.");
+        }
+
+        /// <summary>
+        /// Tries to get the numeric coefficient if it's a constant
+        /// </summary>
+        public bool TryGetConstantCoefficient(string variableName, out double value)
+        {
+            value = 0.0;
+            
+            if (!Coefficients.TryGetValue(variableName, out var expr))
+                return true; // Variable not present = coefficient is 0
+            
+            if (expr is ConstantExpression constExpr)
             {
-                if (Index.HasValue)
-                {
-                    return $"{Label}[{Index.Value}]";
-                }
-                return Label;
+                value = constExpr.Value;
+                return true;
             }
             
-            if (!string.IsNullOrEmpty(BaseName) && Index.HasValue)
-            {
-                return $"{BaseName}[{Index.Value}]";
-            }
+            return false; // Non-constant expression
+        }
 
-            return "unlabeled";
+        /// <summary>
+        /// Evaluates all expressions to get numeric coefficients and constant
+        /// </summary>
+        public (Dictionary<string, double> coefficients, double constant) Evaluate(ModelManager modelManager)
+        {
+            var numericCoefficients = new Dictionary<string, double>();
+            
+            foreach (var kvp in Coefficients)
+            {
+                numericCoefficients[kvp.Key] = kvp.Value.Evaluate(modelManager);
+            }
+            
+            double numericConstant = Constant.Evaluate(modelManager);
+            
+            return (numericCoefficients, numericConstant);
+        }
+
+        /// <summary>
+        /// Gets the number of variables in this equation
+        /// </summary>
+        public int VariableCount => Coefficients.Count;
+
+        /// <summary>
+        /// Checks if a specific variable appears in this equation
+        /// </summary>
+        public bool ContainsVariable(string variableName)
+        {
+            return Coefficients.ContainsKey(variableName);
+        }
+
+        /// <summary>
+        /// Gets a human-readable description of the equation
+        /// </summary>
+        public string GetDescription()
+        {
+            string labelPart = !string.IsNullOrEmpty(Label) ? $"{Label}: " : "";
+            string indexPart = "";
+            
+            if (Index.HasValue)
+            {
+                if (SecondIndex.HasValue)
+                {
+                    indexPart = $"[{Index},{SecondIndex}]";
+                }
+                else
+                {
+                    indexPart = $"[{Index}]";
+                }
+            }
+            
+            string basePart = !string.IsNullOrEmpty(BaseName) ? $"{BaseName}{indexPart}" : "";
+            
+            return $"{labelPart}{basePart}".TrimEnd();
         }
 
         public override string ToString()
         {
-            var sb = new System.Text.StringBuilder();
-            
-            if (!string.IsNullOrEmpty(Label))
-            {
-                sb.Append($"{Label}: ");
-            }
-            else if (!string.IsNullOrEmpty(BaseName))
-            {
-                if (IsTwoDimensional)
-                    sb.Append($"{BaseName}[{Index},{SecondIndex}]: ");
-                else if (Index.HasValue)
-                    sb.Append($"{BaseName}[{Index}]: ");
-            }
+            if (Coefficients.Count == 0)
+                return $"0 {GetOperatorSymbol()} {Constant}";
 
-            bool first = true;
+            var terms = new List<string>();
             foreach (var kvp in Coefficients.OrderBy(k => k.Key))
             {
-                double coeff = kvp.Value;
-                string variable = kvp.Key;
-
-                if (!first && coeff >= 0)
-                    sb.Append(" + ");
-                else if (coeff < 0)
-                    sb.Append(" - ");
-
-                if (Math.Abs(coeff) != 1 || first)
+                string coeffStr = kvp.Value.ToString();
+                string var = kvp.Key;
+                
+                // Handle simple constant coefficients nicely
+                if (kvp.Value is ConstantExpression constExpr)
                 {
-                    sb.Append($"{Math.Abs(coeff):G}");
+                    if (Math.Abs(constExpr.Value - 1.0) < 1e-10)
+                        terms.Add(var);
+                    else if (Math.Abs(constExpr.Value - (-1.0)) < 1e-10)
+                        terms.Add($"-{var}");
+                    else
+                        terms.Add($"{constExpr.Value}*{var}");
                 }
-
-                sb.Append(variable);
-                first = false;
+                else
+                {
+                    // For complex expressions, show in parentheses
+                    terms.Add($"({coeffStr})*{var}");
+                }
             }
 
-            sb.Append($" {OperatorToString(Operator)} {Constant:G}");
-
-            return sb.ToString();
-        }
-
-        private string OperatorToString(RelationalOperator op)
-        {
-            return op switch
-            {
-                RelationalOperator.Equal => "==",
-                RelationalOperator.LessThanOrEqual => "≤",
-                RelationalOperator.GreaterThanOrEqual => "≥",
-                RelationalOperator.LessThan => "<",
-                RelationalOperator.GreaterThan => ">",
-                _ => "=="
-            };
+            string lhs = string.Join(" + ", terms).Replace("+ -", "- ");
+            string label = !string.IsNullOrEmpty(Label) ? $"{Label}: " : "";
+            
+            return $"{label}{lhs} {GetOperatorSymbol()} {Constant}";
         }
     }
 
-    /// <summary>
-    /// Represents the type of relational operator in an equation or inequality
-    /// </summary>
     public enum RelationalOperator
     {
         Equal,

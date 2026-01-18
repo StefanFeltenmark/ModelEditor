@@ -56,7 +56,7 @@ namespace Tests
             
             // Check first equation: x[1] >= 10
             var eq1 = manager.Equations[0];
-            Assert.Equal(10.0, eq1.Constant); // The constant should be 10 (from a[1])
+            Assert.Equal(10.0, eq1.Constant.Evaluate(manager)); // The constant should be 10 (from a[1])
         }
         
         [Fact]

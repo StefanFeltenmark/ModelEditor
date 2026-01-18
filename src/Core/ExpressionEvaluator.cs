@@ -1,4 +1,6 @@
 using Core.Models;
+using System.Data;
+using System.Globalization;
 
 namespace Core
 {
@@ -16,66 +18,95 @@ namespace Core
 
         public EvaluationResult<int> EvaluateIntExpression(string expression)
         {
+            expression = expression.Trim();
+            
+            // Try direct parse first
+            if (int.TryParse(expression, out int directValue))
+            {
+                return new EvaluationResult<int> { IsSuccess = true, Value = directValue };
+            }
+            
+            // Try to evaluate as arithmetic expression
             try
             {
-                expression = expression.Trim();
-
-                if (int.TryParse(expression, out int directValue))
+                var dataTable = new System.Data.DataTable();
+                var result = dataTable.Compute(expression, "");
+                
+                if (result != null && int.TryParse(result.ToString(), out int computedValue))
                 {
-                    return EvaluationResult<int>.Success(directValue);
+                    return new EvaluationResult<int> { IsSuccess = true, Value = computedValue };
                 }
-
-                ;
-                var param = modelManager.Parameters.ContainsKey(expression) ? modelManager.Parameters[expression] : null;
-                if (param != null)
-                {
-                    if (param.Type == ParameterType.Integer)
-                    {
-                        return EvaluationResult<int>.Success(param.GetIntValue());
-                    }
-                    return EvaluationResult<int>.Failure($"Parameter '{expression}' is not an integer");
-                }
-
-                return EvaluationResult<int>.Failure($"Cannot evaluate '{expression}' as integer");
             }
-            catch (Exception ex)
+            catch
             {
-                return EvaluationResult<int>.Failure(ex.Message);
+                // Fall through to parameter substitution
             }
+            
+            // Check if it's a parameter reference
+            if (modelManager.Parameters.TryGetValue(expression, out var param))
+            {
+                if (param.Type == ParameterType.Integer)
+                {
+                    return new EvaluationResult<int> 
+                    { 
+                        IsSuccess = true, 
+                        Value = Convert.ToInt32(param.Value) 
+                    };
+                }
+            }
+            
+            return new EvaluationResult<int> 
+            { 
+                IsSuccess = false, 
+                ErrorMessage = $"Cannot evaluate int expression: {expression}" 
+            };
         }
 
         public EvaluationResult<double> EvaluateFloatExpression(string expression)
         {
+            expression = expression.Trim();
+            
+            // Try direct parse first
+            if (double.TryParse(expression, NumberStyles.Float, CultureInfo.InvariantCulture, out double directValue))
+            {
+                return new EvaluationResult<double> { IsSuccess = true, Value = directValue };
+            }
+            
+            // Try to evaluate as arithmetic expression
             try
             {
-                expression = expression.Trim();
-
-                if (double.TryParse(expression, System.Globalization.NumberStyles.Float, 
-                    System.Globalization.CultureInfo.InvariantCulture, out double directValue))
+                // Use NCalc or System.Data.DataTable.Compute for expression evaluation
+                var dataTable = new DataTable();
+                var result = dataTable.Compute(expression, "");
+                
+                if (result != null && double.TryParse(result.ToString(), out double computedValue))
                 {
-                    return EvaluationResult<double>.Success(directValue);
+                    return new EvaluationResult<double> { IsSuccess = true, Value = computedValue };
                 }
-
-                var param = modelManager.Parameters.GetValueOrDefault(expression);
-                if (param != null)
-                {
-                    if (param.Type == ParameterType.Float)
-                    {
-                        return EvaluationResult<double>.Success(param.GetFloatValue());
-                    }
-                    else if (param.Type == ParameterType.Integer)
-                    {
-                        return EvaluationResult<double>.Success(param.GetIntValue());
-                    }
-                    return EvaluationResult<double>.Failure($"Parameter '{expression}' is not numeric");
-                }
-
-                return EvaluationResult<double>.Failure($"Cannot evaluate '{expression}' as float");
             }
-            catch (Exception ex)
+            catch
             {
-                return EvaluationResult<double>.Failure(ex.Message);
+                // Fall through to parameter substitution
             }
+            
+            // Check if it's a parameter reference
+            if (modelManager.Parameters.TryGetValue(expression, out var param))
+            {
+                if (param.Type == ParameterType.Float || param.Type == ParameterType.Integer)
+                {
+                    return new EvaluationResult<double> 
+                    { 
+                        IsSuccess = true, 
+                        Value = Convert.ToDouble(param.Value) 
+                    };
+                }
+            }
+            
+            return new EvaluationResult<double> 
+            { 
+                IsSuccess = false, 
+                ErrorMessage = $"Cannot evaluate float expression: {expression}" 
+            };
         }
     }
 

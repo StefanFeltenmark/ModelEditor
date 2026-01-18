@@ -103,6 +103,8 @@ namespace Tests
 
             // Act
             var result = service.ParseModel(modelTexts, dataTexts);
+            
+            parser.ExpandIndexedEquations(new ParseSessionResult());
 
             // Assert
             Assert.True(result.Success);

@@ -13,8 +13,7 @@ namespace Tests
 
             // Arrange
             var text = @"
-                range I = 1..3;
-                float cost[I] = ...;
+                range I = 1..3;                
                 var float x[I];
                 
                 budget: sum(i in I) cost[i]*x[i] <= 100;
@@ -42,13 +41,13 @@ namespace Tests
             var equation = manager.Equations[0];
             Assert.Equal("budget", equation.Label);
             Assert.Equal(RelationalOperator.LessThanOrEqual, equation.Operator);
-            Assert.Equal(100.0, equation.Constant);
+            Assert.Equal(100.0, equation.Constant.Evaluate(manager));
             
             // Should have coefficients: 10*x1 + 20*x2 + 30*x3
             Assert.Equal(3, equation.Coefficients.Count);
-            Assert.Equal(10.0, equation.Coefficients["x1"]);
-            Assert.Equal(20.0, equation.Coefficients["x2"]);
-            Assert.Equal(30.0, equation.Coefficients["x3"]);
+            Assert.Equal(10.0, equation.Coefficients["x1"].Evaluate(manager));
+            Assert.Equal(20.0, equation.Coefficients["x2"].Evaluate(manager));
+            Assert.Equal(30.0, equation.Coefficients["x3"].Evaluate(manager));
         }
         
         [Fact]
@@ -75,8 +74,8 @@ namespace Tests
             
             var equation = manager.Equations[0];
             // 2*(x[1]+x[2]) = 2*x[1] + 2*x[2]
-            Assert.Equal(2.0, equation.Coefficients["x1"]);
-            Assert.Equal(2.0, equation.Coefficients["x2"]);
+            Assert.Equal(2.0, equation.Coefficients["x1"].Evaluate(manager));
+            Assert.Equal(2.0, equation.Coefficients["x2"].Evaluate(manager));
         }
         
         [Fact]
@@ -106,11 +105,11 @@ namespace Tests
             var equation = manager.Equations[0];
             // Should have x1, x2, y1, y2 all with coefficient 1
             Assert.Equal(4, equation.Coefficients.Count);
-            Assert.Equal(1.0, equation.Coefficients["x1"]);
-            Assert.Equal(1.0, equation.Coefficients["x2"]);
-            Assert.Equal(1.0, equation.Coefficients["y1"]);
-            Assert.Equal(1.0, equation.Coefficients["y2"]);
-            Assert.Equal(100.0, equation.Constant);
+            Assert.Equal(1.0, equation.Coefficients["x1"].Evaluate(manager));
+            Assert.Equal(1.0, equation.Coefficients["x2"].Evaluate(manager));
+            Assert.Equal(1.0, equation.Coefficients["y1"].Evaluate(manager));
+            Assert.Equal(1.0, equation.Coefficients["y2"].Evaluate(manager));
+            Assert.Equal(100.0, equation.Constant.Evaluate(manager));
         }
         
         [Fact]
@@ -143,7 +142,7 @@ namespace Tests
             Assert.True(equation.Coefficients.ContainsKey("flow1_2"));
             Assert.True(equation.Coefficients.ContainsKey("flow2_1"));
             Assert.True(equation.Coefficients.ContainsKey("flow2_2"));
-            Assert.All(equation.Coefficients.Values, coeff => Assert.Equal(1.0, coeff));
+            Assert.All(equation.Coefficients.Values, coeff => Assert.Equal(1.0, coeff.Evaluate(manager)));
         }
         
         [Fact]
@@ -229,8 +228,8 @@ namespace Tests
             
             var equation = manager.Equations[0];
             // (2+1)*x1 + (3+2)*x2 = 3*x1 + 5*x2
-            Assert.Equal(3.0, equation.Coefficients["x1"]);
-            Assert.Equal(5.0, equation.Coefficients["x2"]);
+            Assert.Equal(3.0, equation.Coefficients["x1"].Evaluate(manager));
+            Assert.Equal(5.0, equation.Coefficients["x2"].Evaluate(manager));
         }
         
         [Fact]
@@ -258,8 +257,8 @@ namespace Tests
             var equation = manager.Equations[0];
             // x1 + x2 + x3 + 50 == 100 -> x1 + x2 + x3 == 50
             Assert.Equal(3, equation.Coefficients.Count);
-            Assert.All(equation.Coefficients.Values, coeff => Assert.Equal(1.0, coeff));
-            Assert.Equal(50.0, equation.Constant);
+            Assert.All(equation.Coefficients.Values, coeff => Assert.Equal(1.0, coeff.Evaluate(manager)));
+            Assert.Equal(50.0, equation.Constant.Evaluate(manager));
         }
         
         [Fact]
@@ -342,10 +341,10 @@ namespace Tests
             
             var equation = manager.Equations[0];
             // 10*x1 - 2*y1 + 20*x2 - 2*y2 >= 0
-            Assert.Equal(10.0, equation.Coefficients["x1"]);
-            Assert.Equal(-2.0, equation.Coefficients["y1"]);
-            Assert.Equal(20.0, equation.Coefficients["x2"]);
-            Assert.Equal(-2.0, equation.Coefficients["y2"]);
+            Assert.Equal(10.0, equation.Coefficients["x1"].Evaluate(manager));
+            Assert.Equal(-2.0, equation.Coefficients["y1"].Evaluate(manager));
+            Assert.Equal(20.0, equation.Coefficients["x2"].Evaluate(manager));
+            Assert.Equal(-2.0, equation.Coefficients["y2"].Evaluate(manager));
         }
         
         [Fact]
@@ -372,8 +371,8 @@ namespace Tests
             
             var equation = manager.Equations[0];
             Assert.Single(equation.Coefficients);
-            Assert.Equal(1.0, equation.Coefficients["x5"]);
-            Assert.Equal(10.0, equation.Constant);
+            Assert.Equal(1.0, equation.Coefficients["x5"].Evaluate(manager));
+            Assert.Equal(10.0, equation.Constant.Evaluate(manager));
         }
         
         [Fact]
@@ -430,11 +429,11 @@ namespace Tests
             
             var equation = manager.Equations[0];
             // x1 + x2 - y1 - y2 == 0
-            Assert.Equal(1.0, equation.Coefficients["x1"]);
-            Assert.Equal(1.0, equation.Coefficients["x2"]);
-            Assert.Equal(-1.0, equation.Coefficients["y1"]);
-            Assert.Equal(-1.0, equation.Coefficients["y2"]);
-            Assert.Equal(0.0, equation.Constant);
+            Assert.Equal(1.0, equation.Coefficients["x1"].Evaluate(manager));
+            Assert.Equal(1.0, equation.Coefficients["x2"].Evaluate(manager));
+            Assert.Equal(-1.0, equation.Coefficients["y1"].Evaluate(manager));
+            Assert.Equal(-1.0, equation.Coefficients["y2"].Evaluate(manager));
+            Assert.Equal(0.0, equation.Constant.Evaluate(manager));
         }
     }
 }

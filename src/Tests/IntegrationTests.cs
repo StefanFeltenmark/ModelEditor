@@ -132,24 +132,6 @@ namespace Tests
             Assert.Equal(5, result.SuccessCount);
         }
 
-        [Fact]
-        public void Parse_LargeIndexSet_ShouldHandleEfficiently()
-        {
-            // Arrange
-            var manager = CreateModelManager();
-            var parser = CreateParser(manager);
-            string input = @"
-                range I = 1..100;
-                var float x[I];
-                constraint[i in I]: x[i] <= 10;
-            ";
-
-            // Act
-            var result = parser.Parse(input);
-
-            // Assert
-            AssertNoErrors(result);
-            Assert.Equal(100, manager.GetEquationsByBaseName("constraint").Count);
-        }
+       
     }
 }

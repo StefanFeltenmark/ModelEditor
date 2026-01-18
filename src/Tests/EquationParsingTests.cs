@@ -26,7 +26,7 @@ namespace Tests
             
             var equation = manager.Equations[0];
             Assert.Equal(RelationalOperator.Equal, equation.Operator);
-            Assert.Equal(10, equation.Constant);
+            Assert.Equal(10, equation.Constant.Evaluate(manager));
             Assert.Equal(2, equation.GetCoefficient("x"));
             Assert.Equal(3, equation.GetCoefficient("y"));
         }
@@ -50,7 +50,7 @@ namespace Tests
             var equation = manager.Equations[0];
             Assert.Equal(1.5, equation.GetCoefficient("x"), 2);
             Assert.Equal(2.7, equation.GetCoefficient("y"), 2);
-            Assert.Equal(5.3, equation.Constant, 2);
+            Assert.Equal(5.3, equation.Constant.Evaluate(manager), 2);
         }
 
         [Fact]

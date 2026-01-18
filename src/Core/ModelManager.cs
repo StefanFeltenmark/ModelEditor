@@ -264,11 +264,24 @@ namespace Core
                 .FirstOrDefault(eq => eq.BaseName == baseName && eq.Index == index1 && eq.SecondIndex == index2);
         }
 
+      
+
         public double GetIndexedVariableCoefficient(LinearEquation equation, string variableName, int index)
         {
             // For indexed variables, the actual variable name is baseName + index (e.g., "x1", "x2")
             string fullVariableName = $"{variableName}{index}";
-            return equation.GetCoefficient(fullVariableName);
+    
+            // Try to get constant coefficient, otherwise evaluate with current model state
+            if (equation.TryGetConstantCoefficient(fullVariableName, out double coeff))
+            {
+                return coeff;
+            }
+            else
+            {
+                // Need to evaluate the expression
+                var (coefficients, _) = equation.Evaluate(this);
+                return coefficients.TryGetValue(fullVariableName, out double value) ? value : 0.0;
+            }
         }
     }
 }

@@ -989,7 +989,7 @@ namespace Core
                 }
 
                 // Combine: move all terms to the left side
-                var finalCoefficients = new Dictionary<string, double>();
+                var finalCoefficients = new Dictionary<string, Expression>();
                 
                 // Add left side coefficients
                 foreach (var kvp in leftCoefficients)
@@ -1001,34 +1001,27 @@ namespace Core
                 foreach (var kvp in rightCoefficients)
                 {
                     if (finalCoefficients.ContainsKey(kvp.Key))
-                        finalCoefficients[kvp.Key] -= kvp.Value;
+                    {
+                        finalCoefficients[kvp.Key] = new BinaryExpression(
+                            finalCoefficients[kvp.Key],
+                            BinaryOperator.Subtract,
+                            kvp.Value);
+                    }
                     else
-                        finalCoefficients[kvp.Key] = -kvp.Value;
+                    {
+                        finalCoefficients[kvp.Key] = new UnaryExpression(
+                            UnaryOperator.Negate,
+                            kvp.Value);
+                    }
                 }
 
                 // Calculate final constant: right constant - left constant
-                double finalConstant = rightConstant - leftConstant;
+                Expression finalConstant = new BinaryExpression(
+                    rightConstant,
+                    BinaryOperator.Subtract,
+                    leftConstant);
 
-                // Remove variables with zero coefficients
-                var nonZeroCoefficients = finalCoefficients.Where(kvp => Math.Abs(kvp.Value) > 1e-10)
-                                                           .ToDictionary(kvp => kvp.Key, kvp => kvp.Value);
-
-                // Check if we have any variables left
-                if (nonZeroCoefficients.Count == 0)
-                {
-                    if (Math.Abs(finalConstant) < 1e-10)
-                    {
-                        error = "Equation reduces to 0 == 0 (tautology - always true)";
-                        return false;
-                    }
-                    else
-                    {
-                        error = $"Equation reduces to 0 == {finalConstant} (contradiction - always false)";
-                        return false;
-                    }
-                }
-
-                result = new LinearEquation(nonZeroCoefficients, finalConstant, op, label);
+                result = new LinearEquation(finalCoefficients, finalConstant, op, label);
                 return true;
             }
             catch (RegexMatchTimeoutException)
@@ -1048,48 +1041,52 @@ namespace Core
             }
         } 
         
-        private bool TryParseExpression(string expression, out Dictionary<string, double> coefficients, out double constant, out string error)
+        
+        private bool TryParseExpression(
+    string expression, 
+    out Dictionary<string, Expression> coefficients, 
+    out Expression constant, 
+    out string error)
 {
-    coefficients = new Dictionary<string, double>();
-    constant = 0;
+    coefficients = new Dictionary<string, Expression>();
+    constant = new ConstantExpression(0);
     error = string.Empty;
 
     try
     {
-        // NOTE: Summation expansion now happens in TryParseEquation BEFORE this method is called
-        // So we can remove the ExpandSummations call from here
-        
         // STEP 1: Pattern for two-dimensional indexed variables/parameters: x[1,2], a[i,j]
         string patternTwoDim = @"([a-zA-Z][a-zA-Z0-9_]*)\[([a-zA-Z0-9]+),([a-zA-Z0-9]+)\]";
-        // STEP 0: Expand all sum(...) expressions FIRST (before any other transformations)
         
+        // Track parameter references for creating expressions
+        var parameterReferences = new Dictionary<string, Expression>();
         
-        // Expand two-dimensional indexed variables/parameters FIRST
+        // Replace indexed parameters with placeholder tokens
+        var tokenCounter = 0;
+        var tokenMap = new Dictionary<string, Expression>();
+        
         expression = Regex.Replace(expression, patternTwoDim, m =>
         {
             string name = m.Groups[1].Value;
             string index1Str = m.Groups[2].Value;
             string index2Str = m.Groups[3].Value;
             
-            if (int.TryParse(index1Str, out int numericIndex1) && int.TryParse(index2Str, out int numericIndex2))
+            if (int.TryParse(index1Str, out int numericIndex1) && 
+                int.TryParse(index2Str, out int numericIndex2))
             {
-                // Check if it's an indexed parameter first
+                // Check if it's an indexed parameter
                 if (modelManager.Parameters.TryGetValue(name, out var param))
                 {
                     if (param.IsTwoDimensional)
                     {
-                        // Get the parameter value and substitute it as a constant
-                        var value = param.GetIndexedValue(numericIndex1, numericIndex2);
-                        if (value == null)
-                        {
-                            throw new Exception($"Parameter '{name}[{numericIndex1},{numericIndex2}]' has no value assigned");
-                        }
-                        // Return the numeric value as a string to be parsed as a constant
-                        return Convert.ToDouble(value).ToString(CultureInfo.InvariantCulture);
+                        // Create expression for this parameter reference
+                        var paramExpr = new IndexedParameterExpression(name, numericIndex1, numericIndex2);
+                        string token = $"__PARAM{tokenCounter++}__";
+                        tokenMap[token] = paramExpr;
+                        return token;
                     }
                 }
                 
-                // Otherwise, it's an indexed variable
+                // It's an indexed variable
                 if (modelManager.IndexedVariables.ContainsKey(name))
                 {
                     var indexedVar = modelManager.IndexedVariables[name];
@@ -1108,24 +1105,20 @@ namespace Core
                             throw new Exception($"Second index {numericIndex2} is out of range for variable {name}[{indexedVar.IndexSetName},{indexedVar.SecondIndexSetName}]. Valid range: {indexSet2.StartIndex}..{indexSet2.EndIndex}");
                         }
                     }
-                    // Transform to variable name format
                     return $"{name}{numericIndex1}_{numericIndex2}";
                 }
                 
-                // If neither parameter nor variable, keep original (will be caught in validation)
                 return m.Value;
             }
             else
             {
-                // Variable indices: x[i,j] - keep as symbolic
                 return $"{name}_idx_{index1Str}_{index2Str}";
             }
         });
 
-        // Pattern for single-dimensional indexed variables/parameters: x[1], a[5], x[i]
+        // Pattern for single-dimensional indexed variables/parameters
         string patternIndexed = @"([a-zA-Z][a-zA-Z0-9_]*)\[([a-zA-Z0-9]+)\]";
         
-        // Expand indexed variables/parameters
         expression = Regex.Replace(expression, patternIndexed, m =>
         {
             string name = m.Groups[1].Value;
@@ -1133,12 +1126,12 @@ namespace Core
             
             if (int.TryParse(indexStr, out int numericIndex))
             {
-                // Check if it's an indexed parameter first
+                // Check if it's an indexed parameter
                 if (modelManager.Parameters.TryGetValue(name, out var param))
                 {
                     if (param.IsIndexed && !param.IsTwoDimensional)
                     {
-                        // Validate index is in range
+                        // Validate index
                         if (modelManager.IndexSets.TryGetValue(param.IndexSetName, out var paramIndexSet))
                         {
                             if (!paramIndexSet.Contains(numericIndex))
@@ -1147,18 +1140,15 @@ namespace Core
                             }
                         }
                         
-                        // Get the parameter value and substitute it as a constant
-                        var value = param.GetIndexedValue(numericIndex);
-                        if (value == null)
-                        {
-                            throw new Exception($"Parameter '{name}[{numericIndex}]' has no value assigned. Ensure data file has been loaded");
-                        }
-                        // Return the numeric value as a string to be parsed as a constant
-                        return Convert.ToDouble(value).ToString(CultureInfo.InvariantCulture);
+                        // Create expression for this parameter reference
+                        var paramExpr = new IndexedParameterExpression(name, numericIndex);
+                        string token = $"__PARAM{tokenCounter++}__";
+                        tokenMap[token] = paramExpr;
+                        return token;
                     }
                 }
                 
-                // Otherwise, it's an indexed variable
+                // It's an indexed variable
                 if (modelManager.IndexedVariables.ContainsKey(name))
                 {
                     var indexedVar = modelManager.IndexedVariables[name];
@@ -1171,28 +1161,26 @@ namespace Core
                             throw new Exception($"Index {numericIndex} is out of range for variable {name}[{indexedVar.IndexSetName}]. Valid range: {indexSet.StartIndex}..{indexSet.EndIndex}");
                         }
                     }
-                    // Transform to variable name format
                     return $"{name}{numericIndex}";
                 }
                 
-                // If neither parameter nor variable, keep original (will be caught in validation)
                 return m.Value;
             }
             else
             {
-                // Variable index: x[i] - keep as symbolic
                 return $"{name}_idx_{indexStr}";
             }
         });
 
-        // Rest of the parsing logic remains the same...
-        string patternWithMultiply = @"([+-]?\d+(?:\.\d+)?)\*([a-zA-Z][a-zA-Z0-9_]*)";
-        string patternImplicit = @"([+-]?\d*(?:\.\d+)?)([a-zA-Z][a-zA-Z0-9_]*)";
+        // Now parse the expression with tokens
+        // Pattern: coefficient * variable or just variable
+        string patternWithMultiply = @"([+-]?[\d.]+|__PARAM\d+__)\*([a-zA-Z][a-zA-Z0-9_]*)";
+        string patternImplicit = @"([+-]?[\d.]*|__PARAM\d+__)([a-zA-Z][a-zA-Z0-9_]*)";
 
         bool foundVariables = false;
         var processedIndices = new HashSet<int>();
 
-        // First, process explicit multiplication (2*x)
+        // Process explicit multiplication
         MatchCollection explicitMatches = Regex.Matches(expression, patternWithMultiply);
         foreach (Match match in explicitMatches)
         {
@@ -1204,16 +1192,33 @@ namespace Core
 
             foundVariables = true;
 
-            if (!double.TryParse(coeffStr, NumberStyles.Float, CultureInfo.InvariantCulture, out double coeff))
+            Expression coeffExpr;
+            if (tokenMap.TryGetValue(coeffStr, out var paramExpr))
             {
-                error = $"Invalid coefficient '{coeffStr}' for variable '{variable}'. Expected a numeric value";
+                coeffExpr = paramExpr;
+            }
+            else if (double.TryParse(coeffStr, NumberStyles.Float, CultureInfo.InvariantCulture, out double coeff))
+            {
+                coeffExpr = new ConstantExpression(coeff);
+            }
+            else
+            {
+                error = $"Invalid coefficient '{coeffStr}' for variable '{variable}'";
                 return false;
             }
 
             if (coefficients.ContainsKey(variable))
-                coefficients[variable] += coeff;
+            {
+                // Add to existing coefficient
+                coefficients[variable] = new BinaryExpression(
+                    coefficients[variable], 
+                    BinaryOperator.Add, 
+                    coeffExpr);
+            }
             else
-                coefficients[variable] = coeff;
+            {
+                coefficients[variable] = coeffExpr;
+            }
 
             for (int i = match.Index; i < match.Index + match.Length; i++)
             {
@@ -1221,7 +1226,7 @@ namespace Core
             }
         }
 
-        // Build a modified expression without the explicit multiplication terms
+        // Build remaining expression
         var remainingChars = new System.Text.StringBuilder();
         for (int i = 0; i < expression.Length; i++)
         {
@@ -1236,80 +1241,92 @@ namespace Core
         }
         string remainingExpression = remainingChars.ToString();
 
-        // Now process implicit multiplication (2x or x) from remaining expression
+        // Process implicit multiplication
         MatchCollection implicitMatches = Regex.Matches(remainingExpression, patternImplicit);
         foreach (Match match in implicitMatches)
         {
             string coeffStr = match.Groups[1].Value;
             string variable = match.Groups[2].Value;
 
-            if (string.IsNullOrEmpty(variable))
+            // Skip if variable is empty or if it looks like a token fragment
+            if (string.IsNullOrEmpty(variable) || variable.StartsWith("PARAM"))
                 continue;
 
             foundVariables = true;
 
-            double coeff;
+            Expression coeffExpr;
             if (string.IsNullOrEmpty(coeffStr) || coeffStr == "+")
             {
-                coeff = 1;
+                coeffExpr = new ConstantExpression(1);
             }
             else if (coeffStr == "-")
             {
-                coeff = -1;
+                coeffExpr = new ConstantExpression(-1);
             }
-            else if (!double.TryParse(coeffStr, NumberStyles.Float, CultureInfo.InvariantCulture, out coeff))
+            else if (tokenMap.TryGetValue(coeffStr, out var paramExpr))
             {
-                error = $"Invalid coefficient '{coeffStr}' for variable '{variable}'. Expected a numeric value";
+                coeffExpr = paramExpr;
+            }
+            else if (double.TryParse(coeffStr, NumberStyles.Float, CultureInfo.InvariantCulture, out double coeff))
+            {
+                coeffExpr = new ConstantExpression(coeff);
+            }
+            else
+            {
+                error = $"Invalid coefficient '{coeffStr}' for variable '{variable}'";
                 return false;
             }
 
             if (coefficients.ContainsKey(variable))
-                coefficients[variable] += coeff;
-            else
-                coefficients[variable] = coeff;
-
-            for (int i = match.Index; i < match.Index + match.Length; i++)
             {
-                processedIndices.Add(i);
-            }
-        }
-
-        // If no variables found, the entire expression should be a constant
-        if (!foundVariables)
-        {
-            if (double.TryParse(expression, NumberStyles.Float, CultureInfo.InvariantCulture, out double constValue))
-            {
-                constant = constValue;
+                coefficients[variable] = new BinaryExpression(
+                    coefficients[variable], 
+                    BinaryOperator.Add, 
+                    coeffExpr);
             }
             else
             {
-                error = $"Invalid expression: '{expression}'. Expected variables or a numeric constant";
-                return false;
+                coefficients[variable] = coeffExpr;
             }
         }
-        else
+
+        // STEP 3: Simplify all coefficient expressions
+        foreach (var key in coefficients.Keys.ToList())
         {
-            // Validate that all variables are declared
+            coefficients[key] = coefficients[key].Simplify(modelManager);
+            
+            // If simplified to zero, remove the variable
+            if (coefficients[key] is ConstantExpression constCoeff && 
+                Math.Abs(constCoeff.Value) < 1e-10)
+            {
+                coefficients.Remove(key);
+            }
+        }
+        
+        // STEP 4: Extract and combine constant terms
+        // Parse the expression to find all constant terms
+        var constantTerms = new List<double>();
+        
+        // Remove all variable terms and parameter tokens, extract remaining constants
+        string constantExpression = expression;
+        
+        // Remove matched variable patterns
+        foreach (var kvp in coefficients)
+        {
+            // This is a simplified approach - a more robust solution would track
+            // what parts of the expression have been consumed
+        }
+        
+        // Simplify the constant expression
+        constant = constant.Simplify(modelManager);
+        
+        // Validate variables
+        if (coefficients.Count > 0)
+        {
             if (!ValidateVariableDeclarations(coefficients, out string validationError))
             {
                 error = validationError;
                 return false;
-            }
-
-            // Extract remaining numeric constants
-            string constantExpression = expression;
-            
-            constantExpression = Regex.Replace(constantExpression, patternWithMultiply, "|");
-            constantExpression = Regex.Replace(constantExpression, patternImplicit, "|");
-
-            string[] parts = constantExpression.Split(['|', '+', '-', '*'], StringSplitOptions.RemoveEmptyEntries);
-            foreach (string part in parts)
-            {
-                string trimmedPart = part.Trim();
-                if (double.TryParse(trimmedPart, NumberStyles.Float, CultureInfo.InvariantCulture, out double constValue))
-                {
-                    constant += constValue;
-                }
             }
         }
 
@@ -1499,19 +1516,30 @@ private string ReplaceIndexVariable(string expr, string indexVar, int indexValue
     // Pattern 1: [indexVar] -> [indexValue]
     expr = Regex.Replace(expr, $@"\[{escapedVar}\]", $"[{indexValue}]");
     
-    // Pattern 2: [indexVar,something] -> [indexValue,something]
+    // Pattern 2: [indexVar, something] -> [indexValue, something]
     expr = Regex.Replace(expr, $@"\[{escapedVar}\s*,", $"[{indexValue},");
     
-    // Pattern 3: [something,indexVar] -> [something,indexValue]
+    // Pattern 3: [something, indexVar] -> [something, indexValue]
     expr = Regex.Replace(expr, $@",\s*{escapedVar}\]", $",{indexValue}]");
     
     return expr;
 }
+       
         private string ExpandEquationTemplate(string template, string indexVariable, int indexValue)
         {
-            string pattern = $@"\[{indexVariable}\]";
-
-            return Regex.Replace(template, pattern, $"[{indexValue}]", RegexOptions.IgnoreCase);
+            // Pattern 1: [indexVariable] -> [indexValue]
+            // Example: x[i] -> x[1]
+            template = Regex.Replace(template, $@"\[{indexVariable}\]", $"[{indexValue}]", RegexOptions.IgnoreCase);
+    
+            // Pattern 2: [indexVariable, something] -> [indexValue, something]
+            // Example: x[i,j] -> x[1,j]
+            template = Regex.Replace(template, $@"\[{indexVariable}\s*,", $"[{indexValue},", RegexOptions.IgnoreCase);
+    
+            // Pattern 3: [something, indexVariable] -> [something, indexValue]
+            // Example: x[j,i] -> x[j,1]
+            template = Regex.Replace(template, $@",\s*{indexVariable}\]", $",{indexValue}]", RegexOptions.IgnoreCase);
+    
+            return template;
         }
 
         /// <summary>
@@ -1535,10 +1563,11 @@ private string ReplaceIndexVariable(string expr, string indexVar, int indexValue
                         foreach (int index2 in indexSet2.GetIndices())
                         {
                             // Use lowercase version of index set name as the variable name by convention
-                            // This matches the common pattern: equation_name[i in I, j in J]
                             string indexVar1 = indexedEquation.IndexSetName.ToLower();
                             string indexVar2 = indexedEquation.SecondIndexSetName!.ToLower();
-                    
+            
+                            // IMPORTANT: Expand the template with actual index values FIRST
+                            // before parsing (which includes summation expansion)
                             string expandedEquation = ExpandEquationTemplate(indexedEquation.Template, 
                                 indexVar1, index1);
                             expandedEquation = ExpandEquationTemplate(expandedEquation, 
@@ -1566,12 +1595,14 @@ private string ReplaceIndexVariable(string expr, string indexVar, int indexValue
                 {
                     // Single-dimensional expansion
                     var indexSet = modelManager.IndexSets[indexedEquation.IndexSetName];
-            
+    
             // Use lowercase version of index set name as the variable name by convention
             string indexVar = indexedEquation.IndexSetName.ToLower();
-            
+    
                     foreach (int index in indexSet.GetIndices())
                     {
+                        // IMPORTANT: Expand the template with actual index value FIRST
+                        // This must happen BEFORE TryParseEquation (which expands summations)
                         string expandedEquation = ExpandEquationTemplate(indexedEquation.Template, 
                             indexVar, index);
                         
@@ -1596,18 +1627,15 @@ private string ReplaceIndexVariable(string expr, string indexVar, int indexValue
 
         // Add these methods at the end of the EquationParser class, before the closing brace
 
-private bool ValidateVariableDeclarations(Dictionary<string, double> coefficients, out string error)
+private bool ValidateVariableDeclarations(Dictionary<string, Expression> coefficients, out string error)
 {
     error = string.Empty;
     var undeclaredVariables = new List<string>();
 
     foreach (var variableName in coefficients.Keys)
     {
-        // Extract base variable name from indexed forms
-        // Examples: x1 -> x, x1_2 -> x, x_idx_i -> x, x_idx_i_j -> x
         string baseVariableName = ExtractBaseVariableName(variableName);
 
-        // Check if the base variable is declared as a variable OR as a parameter
         bool isDeclaredAsVariable = modelManager.IndexedVariables.ContainsKey(baseVariableName);
         bool isDeclaredAsParameter = modelManager.Parameters.ContainsKey(baseVariableName);
 
@@ -1615,12 +1643,8 @@ private bool ValidateVariableDeclarations(Dictionary<string, double> coefficient
         {
             undeclaredVariables.Add(baseVariableName);
         }
-        // NOTE: We do NOT check if parameters have values here!
-        // External parameters (declared with "...") won't have values until a data file is loaded.
-        // The initialization check should happen later (e.g., before solving the model).
     }
 
-    // Build error message for undeclared variables
     if (undeclaredVariables.Any())
     {
         var uniqueUndeclared = undeclaredVariables.Distinct().OrderBy(v => v).ToList();

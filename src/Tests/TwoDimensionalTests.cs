@@ -121,7 +121,7 @@ namespace Tests
                 Assert.NotNull(eq.Index);
                 Assert.NotNull(eq.SecondIndex);
                 Assert.Equal(RelationalOperator.GreaterThanOrEqual, eq.Operator);
-                Assert.Equal(0.0, eq.Constant);
+                Assert.Equal(0.0, eq.Constant.Evaluate(manager));
             }
         }
 
@@ -142,16 +142,18 @@ namespace Tests
             // Act
             var result = parser.Parse(input);
 
+            parser.ExpandIndexedEquations(result);
+
             // Assert
             AssertNoErrors(result);
-            Assert.Equal(1, manager.Equations.Count);
+            Assert.Equal(4, manager.Equations.Count);
             
             // Check equation for i=1, j=2: x[1,2] + 2*y[1,2] == 10
             var eq = manager.Equations.First(e => e.Index == 1 && e.SecondIndex == 2);
             Assert.Equal(2, eq.Coefficients.Count);
-            Assert.Equal(1, eq.Coefficients["x1_2"]);
-            Assert.Equal(2, eq.Coefficients["y1_2"]);
-            Assert.Equal(10, eq.Constant);
+            Assert.Equal(1, eq.Coefficients["x1_2"].Evaluate(manager));
+            Assert.Equal(2, eq.Coefficients["y1_2"].Evaluate(manager));
+            Assert.Equal(10, eq.Constant.Evaluate(manager));
         }
 
         [Fact]
