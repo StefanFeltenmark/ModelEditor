@@ -38,3 +38,5 @@ src/Core/obj/
 src/NetWorks/obj/
 
 src/Tests/obj/
+
+src/.vs/ModelEditor.slnx/DesignTimeBuild/.dtbcache.v2
