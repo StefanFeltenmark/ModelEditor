@@ -174,11 +174,13 @@ namespace Tests
             // Act
             var result = parser.Parse(input);
 
+            parser.ExpandIndexedEquations(result);
+
             // Assert
             AssertNoErrors(result);
             
             // Check equation for i=1, j=1
-                    var eq = manager.Equations.First(e => e.Index == 1 && e.SecondIndex == 1);
+            var eq = manager.Equations.First(e => e.Index == 1 && e.SecondIndex == 1);
             Assert.Equal(3, eq.Coefficients.Count);
             Assert.Contains("x1_1", eq.Coefficients.Keys);
             Assert.Contains("total1", eq.Coefficients.Keys);

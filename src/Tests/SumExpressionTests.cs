@@ -196,8 +196,7 @@ namespace Tests
             // Arrange
             var text = @"
                 range I = 1..2;
-                float a[I] = ...;
-                float b[I] = ...;
+                
                 var float x[I];
                 
                 weighted: sum(i in I) (a[i] + b[i])*x[i] <= 50;
