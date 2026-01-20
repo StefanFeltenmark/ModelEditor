@@ -21,9 +21,9 @@ namespace Core
         /// </summary>
         /// <param name="text">The text to parse.</param>
         /// <returns>A <see cref="EquationParser.ParseSessionResult"/> object containing the results of the parse operation.</returns>
-        public EquationParser.ParseSessionResult Parse(string text)
+        public ParseSessionResult Parse(string text)
         {
-            var result = new EquationParser.ParseSessionResult();
+            var result = new ParseSessionResult();
 
             if (string.IsNullOrWhiteSpace(text))
             {
@@ -86,7 +86,7 @@ namespace Core
             return result;
         }
 
-        private void ProcessStatement(string statement, int lineNumber, EquationParser.ParseSessionResult result)
+        private void ProcessStatement(string statement, int lineNumber, ParseSessionResult result)
         {
             string error = string.Empty;
 
