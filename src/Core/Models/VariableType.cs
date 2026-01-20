@@ -7,6 +7,7 @@ namespace Core.Models
     {
         Float,
         Integer,
-        Boolean
+        Boolean,
+        String
     }
 }

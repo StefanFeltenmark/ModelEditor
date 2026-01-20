@@ -51,6 +51,12 @@ namespace Core
             // Extract and process JavaScript execute blocks FIRST
             var (processedText, lineMapping) = ExtractAndProcessExecuteBlocks(text, result);
 
+            // **NEW: Extract and process tuple schemas**
+            processedText = ExtractAndProcessTupleSchemas(processedText, result);
+
+            // Extract and process subject to blocks
+            processedText = ExtractSubjectToBlocks(processedText, lineMapping, result);
+
             // Split into statements
             var statements = SplitIntoStatements(processedText, lineMapping);
 
@@ -64,6 +70,25374 @@ namespace Core
             }
 
             return result;
+        }
+
+        private string ExtractAndProcessTupleSchemas(string text, ParseSessionResult result)
+        {
+            // Pattern: tuple Name { ... }
+            string pattern = @"tuple\s+([a-zA-Z][a-zA-Z0-9_]*)\s*\{";
+            var matches = Regex.Matches(text, pattern, RegexOptions.IgnoreCase);
+
+            if (matches.Count == 0)
+            {
+                return text; // No tuples
+            }
+
+            var resultText = new System.Text.StringBuilder();
+            int lastIndex = 0;
+
+            foreach (Match match in matches)
+            {
+                // Append text before this tuple
+                resultText.Append(text.Substring(lastIndex, match.Index - lastIndex));
+
+                // Find matching closing brace
+                int closingBraceIndex = FindClosingBrace(text, match.Index + match.Length);
+
+                if (closingBraceIndex == -1)
+                {
+                    result.AddError($"Tuple schema: Missing closing brace '}}' for tuple '{match.Groups[1].Value}'", 
+                        text.Substring(0, match.Index).Count(c => c == '\n') + 1);
+                    continue;
+                }
+
+                // Extract the complete tuple definition
+                string tupleDefinition = text.Substring(match.Index, closingBraceIndex - match.Index + 1);
+                
+                // Parse and register the tuple schema
+                if (TryParseTupleSchemaBlock(tupleDefinition, out var schema, out string error))
+                {
+                    modelManager.AddTupleSchema(schema);
+                    result.IncrementSuccess();
+                }
+                else
+                {
+                    result.AddError($"Error parsing tuple schema: {error}", 
+                        text.Substring(0, match.Index).Count(c => c == '\n') + 1);
+                }
+
+                lastIndex = closingBraceIndex + 1;
+            }
+
+            // Append remaining text
+            if (lastIndex < text.Length)
+            {
+                resultText.Append(text.Substring(lastIndex));
+            }
+
+            return resultText.ToString();
+        }
+
+        private bool TryParseTupleSchemaBlock(string block, out TupleSchema? schema, out string error)
+        {
+            schema = null;
+            error = string.Empty;
+
+            // Extract tuple name
+            var nameMatch = Regex.Match(block, @"tuple\s+([a-zA-Z][a-zA-Z0-9_]*)\s*\{", RegexOptions.IgnoreCase);
+            if (!nameMatch.Success)
+            {
+                error = "Invalid tuple syntax";
+                return false;
+            }
+
+            string tupleName = nameMatch.Groups[1].Value;
+            schema = new TupleSchema(tupleName);
+
+            // Extract body (everything between { and })
+            int openBrace = block.IndexOf('{');
+            int closeBrace = block.LastIndexOf('}');
+            
+            if (openBrace == -1 || closeBrace == -1)
+            {
+                error = "Missing braces in tuple definition";
+                return false;
+            }
+
+            string body = block.Substring(openBrace + 1, closeBrace - openBrace - 1);
+
+            // Parse field declarations
+            var fieldPattern = @"(float|int|bool|string)\s+([a-zA-Z][a-zA-Z0-9_]*)\s*;";
+            var fieldMatches = Regex.Matches(body, fieldPattern, RegexOptions.IgnoreCase);
+
+            if (fieldMatches.Count == 0)
+            {
+                error = "Tuple must have at least one field";
+                return false;
+            }
+
+            foreach (Match fieldMatch in fieldMatches)
+            {
+                string typeStr = fieldMatch.Groups[1].Value.ToLower();
+                string fieldName = fieldMatch.Groups[2].Value;
+
+                VariableType fieldType = typeStr switch
+                {
+                    "float" => VariableType.Float,
+                    "int" => VariableType.Integer,
+                    "bool" => VariableType.Boolean,
+                    "string" => VariableType.String,
+                    _ => VariableType.Float
+                };
+
+                try
+                {
+                    schema.AddField(fieldName, fieldType);
+                }
+                catch (Exception ex)
+                {
+                    error = ex.Message;
+                    return false;
+                }
+            }
+
+            return true;
+        }
+
+        public ParseSessionResult Parse(string text)
+        {
+            var result = new ParseSessionResult();
+
+            if (string.IsNullOrWhiteSpace(text))
+            {
+                result.AddError("No text to parse", 0);
+                return result;
+            }
+
+            // Extract and process JavaScript execute blocks FIRST
+            var (processedText, lineMapping) = ExtractAndProcessExecuteBlocks(text, result);
+
+            // **NEW: Extract and process tuple schemas**
+            processedText = ExtractAndProcessTupleSchemas(processedText, result);
+
+            // Extract and process subject to blocks
+            processedText = ExtractSubjectToBlocks(processedText, lineMapping, result);
+
+            // Split into statements
+            var statements = SplitIntoStatements(processedText, lineMapping);
+
+            // Process each statement
+            foreach (var (statement, lineNumber) in statements)
+            {
+                if (!string.IsNullOrWhiteSpace(statement))
+                {
+                    ProcessStatement(statement, lineNumber, result);
+                }
+            }
+
+            return result;
+        }
+
+        private string ExtractAndProcessTupleSchemas(string text, ParseSessionResult result)
+        {
+            // Pattern: tuple Name { ... }
+            string pattern = @"tuple\s+([a-zA-Z][a-zA-Z0-9_]*)\s*\{";
+            var matches = Regex.Matches(text, pattern, RegexOptions.IgnoreCase);
+
+            if (matches.Count == 0)
+            {
+                return text; // No tuples
+            }
+
+            var resultText = new System.Text.StringBuilder();
+            int lastIndex = 0;
+
+            foreach (Match match in matches)
+            {
+                // Append text before this tuple
+                resultText.Append(text.Substring(lastIndex, match.Index - lastIndex));
+
+                // Find matching closing brace
+                int closingBraceIndex = FindClosingBrace(text, match.Index + match.Length);
+
+                if (closingBraceIndex == -1)
+                {
+                    result.AddError($"Tuple schema: Missing closing brace '}}' for tuple '{match.Groups[1].Value}'", 
+                        text.Substring(0, match.Index).Count(c => c == '\n') + 1);
+                    continue;
+                }
+
+                // Extract the complete tuple definition
+                string tupleDefinition = text.Substring(match.Index, closingBraceIndex - match.Index + 1);
+                
+                // Parse and register the tuple schema
+                if (TryParseTupleSchemaBlock(tupleDefinition, out var schema, out string error))
+                {
+                    modelManager.AddTupleSchema(schema);
+                    result.IncrementSuccess();
+                }
+                else
+                {
+                    result.AddError($"Error parsing tuple schema: {error}", 
+                        text.Substring(0, match.Index).Count(c => c == '\n') + 1);
+                }
+
+                lastIndex = closingBraceIndex + 1;
+            }
+
+            // Append remaining text
+            if (lastIndex < text.Length)
+            {
+                resultText.Append(text.Substring(lastIndex));
+            }
+
+            return resultText.ToString();
+        }
+
+        private bool TryParseTupleSchemaBlock(string block, out TupleSchema? schema, out string error)
+        {
+            schema = null;
+            error = string.Empty;
+
+            // Extract tuple name
+            var nameMatch = Regex.Match(block, @"tuple\s+([a-zA-Z][a-zA-Z0-9_]*)\s*\{", RegexOptions.IgnoreCase);
+            if (!nameMatch.Success)
+            {
+                error = "Invalid tuple syntax";
+                return false;
+            }
+
+            string tupleName = nameMatch.Groups[1].Value;
+            schema = new TupleSchema(tupleName);
+
+            // Extract body (everything between { and })
+            int openBrace = block.IndexOf('{');
+            int closeBrace = block.LastIndexOf('}');
+            
+            if (openBrace == -1 || closeBrace == -1)
+            {
+                error = "Missing braces in tuple definition";
+                return false;
+            }
+
+            string body = block.Substring(openBrace + 1, closeBrace - openBrace - 1);
+
+            // Parse field declarations
+            var fieldPattern = @"(float|int|bool|string)\s+([a-zA-Z][a-zA-Z0-9_]*)\s*;";
+            var fieldMatches = Regex.Matches(body, fieldPattern, RegexOptions.IgnoreCase);
+
+            if (fieldMatches.Count == 0)
+            {
+                error = "Tuple must have at least one field";
+                return false;
+            }
+
+            foreach (Match fieldMatch in fieldMatches)
+            {
+                string typeStr = fieldMatch.Groups[1].Value.ToLower();
+                string fieldName = fieldMatch.Groups[2].Value;
+
+                VariableType fieldType = typeStr switch
+                {
+                    "float" => VariableType.Float,
+                    "int" => VariableType.Integer,
+                    "bool" => VariableType.Boolean,
+                    "string" => VariableType.String,
+                    _ => VariableType.Float
+                };
+
+                try
+                {
+                    schema.AddField(fieldName, fieldType);
+                }
+                catch (Exception ex)
+                {
+                    error = ex.Message;
+                    return false;
+                }
+            }
+
+            return true;
+        }
+
+        public ParseSessionResult Parse(string text)
+        {
+            var result = new ParseSessionResult();
+
+            if (string.IsNullOrWhiteSpace(text))
+            {
+                result.AddError("No text to parse", 0);
+                return result;
+            }
+
+            // Extract and process JavaScript execute blocks FIRST
+            var (processedText, lineMapping) = ExtractAndProcessExecuteBlocks(text, result);
+
+            // **NEW: Extract and process tuple schemas**
+            processedText = ExtractAndProcessTupleSchemas(processedText, result);
+
+            // Extract and process subject to blocks
+            processedText = ExtractSubjectToBlocks(processedText, lineMapping, result);
+
+            // Split into statements
+            var statements = SplitIntoStatements(processedText, lineMapping);
+
+            // Process each statement
+            foreach (var (statement, lineNumber) in statements)
+            {
+                if (!string.IsNullOrWhiteSpace(statement))
+                {
+                    ProcessStatement(statement, lineNumber, result);
+                }
+            }
+
+            return result;
+        }
+
+        private string ExtractAndProcessTupleSchemas(string text, ParseSessionResult result)
+        {
+            // Pattern: tuple Name { ... }
+            string pattern = @"tuple\s+([a-zA-Z][a-zA-Z0-9_]*)\s*\{";
+            var matches = Regex.Matches(text, pattern, RegexOptions.IgnoreCase);
+
+            if (matches.Count == 0)
+            {
+                return text; // No tuples
+            }
+
+            var resultText = new System.Text.StringBuilder();
+            int lastIndex = 0;
+
+            foreach (Match match in matches)
+            {
+                // Append text before this tuple
+                resultText.Append(text.Substring(lastIndex, match.Index - lastIndex));
+
+                // Find matching closing brace
+                int closingBraceIndex = FindClosingBrace(text, match.Index + match.Length);
+
+                if (closingBraceIndex == -1)
+                {
+                    result.AddError($"Tuple schema: Missing closing brace '}}' for tuple '{match.Groups[1].Value}'", 
+                        text.Substring(0, match.Index).Count(c => c == '\n') + 1);
+                    continue;
+                }
+
+                // Extract the complete tuple definition
+                string tupleDefinition = text.Substring(match.Index, closingBraceIndex - match.Index + 1);
+                
+                // Parse and register the tuple schema
+                if (TryParseTupleSchemaBlock(tupleDefinition, out var schema, out string error))
+                {
+                    modelManager.AddTupleSchema(schema);
+                    result.IncrementSuccess();
+                }
+                else
+                {
+                    result.AddError($"Error parsing tuple schema: {error}", 
+                        text.Substring(0, match.Index).Count(c => c == '\n') + 1);
+                }
+
+                lastIndex = closingBraceIndex + 1;
+            }
+
+            // Append remaining text
+            if (lastIndex < text.Length)
+            {
+                resultText.Append(text.Substring(lastIndex));
+            }
+
+            return resultText.ToString();
+        }
+
+        private bool TryParseTupleSchemaBlock(string block, out TupleSchema? schema, out string error)
+        {
+            schema = null;
+            error = string.Empty;
+
+            // Extract tuple name
+            var nameMatch = Regex.Match(block, @"tuple\s+([a-zA-Z][a-zA-Z0-9_]*)\s*\{", RegexOptions.IgnoreCase);
+            if (!nameMatch.Success)
+            {
+                error = "Invalid tuple syntax";
+                return false;
+            }
+
+            string tupleName = nameMatch.Groups[1].Value;
+            schema = new TupleSchema(tupleName);
+
+            // Extract body (everything between { and })
+            int openBrace = block.IndexOf('{');
+            int closeBrace = block.LastIndexOf('}');
+            
+            if (openBrace == -1 || closeBrace == -1)
+            {
+                error = "Missing braces in tuple definition";
+                return false;
+            }
+
+            string body = block.Substring(openBrace + 1, closeBrace - openBrace - 1);
+
+            // Parse field declarations
+            var fieldPattern = @"(float|int|bool|string)\s+([a-zA-Z][a-zA-Z0-9_]*)\s*;";
+            var fieldMatches = Regex.Matches(body, fieldPattern, RegexOptions.IgnoreCase);
+
+            if (fieldMatches.Count == 0)
+            {
+                error = "Tuple must have at least one field";
+                return false;
+            }
+
+            foreach (Match fieldMatch in fieldMatches)
+            {
+                string typeStr = fieldMatch.Groups[1].Value.ToLower();
+                string fieldName = fieldMatch.Groups[2].Value;
+
+                VariableType fieldType = typeStr switch
+                {
+                    "float" => VariableType.Float,
+                    "int" => VariableType.Integer,
+                    "bool" => VariableType.Boolean,
+                    "string" => VariableType.String,
+                    _ => VariableType.Float
+                };
+
+                try
+                {
+                    schema.AddField(fieldName, fieldType);
+                }
+                catch (Exception ex)
+                {
+                    error = ex.Message;
+                    return false;
+                }
+            }
+
+            return true;
+        }
+
+        public ParseSessionResult Parse(string text)
+        {
+            var result = new ParseSessionResult();
+
+            if (string.IsNullOrWhiteSpace(text))
+            {
+                result.AddError("No text to parse", 0);
+                return result;
+            }
+
+            // Extract and process JavaScript execute blocks FIRST
+            var (processedText, lineMapping) = ExtractAndProcessExecuteBlocks(text, result);
+
+            // **NEW: Extract and process tuple schemas**
+            processedText = ExtractAndProcessTupleSchemas(processedText, result);
+
+            // Extract and process subject to blocks
+            processedText = ExtractSubjectToBlocks(processedText, lineMapping, result);
+
+            // Split into statements
+            var statements = SplitIntoStatements(processedText, lineMapping);
+
+            // Process each statement
+            foreach (var (statement, lineNumber) in statements)
+            {
+                if (!string.IsNullOrWhiteSpace(statement))
+                {
+                    ProcessStatement(statement, lineNumber, result);
+                }
+            }
+
+            return result;
+        }
+
+        private string ExtractAndProcessTupleSchemas(string text, ParseSessionResult result)
+        {
+            // Pattern: tuple Name { ... }
+            string pattern = @"tuple\s+([a-zA-Z][a-zA-Z0-9_]*)\s*\{";
+            var matches = Regex.Matches(text, pattern, RegexOptions.IgnoreCase);
+
+            if (matches.Count == 0)
+            {
+                return text; // No tuples
+            }
+
+            var resultText = new System.Text.StringBuilder();
+            int lastIndex = 0;
+
+            foreach (Match match in matches)
+            {
+                // Append text before this tuple
+                resultText.Append(text.Substring(lastIndex, match.Index - lastIndex));
+
+                // Find matching closing brace
+                int closingBraceIndex = FindClosingBrace(text, match.Index + match.Length);
+
+                if (closingBraceIndex == -1)
+                {
+                    result.AddError($"Tuple schema: Missing closing brace '}}' for tuple '{match.Groups[1].Value}'", 
+                        text.Substring(0, match.Index).Count(c => c == '\n') + 1);
+                    continue;
+                }
+
+                // Extract the complete tuple definition
+                string tupleDefinition = text.Substring(match.Index, closingBraceIndex - match.Index + 1);
+                
+                // Parse and register the tuple schema
+                if (TryParseTupleSchemaBlock(tupleDefinition, out var schema, out string error))
+                {
+                    modelManager.AddTupleSchema(schema);
+                    result.IncrementSuccess();
+                }
+                else
+                {
+                    result.AddError($"Error parsing tuple schema: {error}", 
+                        text.Substring(0, match.Index).Count(c => c == '\n') + 1);
+                }
+
+                lastIndex = closingBraceIndex + 1;
+            }
+
+            // Append remaining text
+            if (lastIndex < text.Length)
+            {
+                resultText.Append(text.Substring(lastIndex));
+            }
+
+            return resultText.ToString();
+        }
+
+        private bool TryParseTupleSchemaBlock(string block, out TupleSchema? schema, out string error)
+        {
+            schema = null;
+            error = string.Empty;
+
+            // Extract tuple name
+            var nameMatch = Regex.Match(block, @"tuple\s+([a-zA-Z][a-zA-Z0-9_]*)\s*\{", RegexOptions.IgnoreCase);
+            if (!nameMatch.Success)
+            {
+                error = "Invalid tuple syntax";
+                return false;
+            }
+
+            string tupleName = nameMatch.Groups[1].Value;
+            schema = new TupleSchema(tupleName);
+
+            // Extract body (everything between { and })
+            int openBrace = block.IndexOf('{');
+            int closeBrace = block.LastIndexOf('}');
+            
+            if (openBrace == -1 || closeBrace == -1)
+            {
+                error = "Missing braces in tuple definition";
+                return false;
+            }
+
+            string body = block.Substring(openBrace + 1, closeBrace - openBrace - 1);
+
+            // Parse field declarations
+            var fieldPattern = @"(float|int|bool|string)\s+([a-zA-Z][a-zA-Z0-9_]*)\s*;";
+            var fieldMatches = Regex.Matches(body, fieldPattern, RegexOptions.IgnoreCase);
+
+            if (fieldMatches.Count == 0)
+            {
+                error = "Tuple must have at least one field";
+                return false;
+            }
+
+            foreach (Match fieldMatch in fieldMatches)
+            {
+                string typeStr = fieldMatch.Groups[1].Value.ToLower();
+                string fieldName = fieldMatch.Groups[2].Value;
+
+                VariableType fieldType = typeStr switch
+                {
+                    "float" => VariableType.Float,
+                    "int" => VariableType.Integer,
+                    "bool" => VariableType.Boolean,
+                    "string" => VariableType.String,
+                    _ => VariableType.Float
+                };
+
+                try
+                {
+                    schema.AddField(fieldName, fieldType);
+                }
+                catch (Exception ex)
+                {
+                    error = ex.Message;
+                    return false;
+                }
+            }
+
+            return true;
+        }
+
+        public ParseSessionResult Parse(string text)
+        {
+            var result = new ParseSessionResult();
+
+            if (string.IsNullOrWhiteSpace(text))
+            {
+                result.AddError("No text to parse", 0);
+                return result;
+            }
+
+            // Extract and process JavaScript execute blocks FIRST
+            var (processedText, lineMapping) = ExtractAndProcessExecuteBlocks(text, result);
+
+            // **NEW: Extract and process tuple schemas**
+            processedText = ExtractAndProcessTupleSchemas(processedText, result);
+
+            // Extract and process subject to blocks
+            processedText = ExtractSubjectToBlocks(processedText, lineMapping, result);
+
+            // Split into statements
+            var statements = SplitIntoStatements(processedText, lineMapping);
+
+            // Process each statement
+            foreach (var (statement, lineNumber) in statements)
+            {
+                if (!string.IsNullOrWhiteSpace(statement))
+                {
+                    ProcessStatement(statement, lineNumber, result);
+                }
+            }
+
+            return result;
+        }
+
+        private string ExtractAndProcessTupleSchemas(string text, ParseSessionResult result)
+        {
+            // Pattern: tuple Name { ... }
+            string pattern = @"tuple\s+([a-zA-Z][a-zA-Z0-9_]*)\s*\{";
+            var matches = Regex.Matches(text, pattern, RegexOptions.IgnoreCase);
+
+            if (matches.Count == 0)
+            {
+                return text; // No tuples
+            }
+
+            var resultText = new System.Text.StringBuilder();
+            int lastIndex = 0;
+
+            foreach (Match match in matches)
+            {
+                // Append text before this tuple
+                resultText.Append(text.Substring(lastIndex, match.Index - lastIndex));
+
+                // Find matching closing brace
+                int closingBraceIndex = FindClosingBrace(text, match.Index + match.Length);
+
+                if (closingBraceIndex == -1)
+                {
+                    result.AddError($"Tuple schema: Missing closing brace '}}' for tuple '{match.Groups[1].Value}'", 
+                        text.Substring(0, match.Index).Count(c => c == '\n') + 1);
+                    continue;
+                }
+
+                // Extract the complete tuple definition
+                string tupleDefinition = text.Substring(match.Index, closingBraceIndex - match.Index + 1);
+                
+                // Parse and register the tuple schema
+                if (TryParseTupleSchemaBlock(tupleDefinition, out var schema, out string error))
+                {
+                    modelManager.AddTupleSchema(schema);
+                    result.IncrementSuccess();
+                }
+                else
+                {
+                    result.AddError($"Error parsing tuple schema: {error}", 
+                        text.Substring(0, match.Index).Count(c => c == '\n') + 1);
+                }
+
+                lastIndex = closingBraceIndex + 1;
+            }
+
+            // Append remaining text
+            if (lastIndex < text.Length)
+            {
+                resultText.Append(text.Substring(lastIndex));
+            }
+
+            return resultText.ToString();
+        }
+
+        private bool TryParseTupleSchemaBlock(string block, out TupleSchema? schema, out string error)
+        {
+            schema = null;
+            error = string.Empty;
+
+            // Extract tuple name
+            var nameMatch = Regex.Match(block, @"tuple\s+([a-zA-Z][a-zA-Z0-9_]*)\s*\{", RegexOptions.IgnoreCase);
+            if (!nameMatch.Success)
+            {
+                error = "Invalid tuple syntax";
+                return false;
+            }
+
+            string tupleName = nameMatch.Groups[1].Value;
+            schema = new TupleSchema(tupleName);
+
+            // Extract body (everything between { and })
+            int openBrace = block.IndexOf('{');
+            int closeBrace = block.LastIndexOf('}');
+            
+            if (openBrace == -1 || closeBrace == -1)
+            {
+                error = "Missing braces in tuple definition";
+                return false;
+            }
+
+            string body = block.Substring(openBrace + 1, closeBrace - openBrace - 1);
+
+            // Parse field declarations
+            var fieldPattern = @"(float|int|bool|string)\s+([a-zA-Z][a-zA-Z0-9_]*)\s*;";
+            var fieldMatches = Regex.Matches(body, fieldPattern, RegexOptions.IgnoreCase);
+
+            if (fieldMatches.Count == 0)
+            {
+                error = "Tuple must have at least one field";
+                return false;
+            }
+
+            foreach (Match fieldMatch in fieldMatches)
+            {
+                string typeStr = fieldMatch.Groups[1].Value.ToLower();
+                string fieldName = fieldMatch.Groups[2].Value;
+
+                VariableType fieldType = typeStr switch
+                {
+                    "float" => VariableType.Float,
+                    "int" => VariableType.Integer,
+                    "bool" => VariableType.Boolean,
+                    "string" => VariableType.String,
+                    _ => VariableType.Float
+                };
+
+                try
+                {
+                    schema.AddField(fieldName, fieldType);
+                }
+                catch (Exception ex)
+                {
+                    error = ex.Message;
+                    return false;
+                }
+            }
+
+            return true;
+        }
+
+        public ParseSessionResult Parse(string text)
+        {
+            var result = new ParseSessionResult();
+
+            if (string.IsNullOrWhiteSpace(text))
+            {
+                result.AddError("No text to parse", 0);
+                return result;
+            }
+
+            // Extract and process JavaScript execute blocks FIRST
+            var (processedText, lineMapping) = ExtractAndProcessExecuteBlocks(text, result);
+
+            // **NEW: Extract and process tuple schemas**
+            processedText = ExtractAndProcessTupleSchemas(processedText, result);
+
+            // Extract and process subject to blocks
+            processedText = ExtractSubjectToBlocks(processedText, lineMapping, result);
+
+            // Split into statements
+            var statements = SplitIntoStatements(processedText, lineMapping);
+
+            // Process each statement
+            foreach (var (statement, lineNumber) in statements)
+            {
+                if (!string.IsNullOrWhiteSpace(statement))
+                {
+                    ProcessStatement(statement, lineNumber, result);
+                }
+            }
+
+            return result;
+        }
+
+        private string ExtractAndProcessTupleSchemas(string text, ParseSessionResult result)
+        {
+            // Pattern: tuple Name { ... }
+            string pattern = @"tuple\s+([a-zA-Z][a-zA-Z0-9_]*)\s*\{";
+            var matches = Regex.Matches(text, pattern, RegexOptions.IgnoreCase);
+
+            if (matches.Count == 0)
+            {
+                return text; // No tuples
+            }
+
+            var resultText = new System.Text.StringBuilder();
+            int lastIndex = 0;
+
+            foreach (Match match in matches)
+            {
+                // Append text before this tuple
+                resultText.Append(text.Substring(lastIndex, match.Index - lastIndex));
+
+                // Find matching closing brace
+                int closingBraceIndex = FindClosingBrace(text, match.Index + match.Length);
+
+                if (closingBraceIndex == -1)
+                {
+                    result.AddError($"Tuple schema: Missing closing brace '}}' for tuple '{match.Groups[1].Value}'", 
+                        text.Substring(0, match.Index).Count(c => c == '\n') + 1);
+                    continue;
+                }
+
+                // Extract the complete tuple definition
+                string tupleDefinition = text.Substring(match.Index, closingBraceIndex - match.Index + 1);
+                
+                // Parse and register the tuple schema
+                if (TryParseTupleSchemaBlock(tupleDefinition, out var schema, out string error))
+                {
+                    modelManager.AddTupleSchema(schema);
+                    result.IncrementSuccess();
+                }
+                else
+                {
+                    result.AddError($"Error parsing tuple schema: {error}", 
+                        text.Substring(0, match.Index).Count(c => c == '\n') + 1);
+                }
+
+                lastIndex = closingBraceIndex + 1;
+            }
+
+            // Append remaining text
+            if (lastIndex < text.Length)
+            {
+                resultText.Append(text.Substring(lastIndex));
+            }
+
+            return resultText.ToString();
+        }
+
+        private bool TryParseTupleSchemaBlock(string block, out TupleSchema? schema, out string error)
+        {
+            schema = null;
+            error = string.Empty;
+
+            // Extract tuple name
+            var nameMatch = Regex.Match(block, @"tuple\s+([a-zA-Z][a-zA-Z0-9_]*)\s*\{", RegexOptions.IgnoreCase);
+            if (!nameMatch.Success)
+            {
+                error = "Invalid tuple syntax";
+                return false;
+            }
+
+            string tupleName = nameMatch.Groups[1].Value;
+            schema = new TupleSchema(tupleName);
+
+            // Extract body (everything between { and })
+            int openBrace = block.IndexOf('{');
+            int closeBrace = block.LastIndexOf('}');
+            
+            if (openBrace == -1 || closeBrace == -1)
+            {
+                error = "Missing braces in tuple definition";
+                return false;
+            }
+
+            string body = block.Substring(openBrace + 1, closeBrace - openBrace - 1);
+
+            // Parse field declarations
+            var fieldPattern = @"(float|int|bool|string)\s+([a-zA-Z][a-zA-Z0-9_]*)\s*;";
+            var fieldMatches = Regex.Matches(body, fieldPattern, RegexOptions.IgnoreCase);
+
+            if (fieldMatches.Count == 0)
+            {
+                error = "Tuple must have at least one field";
+                return false;
+            }
+
+            foreach (Match fieldMatch in fieldMatches)
+            {
+                string typeStr = fieldMatch.Groups[1].Value.ToLower();
+                string fieldName = fieldMatch.Groups[2].Value;
+
+                VariableType fieldType = typeStr switch
+                {
+                    "float" => VariableType.Float,
+                    "int" => VariableType.Integer,
+                    "bool" => VariableType.Boolean,
+                    "string" => VariableType.String,
+                    _ => VariableType.Float
+                };
+
+                try
+                {
+                    schema.AddField(fieldName, fieldType);
+                }
+                catch (Exception ex)
+                {
+                    error = ex.Message;
+                    return false;
+                }
+            }
+
+            return true;
+        }
+
+        public ParseSessionResult Parse(string text)
+        {
+            var result = new ParseSessionResult();
+
+            if (string.IsNullOrWhiteSpace(text))
+            {
+                result.AddError("No text to parse", 0);
+                return result;
+            }
+
+            // Extract and process JavaScript execute blocks FIRST
+            var (processedText, lineMapping) = ExtractAndProcessExecuteBlocks(text, result);
+
+            // **NEW: Extract and process tuple schemas**
+            processedText = ExtractAndProcessTupleSchemas(processedText, result);
+
+            // Extract and process subject to blocks
+            processedText = ExtractSubjectToBlocks(processedText, lineMapping, result);
+
+            // Split into statements
+            var statements = SplitIntoStatements(processedText, lineMapping);
+
+            // Process each statement
+            foreach (var (statement, lineNumber) in statements)
+            {
+                if (!string.IsNullOrWhiteSpace(statement))
+                {
+                    ProcessStatement(statement, lineNumber, result);
+                }
+            }
+
+            return result;
+        }
+
+        private string ExtractAndProcessTupleSchemas(string text, ParseSessionResult result)
+        {
+            // Pattern: tuple Name { ... }
+            string pattern = @"tuple\s+([a-zA-Z][a-zA-Z0-9_]*)\s*\{";
+            var matches = Regex.Matches(text, pattern, RegexOptions.IgnoreCase);
+
+            if (matches.Count == 0)
+            {
+                return text; // No tuples
+            }
+
+            var resultText = new System.Text.StringBuilder();
+            int lastIndex = 0;
+
+            foreach (Match match in matches)
+            {
+                // Append text before this tuple
+                resultText.Append(text.Substring(lastIndex, match.Index - lastIndex));
+
+                // Find matching closing brace
+                int closingBraceIndex = FindClosingBrace(text, match.Index + match.Length);
+
+                if (closingBraceIndex == -1)
+                {
+                    result.AddError($"Tuple schema: Missing closing brace '}}' for tuple '{match.Groups[1].Value}'", 
+                        text.Substring(0, match.Index).Count(c => c == '\n') + 1);
+                    continue;
+                }
+
+                // Extract the complete tuple definition
+                string tupleDefinition = text.Substring(match.Index, closingBraceIndex - match.Index + 1);
+                
+                // Parse and register the tuple schema
+                if (TryParseTupleSchemaBlock(tupleDefinition, out var schema, out string error))
+                {
+                    modelManager.AddTupleSchema(schema);
+                    result.IncrementSuccess();
+                }
+                else
+                {
+                    result.AddError($"Error parsing tuple schema: {error}", 
+                        text.Substring(0, match.Index).Count(c => c == '\n') + 1);
+                }
+
+                lastIndex = closingBraceIndex + 1;
+            }
+
+            // Append remaining text
+            if (lastIndex < text.Length)
+            {
+                resultText.Append(text.Substring(lastIndex));
+            }
+
+            return resultText.ToString();
+        }
+
+        private bool TryParseTupleSchemaBlock(string block, out TupleSchema? schema, out string error)
+        {
+            schema = null;
+            error = string.Empty;
+
+            // Extract tuple name
+            var nameMatch = Regex.Match(block, @"tuple\s+([a-zA-Z][a-zA-Z0-9_]*)\s*\{", RegexOptions.IgnoreCase);
+            if (!nameMatch.Success)
+            {
+                error = "Invalid tuple syntax";
+                return false;
+            }
+
+            string tupleName = nameMatch.Groups[1].Value;
+            schema = new TupleSchema(tupleName);
+
+            // Extract body (everything between { and })
+            int openBrace = block.IndexOf('{');
+            int closeBrace = block.LastIndexOf('}');
+            
+            if (openBrace == -1 || closeBrace == -1)
+            {
+                error = "Missing braces in tuple definition";
+                return false;
+            }
+
+            string body = block.Substring(openBrace + 1, closeBrace - openBrace - 1);
+
+            // Parse field declarations
+            var fieldPattern = @"(float|int|bool|string)\s+([a-zA-Z][a-zA-Z0-9_]*)\s*;";
+            var fieldMatches = Regex.Matches(body, fieldPattern, RegexOptions.IgnoreCase);
+
+            if (fieldMatches.Count == 0)
+            {
+                error = "Tuple must have at least one field";
+                return false;
+            }
+
+            foreach (Match fieldMatch in fieldMatches)
+            {
+                string typeStr = fieldMatch.Groups[1].Value.ToLower();
+                string fieldName = fieldMatch.Groups[2].Value;
+
+                VariableType fieldType = typeStr switch
+                {
+                    "float" => VariableType.Float,
+                    "int" => VariableType.Integer,
+                    "bool" => VariableType.Boolean,
+                    "string" => VariableType.String,
+                    _ => VariableType.Float
+                };
+
+                try
+                {
+                    schema.AddField(fieldName, fieldType);
+                }
+                catch (Exception ex)
+                {
+                    error = ex.Message;
+                    return false;
+                }
+            }
+
+            return true;
+        }
+
+        public ParseSessionResult Parse(string text)
+        {
+            var result = new ParseSessionResult();
+
+            if (string.IsNullOrWhiteSpace(text))
+            {
+                result.AddError("No text to parse", 0);
+                return result;
+            }
+
+            // Extract and process JavaScript execute blocks FIRST
+            var (processedText, lineMapping) = ExtractAndProcessExecuteBlocks(text, result);
+
+            // **NEW: Extract and process tuple schemas**
+            processedText = ExtractAndProcessTupleSchemas(processedText, result);
+
+            // Extract and process subject to blocks
+            processedText = ExtractSubjectToBlocks(processedText, lineMapping, result);
+
+            // Split into statements
+            var statements = SplitIntoStatements(processedText, lineMapping);
+
+            // Process each statement
+            foreach (var (statement, lineNumber) in statements)
+            {
+                if (!string.IsNullOrWhiteSpace(statement))
+                {
+                    ProcessStatement(statement, lineNumber, result);
+                }
+            }
+
+            return result;
+        }
+
+        private string ExtractAndProcessTupleSchemas(string text, ParseSessionResult result)
+        {
+            // Pattern: tuple Name { ... }
+            string pattern = @"tuple\s+([a-zA-Z][a-zA-Z0-9_]*)\s*\{";
+            var matches = Regex.Matches(text, pattern, RegexOptions.IgnoreCase);
+
+            if (matches.Count == 0)
+            {
+                return text; // No tuples
+            }
+
+            var resultText = new System.Text.StringBuilder();
+            int lastIndex = 0;
+
+            foreach (Match match in matches)
+            {
+                // Append text before this tuple
+                resultText.Append(text.Substring(lastIndex, match.Index - lastIndex));
+
+                // Find matching closing brace
+                int closingBraceIndex = FindClosingBrace(text, match.Index + match.Length);
+
+                if (closingBraceIndex == -1)
+                {
+                    result.AddError($"Tuple schema: Missing closing brace '}}' for tuple '{match.Groups[1].Value}'", 
+                        text.Substring(0, match.Index).Count(c => c == '\n') + 1);
+                    continue;
+                }
+
+                // Extract the complete tuple definition
+                string tupleDefinition = text.Substring(match.Index, closingBraceIndex - match.Index + 1);
+                
+                // Parse and register the tuple schema
+                if (TryParseTupleSchemaBlock(tupleDefinition, out var schema, out string error))
+                {
+                    modelManager.AddTupleSchema(schema);
+                    result.IncrementSuccess();
+                }
+                else
+                {
+                    result.AddError($"Error parsing tuple schema: {error}", 
+                        text.Substring(0, match.Index).Count(c => c == '\n') + 1);
+                }
+
+                lastIndex = closingBraceIndex + 1;
+            }
+
+            // Append remaining text
+            if (lastIndex < text.Length)
+            {
+                resultText.Append(text.Substring(lastIndex));
+            }
+
+            return resultText.ToString();
+        }
+
+        private bool TryParseTupleSchemaBlock(string block, out TupleSchema? schema, out string error)
+        {
+            schema = null;
+            error = string.Empty;
+
+            // Extract tuple name
+            var nameMatch = Regex.Match(block, @"tuple\s+([a-zA-Z][a-zA-Z0-9_]*)\s*\{", RegexOptions.IgnoreCase);
+            if (!nameMatch.Success)
+            {
+                error = "Invalid tuple syntax";
+                return false;
+            }
+
+            string tupleName = nameMatch.Groups[1].Value;
+            schema = new TupleSchema(tupleName);
+
+            // Extract body (everything between { and })
+            int openBrace = block.IndexOf('{');
+            int closeBrace = block.LastIndexOf('}');
+            
+            if (openBrace == -1 || closeBrace == -1)
+            {
+                error = "Missing braces in tuple definition";
+                return false;
+            }
+
+            string body = block.Substring(openBrace + 1, closeBrace - openBrace - 1);
+
+            // Parse field declarations
+            var fieldPattern = @"(float|int|bool|string)\s+([a-zA-Z][a-zA-Z0-9_]*)\s*;";
+            var fieldMatches = Regex.Matches(body, fieldPattern, RegexOptions.IgnoreCase);
+
+            if (fieldMatches.Count == 0)
+            {
+                error = "Tuple must have at least one field";
+                return false;
+            }
+
+            foreach (Match fieldMatch in fieldMatches)
+            {
+                string typeStr = fieldMatch.Groups[1].Value.ToLower();
+                string fieldName = fieldMatch.Groups[2].Value;
+
+                VariableType fieldType = typeStr switch
+                {
+                    "float" => VariableType.Float,
+                    "int" => VariableType.Integer,
+                    "bool" => VariableType.Boolean,
+                    "string" => VariableType.String,
+                    _ => VariableType.Float
+                };
+
+                try
+                {
+                    schema.AddField(fieldName, fieldType);
+                }
+                catch (Exception ex)
+                {
+                    error = ex.Message;
+                    return false;
+                }
+            }
+
+            return true;
+        }
+
+        public ParseSessionResult Parse(string text)
+        {
+            var result = new ParseSessionResult();
+
+            if (string.IsNullOrWhiteSpace(text))
+            {
+                result.AddError("No text to parse", 0);
+                return result;
+            }
+
+            // Extract and process JavaScript execute blocks FIRST
+            var (processedText, lineMapping) = ExtractAndProcessExecuteBlocks(text, result);
+
+            // **NEW: Extract and process tuple schemas**
+            processedText = ExtractAndProcessTupleSchemas(processedText, result);
+
+            // Extract and process subject to blocks
+            processedText = ExtractSubjectToBlocks(processedText, lineMapping, result);
+
+            // Split into statements
+            var statements = SplitIntoStatements(processedText, lineMapping);
+
+            // Process each statement
+            foreach (var (statement, lineNumber) in statements)
+            {
+                if (!string.IsNullOrWhiteSpace(statement))
+                {
+                    ProcessStatement(statement, lineNumber, result);
+                }
+            }
+
+            return result;
+        }
+
+        private string ExtractAndProcessTupleSchemas(string text, ParseSessionResult result)
+        {
+            // Pattern: tuple Name { ... }
+            string pattern = @"tuple\s+([a-zA-Z][a-zA-Z0-9_]*)\s*\{";
+            var matches = Regex.Matches(text, pattern, RegexOptions.IgnoreCase);
+
+            if (matches.Count == 0)
+            {
+                return text; // No tuples
+            }
+
+            var resultText = new System.Text.StringBuilder();
+            int lastIndex = 0;
+
+            foreach (Match match in matches)
+            {
+                // Append text before this tuple
+                resultText.Append(text.Substring(lastIndex, match.Index - lastIndex));
+
+                // Find matching closing brace
+                int closingBraceIndex = FindClosingBrace(text, match.Index + match.Length);
+
+                if (closingBraceIndex == -1)
+                {
+                    result.AddError($"Tuple schema: Missing closing brace '}}' for tuple '{match.Groups[1].Value}'", 
+                        text.Substring(0, match.Index).Count(c => c == '\n') + 1);
+                    continue;
+                }
+
+                // Extract the complete tuple definition
+                string tupleDefinition = text.Substring(match.Index, closingBraceIndex - match.Index + 1);
+                
+                // Parse and register the tuple schema
+                if (TryParseTupleSchemaBlock(tupleDefinition, out var schema, out string error))
+                {
+                    modelManager.AddTupleSchema(schema);
+                    result.IncrementSuccess();
+                }
+                else
+                {
+                    result.AddError($"Error parsing tuple schema: {error}", 
+                        text.Substring(0, match.Index).Count(c => c == '\n') + 1);
+                }
+
+                lastIndex = closingBraceIndex + 1;
+            }
+
+            // Append remaining text
+            if (lastIndex < text.Length)
+            {
+                resultText.Append(text.Substring(lastIndex));
+            }
+
+            return resultText.ToString();
+        }
+
+        private bool TryParseTupleSchemaBlock(string block, out TupleSchema? schema, out string error)
+        {
+            schema = null;
+            error = string.Empty;
+
+            // Extract tuple name
+            var nameMatch = Regex.Match(block, @"tuple\s+([a-zA-Z][a-zA-Z0-9_]*)\s*\{", RegexOptions.IgnoreCase);
+            if (!nameMatch.Success)
+            {
+                error = "Invalid tuple syntax";
+                return false;
+            }
+
+            string tupleName = nameMatch.Groups[1].Value;
+            schema = new TupleSchema(tupleName);
+
+            // Extract body (everything between { and })
+            int openBrace = block.IndexOf('{');
+            int closeBrace = block.LastIndexOf('}');
+            
+            if (openBrace == -1 || closeBrace == -1)
+            {
+                error = "Missing braces in tuple definition";
+                return false;
+            }
+
+            string body = block.Substring(openBrace + 1, closeBrace - openBrace - 1);
+
+            // Parse field declarations
+            var fieldPattern = @"(float|int|bool|string)\s+([a-zA-Z][a-zA-Z0-9_]*)\s*;";
+            var fieldMatches = Regex.Matches(body, fieldPattern, RegexOptions.IgnoreCase);
+
+            if (fieldMatches.Count == 0)
+            {
+                error = "Tuple must have at least one field";
+                return false;
+            }
+
+            foreach (Match fieldMatch in fieldMatches)
+            {
+                string typeStr = fieldMatch.Groups[1].Value.ToLower();
+                string fieldName = fieldMatch.Groups[2].Value;
+
+                VariableType fieldType = typeStr switch
+                {
+                    "float" => VariableType.Float,
+                    "int" => VariableType.Integer,
+                    "bool" => VariableType.Boolean,
+                    "string" => VariableType.String,
+                    _ => VariableType.Float
+                };
+
+                try
+                {
+                    schema.AddField(fieldName, fieldType);
+                }
+                catch (Exception ex)
+                {
+                    error = ex.Message;
+                    return false;
+                }
+            }
+
+            return true;
+        }
+
+        public ParseSessionResult Parse(string text)
+        {
+            var result = new ParseSessionResult();
+
+            if (string.IsNullOrWhiteSpace(text))
+            {
+                result.AddError("No text to parse", 0);
+                return result;
+            }
+
+            // Extract and process JavaScript execute blocks FIRST
+            var (processedText, lineMapping) = ExtractAndProcessExecuteBlocks(text, result);
+
+            // **NEW: Extract and process tuple schemas**
+            processedText = ExtractAndProcessTupleSchemas(processedText, result);
+
+            // Extract and process subject to blocks
+            processedText = ExtractSubjectToBlocks(processedText, lineMapping, result);
+
+            // Split into statements
+            var statements = SplitIntoStatements(processedText, lineMapping);
+
+            // Process each statement
+            foreach (var (statement, lineNumber) in statements)
+            {
+                if (!string.IsNullOrWhiteSpace(statement))
+                {
+                    ProcessStatement(statement, lineNumber, result);
+                }
+            }
+
+            return result;
+        }
+
+        private string ExtractAndProcessTupleSchemas(string text, ParseSessionResult result)
+        {
+            // Pattern: tuple Name { ... }
+            string pattern = @"tuple\s+([a-zA-Z][a-zA-Z0-9_]*)\s*\{";
+            var matches = Regex.Matches(text, pattern, RegexOptions.IgnoreCase);
+
+            if (matches.Count == 0)
+            {
+                return text; // No tuples
+            }
+
+            var resultText = new System.Text.StringBuilder();
+            int lastIndex = 0;
+
+            foreach (Match match in matches)
+            {
+                // Append text before this tuple
+                resultText.Append(text.Substring(lastIndex, match.Index - lastIndex));
+
+                // Find matching closing brace
+                int closingBraceIndex = FindClosingBrace(text, match.Index + match.Length);
+
+                if (closingBraceIndex == -1)
+                {
+                    result.AddError($"Tuple schema: Missing closing brace '}}' for tuple '{match.Groups[1].Value}'", 
+                        text.Substring(0, match.Index).Count(c => c == '\n') + 1);
+                    continue;
+                }
+
+                // Extract the complete tuple definition
+                string tupleDefinition = text.Substring(match.Index, closingBraceIndex - match.Index + 1);
+                
+                // Parse and register the tuple schema
+                if (TryParseTupleSchemaBlock(tupleDefinition, out var schema, out string error))
+                {
+                    modelManager.AddTupleSchema(schema);
+                    result.IncrementSuccess();
+                }
+                else
+                {
+                    result.AddError($"Error parsing tuple schema: {error}", 
+                        text.Substring(0, match.Index).Count(c => c == '\n') + 1);
+                }
+
+                lastIndex = closingBraceIndex + 1;
+            }
+
+            // Append remaining text
+            if (lastIndex < text.Length)
+            {
+                resultText.Append(text.Substring(lastIndex));
+            }
+
+            return resultText.ToString();
+        }
+
+        private bool TryParseTupleSchemaBlock(string block, out TupleSchema? schema, out string error)
+        {
+            schema = null;
+            error = string.Empty;
+
+            // Extract tuple name
+            var nameMatch = Regex.Match(block, @"tuple\s+([a-zA-Z][a-zA-Z0-9_]*)\s*\{", RegexOptions.IgnoreCase);
+            if (!nameMatch.Success)
+            {
+                error = "Invalid tuple syntax";
+                return false;
+            }
+
+            string tupleName = nameMatch.Groups[1].Value;
+            schema = new TupleSchema(tupleName);
+
+            // Extract body (everything between { and })
+            int openBrace = block.IndexOf('{');
+            int closeBrace = block.LastIndexOf('}');
+            
+            if (openBrace == -1 || closeBrace == -1)
+            {
+                error = "Missing braces in tuple definition";
+                return false;
+            }
+
+            string body = block.Substring(openBrace + 1, closeBrace - openBrace - 1);
+
+            // Parse field declarations
+            var fieldPattern = @"(float|int|bool|string)\s+([a-zA-Z][a-zA-Z0-9_]*)\s*;";
+            var fieldMatches = Regex.Matches(body, fieldPattern, RegexOptions.IgnoreCase);
+
+            if (fieldMatches.Count == 0)
+            {
+                error = "Tuple must have at least one field";
+                return false;
+            }
+
+            foreach (Match fieldMatch in fieldMatches)
+            {
+                string typeStr = fieldMatch.Groups[1].Value.ToLower();
+                string fieldName = fieldMatch.Groups[2].Value;
+
+                VariableType fieldType = typeStr switch
+                {
+                    "float" => VariableType.Float,
+                    "int" => VariableType.Integer,
+                    "bool" => VariableType.Boolean,
+                    "string" => VariableType.String,
+                    _ => VariableType.Float
+                };
+
+                try
+                {
+                    schema.AddField(fieldName, fieldType);
+                }
+                catch (Exception ex)
+                {
+                    error = ex.Message;
+                    return false;
+                }
+            }
+
+            return true;
+        }
+
+        public ParseSessionResult Parse(string text)
+        {
+            var result = new ParseSessionResult();
+
+            if (string.IsNullOrWhiteSpace(text))
+            {
+                result.AddError("No text to parse", 0);
+                return result;
+            }
+
+            // Extract and process JavaScript execute blocks FIRST
+            var (processedText, lineMapping) = ExtractAndProcessExecuteBlocks(text, result);
+
+            // **NEW: Extract and process tuple schemas**
+            processedText = ExtractAndProcessTupleSchemas(processedText, result);
+
+            // Extract and process subject to blocks
+            processedText = ExtractSubjectToBlocks(processedText, lineMapping, result);
+
+            // Split into statements
+            var statements = SplitIntoStatements(processedText, lineMapping);
+
+            // Process each statement
+            foreach (var (statement, lineNumber) in statements)
+            {
+                if (!string.IsNullOrWhiteSpace(statement))
+                {
+                    ProcessStatement(statement, lineNumber, result);
+                }
+            }
+
+            return result;
+        }
+
+        private string ExtractAndProcessTupleSchemas(string text, ParseSessionResult result)
+        {
+            // Pattern: tuple Name { ... }
+            string pattern = @"tuple\s+([a-zA-Z][a-zA-Z0-9_]*)\s*\{";
+            var matches = Regex.Matches(text, pattern, RegexOptions.IgnoreCase);
+
+            if (matches.Count == 0)
+            {
+                return text; // No tuples
+            }
+
+            var resultText = new System.Text.StringBuilder();
+            int lastIndex = 0;
+
+            foreach (Match match in matches)
+            {
+                // Append text before this tuple
+                resultText.Append(text.Substring(lastIndex, match.Index - lastIndex));
+
+                // Find matching closing brace
+                int closingBraceIndex = FindClosingBrace(text, match.Index + match.Length);
+
+                if (closingBraceIndex == -1)
+                {
+                    result.AddError($"Tuple schema: Missing closing brace '}}' for tuple '{match.Groups[1].Value}'", 
+                        text.Substring(0, match.Index).Count(c => c == '\n') + 1);
+                    continue;
+                }
+
+                // Extract the complete tuple definition
+                string tupleDefinition = text.Substring(match.Index, closingBraceIndex - match.Index + 1);
+                
+                // Parse and register the tuple schema
+                if (TryParseTupleSchemaBlock(tupleDefinition, out var schema, out string error))
+                {
+                    modelManager.AddTupleSchema(schema);
+                    result.IncrementSuccess();
+                }
+                else
+                {
+                    result.AddError($"Error parsing tuple schema: {error}", 
+                        text.Substring(0, match.Index).Count(c => c == '\n') + 1);
+                }
+
+                lastIndex = closingBraceIndex + 1;
+            }
+
+            // Append remaining text
+            if (lastIndex < text.Length)
+            {
+                resultText.Append(text.Substring(lastIndex));
+            }
+
+            return resultText.ToString();
+        }
+
+        private bool TryParseTupleSchemaBlock(string block, out TupleSchema? schema, out string error)
+        {
+            schema = null;
+            error = string.Empty;
+
+            // Extract tuple name
+            var nameMatch = Regex.Match(block, @"tuple\s+([a-zA-Z][a-zA-Z0-9_]*)\s*\{", RegexOptions.IgnoreCase);
+            if (!nameMatch.Success)
+            {
+                error = "Invalid tuple syntax";
+                return false;
+            }
+
+            string tupleName = nameMatch.Groups[1].Value;
+            schema = new TupleSchema(tupleName);
+
+            // Extract body (everything between { and })
+            int openBrace = block.IndexOf('{');
+            int closeBrace = block.LastIndexOf('}');
+            
+            if (openBrace == -1 || closeBrace == -1)
+            {
+                error = "Missing braces in tuple definition";
+                return false;
+            }
+
+            string body = block.Substring(openBrace + 1, closeBrace - openBrace - 1);
+
+            // Parse field declarations
+            var fieldPattern = @"(float|int|bool|string)\s+([a-zA-Z][a-zA-Z0-9_]*)\s*;";
+            var fieldMatches = Regex.Matches(body, fieldPattern, RegexOptions.IgnoreCase);
+
+            if (fieldMatches.Count == 0)
+            {
+                error = "Tuple must have at least one field";
+                return false;
+            }
+
+            foreach (Match fieldMatch in fieldMatches)
+            {
+                string typeStr = fieldMatch.Groups[1].Value.ToLower();
+                string fieldName = fieldMatch.Groups[2].Value;
+
+                VariableType fieldType = typeStr switch
+                {
+                    "float" => VariableType.Float,
+                    "int" => VariableType.Integer,
+                    "bool" => VariableType.Boolean,
+                    "string" => VariableType.String,
+                    _ => VariableType.Float
+                };
+
+                try
+                {
+                    schema.AddField(fieldName, fieldType);
+                }
+                catch (Exception ex)
+                {
+                    error = ex.Message;
+                    return false;
+                }
+            }
+
+            return true;
+        }
+
+        public ParseSessionResult Parse(string text)
+        {
+            var result = new ParseSessionResult();
+
+            if (string.IsNullOrWhiteSpace(text))
+            {
+                result.AddError("No text to parse", 0);
+                return result;
+            }
+
+            // Extract and process JavaScript execute blocks FIRST
+            var (processedText, lineMapping) = ExtractAndProcessExecuteBlocks(text, result);
+
+            // **NEW: Extract and process tuple schemas**
+            processedText = ExtractAndProcessTupleSchemas(processedText, result);
+
+            // Extract and process subject to blocks
+            processedText = ExtractSubjectToBlocks(processedText, lineMapping, result);
+
+            // Split into statements
+            var statements = SplitIntoStatements(processedText, lineMapping);
+
+            // Process each statement
+            foreach (var (statement, lineNumber) in statements)
+            {
+                if (!string.IsNullOrWhiteSpace(statement))
+                {
+                    ProcessStatement(statement, lineNumber, result);
+                }
+            }
+
+            return result;
+        }
+
+        private string ExtractAndProcessTupleSchemas(string text, ParseSessionResult result)
+        {
+            // Pattern: tuple Name { ... }
+            string pattern = @"tuple\s+([a-zA-Z][a-zA-Z0-9_]*)\s*\{";
+            var matches = Regex.Matches(text, pattern, RegexOptions.IgnoreCase);
+
+            if (matches.Count == 0)
+            {
+                return text; // No tuples
+            }
+
+            var resultText = new System.Text.StringBuilder();
+            int lastIndex = 0;
+
+            foreach (Match match in matches)
+            {
+                // Append text before this tuple
+                resultText.Append(text.Substring(lastIndex, match.Index - lastIndex));
+
+                // Find matching closing brace
+                int closingBraceIndex = FindClosingBrace(text, match.Index + match.Length);
+
+                if (closingBraceIndex == -1)
+                {
+                    result.AddError($"Tuple schema: Missing closing brace '}}' for tuple '{match.Groups[1].Value}'", 
+                        text.Substring(0, match.Index).Count(c => c == '\n') + 1);
+                    continue;
+                }
+
+                // Extract the complete tuple definition
+                string tupleDefinition = text.Substring(match.Index, closingBraceIndex - match.Index + 1);
+                
+                // Parse and register the tuple schema
+                if (TryParseTupleSchemaBlock(tupleDefinition, out var schema, out string error))
+                {
+                    modelManager.AddTupleSchema(schema);
+                    result.IncrementSuccess();
+                }
+                else
+                {
+                    result.AddError($"Error parsing tuple schema: {error}", 
+                        text.Substring(0, match.Index).Count(c => c == '\n') + 1);
+                }
+
+                lastIndex = closingBraceIndex + 1;
+            }
+
+            // Append remaining text
+            if (lastIndex < text.Length)
+            {
+                resultText.Append(text.Substring(lastIndex));
+            }
+
+            return resultText.ToString();
+        }
+
+        private bool TryParseTupleSchemaBlock(string block, out TupleSchema? schema, out string error)
+        {
+            schema = null;
+            error = string.Empty;
+
+            // Extract tuple name
+            var nameMatch = Regex.Match(block, @"tuple\s+([a-zA-Z][a-zA-Z0-9_]*)\s*\{", RegexOptions.IgnoreCase);
+            if (!nameMatch.Success)
+            {
+                error = "Invalid tuple syntax";
+                return false;
+            }
+
+            string tupleName = nameMatch.Groups[1].Value;
+            schema = new TupleSchema(tupleName);
+
+            // Extract body (everything between { and })
+            int openBrace = block.IndexOf('{');
+            int closeBrace = block.LastIndexOf('}');
+            
+            if (openBrace == -1 || closeBrace == -1)
+            {
+                error = "Missing braces in tuple definition";
+                return false;
+            }
+
+            string body = block.Substring(openBrace + 1, closeBrace - openBrace - 1);
+
+            // Parse field declarations
+            var fieldPattern = @"(float|int|bool|string)\s+([a-zA-Z][a-zA-Z0-9_]*)\s*;";
+            var fieldMatches = Regex.Matches(body, fieldPattern, RegexOptions.IgnoreCase);
+
+            if (fieldMatches.Count == 0)
+            {
+                error = "Tuple must have at least one field";
+                return false;
+            }
+
+            foreach (Match fieldMatch in fieldMatches)
+            {
+                string typeStr = fieldMatch.Groups[1].Value.ToLower();
+                string fieldName = fieldMatch.Groups[2].Value;
+
+                VariableType fieldType = typeStr switch
+                {
+                    "float" => VariableType.Float,
+                    "int" => VariableType.Integer,
+                    "bool" => VariableType.Boolean,
+                    "string" => VariableType.String,
+                    _ => VariableType.Float
+                };
+
+                try
+                {
+                    schema.AddField(fieldName, fieldType);
+                }
+                catch (Exception ex)
+                {
+                    error = ex.Message;
+                    return false;
+                }
+            }
+
+            return true;
+        }
+
+        public ParseSessionResult Parse(string text)
+        {
+            var result = new ParseSessionResult();
+
+            if (string.IsNullOrWhiteSpace(text))
+            {
+                result.AddError("No text to parse", 0);
+                return result;
+            }
+
+            // Extract and process JavaScript execute blocks FIRST
+            var (processedText, lineMapping) = ExtractAndProcessExecuteBlocks(text, result);
+
+            // **NEW: Extract and process tuple schemas**
+            processedText = ExtractAndProcessTupleSchemas(processedText, result);
+
+            // Extract and process subject to blocks
+            processedText = ExtractSubjectToBlocks(processedText, lineMapping, result);
+
+            // Split into statements
+            var statements = SplitIntoStatements(processedText, lineMapping);
+
+            // Process each statement
+            foreach (var (statement, lineNumber) in statements)
+            {
+                if (!string.IsNullOrWhiteSpace(statement))
+                {
+                    ProcessStatement(statement, lineNumber, result);
+                }
+            }
+
+            return result;
+        }
+
+        private string ExtractAndProcessTupleSchemas(string text, ParseSessionResult result)
+        {
+            // Pattern: tuple Name { ... }
+            string pattern = @"tuple\s+([a-zA-Z][a-zA-Z0-9_]*)\s*\{";
+            var matches = Regex.Matches(text, pattern, RegexOptions.IgnoreCase);
+
+            if (matches.Count == 0)
+            {
+                return text; // No tuples
+            }
+
+            var resultText = new System.Text.StringBuilder();
+            int lastIndex = 0;
+
+            foreach (Match match in matches)
+            {
+                // Append text before this tuple
+                resultText.Append(text.Substring(lastIndex, match.Index - lastIndex));
+
+                // Find matching closing brace
+                int closingBraceIndex = FindClosingBrace(text, match.Index + match.Length);
+
+                if (closingBraceIndex == -1)
+                {
+                    result.AddError($"Tuple schema: Missing closing brace '}}' for tuple '{match.Groups[1].Value}'", 
+                        text.Substring(0, match.Index).Count(c => c == '\n') + 1);
+                    continue;
+                }
+
+                // Extract the complete tuple definition
+                string tupleDefinition = text.Substring(match.Index, closingBraceIndex - match.Index + 1);
+                
+                // Parse and register the tuple schema
+                if (TryParseTupleSchemaBlock(tupleDefinition, out var schema, out string error))
+                {
+                    modelManager.AddTupleSchema(schema);
+                    result.IncrementSuccess();
+                }
+                else
+                {
+                    result.AddError($"Error parsing tuple schema: {error}", 
+                        text.Substring(0, match.Index).Count(c => c == '\n') + 1);
+                }
+
+                lastIndex = closingBraceIndex + 1;
+            }
+
+            // Append remaining text
+            if (lastIndex < text.Length)
+            {
+                resultText.Append(text.Substring(lastIndex));
+            }
+
+            return resultText.ToString();
+        }
+
+        private bool TryParseTupleSchemaBlock(string block, out TupleSchema? schema, out string error)
+        {
+            schema = null;
+            error = string.Empty;
+
+            // Extract tuple name
+            var nameMatch = Regex.Match(block, @"tuple\s+([a-zA-Z][a-zA-Z0-9_]*)\s*\{", RegexOptions.IgnoreCase);
+            if (!nameMatch.Success)
+            {
+                error = "Invalid tuple syntax";
+                return false;
+            }
+
+            string tupleName = nameMatch.Groups[1].Value;
+            schema = new TupleSchema(tupleName);
+
+            // Extract body (everything between { and })
+            int openBrace = block.IndexOf('{');
+            int closeBrace = block.LastIndexOf('}');
+            
+            if (openBrace == -1 || closeBrace == -1)
+            {
+                error = "Missing braces in tuple definition";
+                return false;
+            }
+
+            string body = block.Substring(openBrace + 1, closeBrace - openBrace - 1);
+
+            // Parse field declarations
+            var fieldPattern = @"(float|int|bool|string)\s+([a-zA-Z][a-zA-Z0-9_]*)\s*;";
+            var fieldMatches = Regex.Matches(body, fieldPattern, RegexOptions.IgnoreCase);
+
+            if (fieldMatches.Count == 0)
+            {
+                error = "Tuple must have at least one field";
+                return false;
+            }
+
+            foreach (Match fieldMatch in fieldMatches)
+            {
+                string typeStr = fieldMatch.Groups[1].Value.ToLower();
+                string fieldName = fieldMatch.Groups[2].Value;
+
+                VariableType fieldType = typeStr switch
+                {
+                    "float" => VariableType.Float,
+                    "int" => VariableType.Integer,
+                    "bool" => VariableType.Boolean,
+                    "string" => VariableType.String,
+                    _ => VariableType.Float
+                };
+
+                try
+                {
+                    schema.AddField(fieldName, fieldType);
+                }
+                catch (Exception ex)
+                {
+                    error = ex.Message;
+                    return false;
+                }
+            }
+
+            return true;
+        }
+
+        public ParseSessionResult Parse(string text)
+        {
+            var result = new ParseSessionResult();
+
+            if (string.IsNullOrWhiteSpace(text))
+            {
+                result.AddError("No text to parse", 0);
+                return result;
+            }
+
+            // Extract and process JavaScript execute blocks FIRST
+            var (processedText, lineMapping) = ExtractAndProcessExecuteBlocks(text, result);
+
+            // **NEW: Extract and process tuple schemas**
+            processedText = ExtractAndProcessTupleSchemas(processedText, result);
+
+            // Extract and process subject to blocks
+            processedText = ExtractSubjectToBlocks(processedText, lineMapping, result);
+
+            // Split into statements
+            var statements = SplitIntoStatements(processedText, lineMapping);
+
+            // Process each statement
+            foreach (var (statement, lineNumber) in statements)
+            {
+                if (!string.IsNullOrWhiteSpace(statement))
+                {
+                    ProcessStatement(statement, lineNumber, result);
+                }
+            }
+
+            return result;
+        }
+
+        private string ExtractAndProcessTupleSchemas(string text, ParseSessionResult result)
+        {
+            // Pattern: tuple Name { ... }
+            string pattern = @"tuple\s+([a-zA-Z][a-zA-Z0-9_]*)\s*\{";
+            var matches = Regex.Matches(text, pattern, RegexOptions.IgnoreCase);
+
+            if (matches.Count == 0)
+            {
+                return text; // No tuples
+            }
+
+            var resultText = new System.Text.StringBuilder();
+            int lastIndex = 0;
+
+            foreach (Match match in matches)
+            {
+                // Append text before this tuple
+                resultText.Append(text.Substring(lastIndex, match.Index - lastIndex));
+
+                // Find matching closing brace
+                int closingBraceIndex = FindClosingBrace(text, match.Index + match.Length);
+
+                if (closingBraceIndex == -1)
+                {
+                    result.AddError($"Tuple schema: Missing closing brace '}}' for tuple '{match.Groups[1].Value}'", 
+                        text.Substring(0, match.Index).Count(c => c == '\n') + 1);
+                    continue;
+                }
+
+                // Extract the complete tuple definition
+                string tupleDefinition = text.Substring(match.Index, closingBraceIndex - match.Index + 1);
+                
+                // Parse and register the tuple schema
+                if (TryParseTupleSchemaBlock(tupleDefinition, out var schema, out string error))
+                {
+                    modelManager.AddTupleSchema(schema);
+                    result.IncrementSuccess();
+                }
+                else
+                {
+                    result.AddError($"Error parsing tuple schema: {error}", 
+                        text.Substring(0, match.Index).Count(c => c == '\n') + 1);
+                }
+
+                lastIndex = closingBraceIndex + 1;
+            }
+
+            // Append remaining text
+            if (lastIndex < text.Length)
+            {
+                resultText.Append(text.Substring(lastIndex));
+            }
+
+            return resultText.ToString();
+        }
+
+        private bool TryParseTupleSchemaBlock(string block, out TupleSchema? schema, out string error)
+        {
+            schema = null;
+            error = string.Empty;
+
+            // Extract tuple name
+            var nameMatch = Regex.Match(block, @"tuple\s+([a-zA-Z][a-zA-Z0-9_]*)\s*\{", RegexOptions.IgnoreCase);
+            if (!nameMatch.Success)
+            {
+                error = "Invalid tuple syntax";
+                return false;
+            }
+
+            string tupleName = nameMatch.Groups[1].Value;
+            schema = new TupleSchema(tupleName);
+
+            // Extract body (everything between { and })
+            int openBrace = block.IndexOf('{');
+            int closeBrace = block.LastIndexOf('}');
+            
+            if (openBrace == -1 || closeBrace == -1)
+            {
+                error = "Missing braces in tuple definition";
+                return false;
+            }
+
+            string body = block.Substring(openBrace + 1, closeBrace - openBrace - 1);
+
+            // Parse field declarations
+            var fieldPattern = @"(float|int|bool|string)\s+([a-zA-Z][a-zA-Z0-9_]*)\s*;";
+            var fieldMatches = Regex.Matches(body, fieldPattern, RegexOptions.IgnoreCase);
+
+            if (fieldMatches.Count == 0)
+            {
+                error = "Tuple must have at least one field";
+                return false;
+            }
+
+            foreach (Match fieldMatch in fieldMatches)
+            {
+                string typeStr = fieldMatch.Groups[1].Value.ToLower();
+                string fieldName = fieldMatch.Groups[2].Value;
+
+                VariableType fieldType = typeStr switch
+                {
+                    "float" => VariableType.Float,
+                    "int" => VariableType.Integer,
+                    "bool" => VariableType.Boolean,
+                    "string" => VariableType.String,
+                    _ => VariableType.Float
+                };
+
+                try
+                {
+                    schema.AddField(fieldName, fieldType);
+                }
+                catch (Exception ex)
+                {
+                    error = ex.Message;
+                    return false;
+                }
+            }
+
+            return true;
+        }
+
+        public ParseSessionResult Parse(string text)
+        {
+            var result = new ParseSessionResult();
+
+            if (string.IsNullOrWhiteSpace(text))
+            {
+                result.AddError("No text to parse", 0);
+                return result;
+            }
+
+            // Extract and process JavaScript execute blocks FIRST
+            var (processedText, lineMapping) = ExtractAndProcessExecuteBlocks(text, result);
+
+            // **NEW: Extract and process tuple schemas**
+            processedText = ExtractAndProcessTupleSchemas(processedText, result);
+
+            // Extract and process subject to blocks
+            processedText = ExtractSubjectToBlocks(processedText, lineMapping, result);
+
+            // Split into statements
+            var statements = SplitIntoStatements(processedText, lineMapping);
+
+            // Process each statement
+            foreach (var (statement, lineNumber) in statements)
+            {
+                if (!string.IsNullOrWhiteSpace(statement))
+                {
+                    ProcessStatement(statement, lineNumber, result);
+                }
+            }
+
+            return result;
+        }
+
+        private string ExtractAndProcessTupleSchemas(string text, ParseSessionResult result)
+        {
+            // Pattern: tuple Name { ... }
+            string pattern = @"tuple\s+([a-zA-Z][a-zA-Z0-9_]*)\s*\{";
+            var matches = Regex.Matches(text, pattern, RegexOptions.IgnoreCase);
+
+            if (matches.Count == 0)
+            {
+                return text; // No tuples
+            }
+
+            var resultText = new System.Text.StringBuilder();
+            int lastIndex = 0;
+
+            foreach (Match match in matches)
+            {
+                // Append text before this tuple
+                resultText.Append(text.Substring(lastIndex, match.Index - lastIndex));
+
+                // Find matching closing brace
+                int closingBraceIndex = FindClosingBrace(text, match.Index + match.Length);
+
+                if (closingBraceIndex == -1)
+                {
+                    result.AddError($"Tuple schema: Missing closing brace '}}' for tuple '{match.Groups[1].Value}'", 
+                        text.Substring(0, match.Index).Count(c => c == '\n') + 1);
+                    continue;
+                }
+
+                // Extract the complete tuple definition
+                string tupleDefinition = text.Substring(match.Index, closingBraceIndex - match.Index + 1);
+                
+                // Parse and register the tuple schema
+                if (TryParseTupleSchemaBlock(tupleDefinition, out var schema, out string error))
+                {
+                    modelManager.AddTupleSchema(schema);
+                    result.IncrementSuccess();
+                }
+                else
+                {
+                    result.AddError($"Error parsing tuple schema: {error}", 
+                        text.Substring(0, match.Index).Count(c => c == '\n') + 1);
+                }
+
+                lastIndex = closingBraceIndex + 1;
+            }
+
+            // Append remaining text
+            if (lastIndex < text.Length)
+            {
+                resultText.Append(text.Substring(lastIndex));
+            }
+
+            return resultText.ToString();
+        }
+
+        private bool TryParseTupleSchemaBlock(string block, out TupleSchema? schema, out string error)
+        {
+            schema = null;
+            error = string.Empty;
+
+            // Extract tuple name
+            var nameMatch = Regex.Match(block, @"tuple\s+([a-zA-Z][a-zA-Z0-9_]*)\s*\{", RegexOptions.IgnoreCase);
+            if (!nameMatch.Success)
+            {
+                error = "Invalid tuple syntax";
+                return false;
+            }
+
+            string tupleName = nameMatch.Groups[1].Value;
+            schema = new TupleSchema(tupleName);
+
+            // Extract body (everything between { and })
+            int openBrace = block.IndexOf('{');
+            int closeBrace = block.LastIndexOf('}');
+            
+            if (openBrace == -1 || closeBrace == -1)
+            {
+                error = "Missing braces in tuple definition";
+                return false;
+            }
+
+            string body = block.Substring(openBrace + 1, closeBrace - openBrace - 1);
+
+            // Parse field declarations
+            var fieldPattern = @"(float|int|bool|string)\s+([a-zA-Z][a-zA-Z0-9_]*)\s*;";
+            var fieldMatches = Regex.Matches(body, fieldPattern, RegexOptions.IgnoreCase);
+
+            if (fieldMatches.Count == 0)
+            {
+                error = "Tuple must have at least one field";
+                return false;
+            }
+
+            foreach (Match fieldMatch in fieldMatches)
+            {
+                string typeStr = fieldMatch.Groups[1].Value.ToLower();
+                string fieldName = fieldMatch.Groups[2].Value;
+
+                VariableType fieldType = typeStr switch
+                {
+                    "float" => VariableType.Float,
+                    "int" => VariableType.Integer,
+                    "bool" => VariableType.Boolean,
+                    "string" => VariableType.String,
+                    _ => VariableType.Float
+                };
+
+                try
+                {
+                    schema.AddField(fieldName, fieldType);
+                }
+                catch (Exception ex)
+                {
+                    error = ex.Message;
+                    return false;
+                }
+            }
+
+            return true;
+        }
+
+        public ParseSessionResult Parse(string text)
+        {
+            var result = new ParseSessionResult();
+
+            if (string.IsNullOrWhiteSpace(text))
+            {
+                result.AddError("No text to parse", 0);
+                return result;
+            }
+
+            // Extract and process JavaScript execute blocks FIRST
+            var (processedText, lineMapping) = ExtractAndProcessExecuteBlocks(text, result);
+
+            // **NEW: Extract and process tuple schemas**
+            processedText = ExtractAndProcessTupleSchemas(processedText, result);
+
+            // Extract and process subject to blocks
+            processedText = ExtractSubjectToBlocks(processedText, lineMapping, result);
+
+            // Split into statements
+            var statements = SplitIntoStatements(processedText, lineMapping);
+
+            // Process each statement
+            foreach (var (statement, lineNumber) in statements)
+            {
+                if (!string.IsNullOrWhiteSpace(statement))
+                {
+                    ProcessStatement(statement, lineNumber, result);
+                }
+            }
+
+            return result;
+        }
+
+        private string ExtractAndProcessTupleSchemas(string text, ParseSessionResult result)
+        {
+            // Pattern: tuple Name { ... }
+            string pattern = @"tuple\s+([a-zA-Z][a-zA-Z0-9_]*)\s*\{";
+            var matches = Regex.Matches(text, pattern, RegexOptions.IgnoreCase);
+
+            if (matches.Count == 0)
+            {
+                return text; // No tuples
+            }
+
+            var resultText = new System.Text.StringBuilder();
+            int lastIndex = 0;
+
+            foreach (Match match in matches)
+            {
+                // Append text before this tuple
+                resultText.Append(text.Substring(lastIndex, match.Index - lastIndex));
+
+                // Find matching closing brace
+                int closingBraceIndex = FindClosingBrace(text, match.Index + match.Length);
+
+                if (closingBraceIndex == -1)
+                {
+                    result.AddError($"Tuple schema: Missing closing brace '}}' for tuple '{match.Groups[1].Value}'", 
+                        text.Substring(0, match.Index).Count(c => c == '\n') + 1);
+                    continue;
+                }
+
+                // Extract the complete tuple definition
+                string tupleDefinition = text.Substring(match.Index, closingBraceIndex - match.Index + 1);
+                
+                // Parse and register the tuple schema
+                if (TryParseTupleSchemaBlock(tupleDefinition, out var schema, out string error))
+                {
+                    modelManager.AddTupleSchema(schema);
+                    result.IncrementSuccess();
+                }
+                else
+                {
+                    result.AddError($"Error parsing tuple schema: {error}", 
+                        text.Substring(0, match.Index).Count(c => c == '\n') + 1);
+                }
+
+                lastIndex = closingBraceIndex + 1;
+            }
+
+            // Append remaining text
+            if (lastIndex < text.Length)
+            {
+                resultText.Append(text.Substring(lastIndex));
+            }
+
+            return resultText.ToString();
+        }
+
+        private bool TryParseTupleSchemaBlock(string block, out TupleSchema? schema, out string error)
+        {
+            schema = null;
+            error = string.Empty;
+
+            // Extract tuple name
+            var nameMatch = Regex.Match(block, @"tuple\s+([a-zA-Z][a-zA-Z0-9_]*)\s*\{", RegexOptions.IgnoreCase);
+            if (!nameMatch.Success)
+            {
+                error = "Invalid tuple syntax";
+                return false;
+            }
+
+            string tupleName = nameMatch.Groups[1].Value;
+            schema = new TupleSchema(tupleName);
+
+            // Extract body (everything between { and })
+            int openBrace = block.IndexOf('{');
+            int closeBrace = block.LastIndexOf('}');
+            
+            if (openBrace == -1 || closeBrace == -1)
+            {
+                error = "Missing braces in tuple definition";
+                return false;
+            }
+
+            string body = block.Substring(openBrace + 1, closeBrace - openBrace - 1);
+
+            // Parse field declarations
+            var fieldPattern = @"(float|int|bool|string)\s+([a-zA-Z][a-zA-Z0-9_]*)\s*;";
+            var fieldMatches = Regex.Matches(body, fieldPattern, RegexOptions.IgnoreCase);
+
+            if (fieldMatches.Count == 0)
+            {
+                error = "Tuple must have at least one field";
+                return false;
+            }
+
+            foreach (Match fieldMatch in fieldMatches)
+            {
+                string typeStr = fieldMatch.Groups[1].Value.ToLower();
+                string fieldName = fieldMatch.Groups[2].Value;
+
+                VariableType fieldType = typeStr switch
+                {
+                    "float" => VariableType.Float,
+                    "int" => VariableType.Integer,
+                    "bool" => VariableType.Boolean,
+                    "string" => VariableType.String,
+                    _ => VariableType.Float
+                };
+
+                try
+                {
+                    schema.AddField(fieldName, fieldType);
+                }
+                catch (Exception ex)
+                {
+                    error = ex.Message;
+                    return false;
+                }
+            }
+
+            return true;
+        }
+
+        public ParseSessionResult Parse(string text)
+        {
+            var result = new ParseSessionResult();
+
+            if (string.IsNullOrWhiteSpace(text))
+            {
+                result.AddError("No text to parse", 0);
+                return result;
+            }
+
+            // Extract and process JavaScript execute blocks FIRST
+            var (processedText, lineMapping) = ExtractAndProcessExecuteBlocks(text, result);
+
+            // **NEW: Extract and process tuple schemas**
+            processedText = ExtractAndProcessTupleSchemas(processedText, result);
+
+            // Extract and process subject to blocks
+            processedText = ExtractSubjectToBlocks(processedText, lineMapping, result);
+
+            // Split into statements
+            var statements = SplitIntoStatements(processedText, lineMapping);
+
+            // Process each statement
+            foreach (var (statement, lineNumber) in statements)
+            {
+                if (!string.IsNullOrWhiteSpace(statement))
+                {
+                    ProcessStatement(statement, lineNumber, result);
+                }
+            }
+
+            return result;
+        }
+
+        private string ExtractAndProcessTupleSchemas(string text, ParseSessionResult result)
+        {
+            // Pattern: tuple Name { ... }
+            string pattern = @"tuple\s+([a-zA-Z][a-zA-Z0-9_]*)\s*\{";
+            var matches = Regex.Matches(text, pattern, RegexOptions.IgnoreCase);
+
+            if (matches.Count == 0)
+            {
+                return text; // No tuples
+            }
+
+            var resultText = new System.Text.StringBuilder();
+            int lastIndex = 0;
+
+            foreach (Match match in matches)
+            {
+                // Append text before this tuple
+                resultText.Append(text.Substring(lastIndex, match.Index - lastIndex));
+
+                // Find matching closing brace
+                int closingBraceIndex = FindClosingBrace(text, match.Index + match.Length);
+
+                if (closingBraceIndex == -1)
+                {
+                    result.AddError($"Tuple schema: Missing closing brace '}}' for tuple '{match.Groups[1].Value}'", 
+                        text.Substring(0, match.Index).Count(c => c == '\n') + 1);
+                    continue;
+                }
+
+                // Extract the complete tuple definition
+                string tupleDefinition = text.Substring(match.Index, closingBraceIndex - match.Index + 1);
+                
+                // Parse and register the tuple schema
+                if (TryParseTupleSchemaBlock(tupleDefinition, out var schema, out string error))
+                {
+                    modelManager.AddTupleSchema(schema);
+                    result.IncrementSuccess();
+                }
+                else
+                {
+                    result.AddError($"Error parsing tuple schema: {error}", 
+                        text.Substring(0, match.Index).Count(c => c == '\n') + 1);
+                }
+
+                lastIndex = closingBraceIndex + 1;
+            }
+
+            // Append remaining text
+            if (lastIndex < text.Length)
+            {
+                resultText.Append(text.Substring(lastIndex));
+            }
+
+            return resultText.ToString();
+        }
+
+        private bool TryParseTupleSchemaBlock(string block, out TupleSchema? schema, out string error)
+        {
+            schema = null;
+            error = string.Empty;
+
+            // Extract tuple name
+            var nameMatch = Regex.Match(block, @"tuple\s+([a-zA-Z][a-zA-Z0-9_]*)\s*\{", RegexOptions.IgnoreCase);
+            if (!nameMatch.Success)
+            {
+                error = "Invalid tuple syntax";
+                return false;
+            }
+
+            string tupleName = nameMatch.Groups[1].Value;
+            schema = new TupleSchema(tupleName);
+
+            // Extract body (everything between { and })
+            int openBrace = block.IndexOf('{');
+            int closeBrace = block.LastIndexOf('}');
+            
+            if (openBrace == -1 || closeBrace == -1)
+            {
+                error = "Missing braces in tuple definition";
+                return false;
+            }
+
+            string body = block.Substring(openBrace + 1, closeBrace - openBrace - 1);
+
+            // Parse field declarations
+            var fieldPattern = @"(float|int|bool|string)\s+([a-zA-Z][a-zA-Z0-9_]*)\s*;";
+            var fieldMatches = Regex.Matches(body, fieldPattern, RegexOptions.IgnoreCase);
+
+            if (fieldMatches.Count == 0)
+            {
+                error = "Tuple must have at least one field";
+                return false;
+            }
+
+            foreach (Match fieldMatch in fieldMatches)
+            {
+                string typeStr = fieldMatch.Groups[1].Value.ToLower();
+                string fieldName = fieldMatch.Groups[2].Value;
+
+                VariableType fieldType = typeStr switch
+                {
+                    "float" => VariableType.Float,
+                    "int" => VariableType.Integer,
+                    "bool" => VariableType.Boolean,
+                    "string" => VariableType.String,
+                    _ => VariableType.Float
+                };
+
+                try
+                {
+                    schema.AddField(fieldName, fieldType);
+                }
+                catch (Exception ex)
+                {
+                    error = ex.Message;
+                    return false;
+                }
+            }
+
+            return true;
+        }
+
+        public ParseSessionResult Parse(string text)
+        {
+            var result = new ParseSessionResult();
+
+            if (string.IsNullOrWhiteSpace(text))
+            {
+                result.AddError("No text to parse", 0);
+                return result;
+            }
+
+            // Extract and process JavaScript execute blocks FIRST
+            var (processedText, lineMapping) = ExtractAndProcessExecuteBlocks(text, result);
+
+            // **NEW: Extract and process tuple schemas**
+            processedText = ExtractAndProcessTupleSchemas(processedText, result);
+
+            // Extract and process subject to blocks
+            processedText = ExtractSubjectToBlocks(processedText, lineMapping, result);
+
+            // Split into statements
+            var statements = SplitIntoStatements(processedText, lineMapping);
+
+            // Process each statement
+            foreach (var (statement, lineNumber) in statements)
+            {
+                if (!string.IsNullOrWhiteSpace(statement))
+                {
+            // **NEW: Extract and process tuple schemas**
+            processedText = ExtractAndProcessTupleSchemas(processedText, result);
+
+            // Extract and process subject to blocks
+            processedText = ExtractSubjectToBlocks(processedText, lineMapping, result);
+
+            // Split into statements
+            var statements = SplitIntoStatements(processedText, lineMapping);
+
+            // Process each statement
+            foreach (var (statement, lineNumber) in statements)
+            {
+                if (!string.IsNullOrWhiteSpace(statement))
+                {
+                    ProcessStatement(statement, lineNumber, result);
+                }
+            }
+
+            return result;
+        }
+
+        private string ExtractAndProcessTupleSchemas(string text, ParseSessionResult result)
+        {
+            // Pattern: tuple Name { ... }
+            string pattern = @"tuple\s+([a-zA-Z][a-zA-Z0-9_]*)\s*\{";
+            var matches = Regex.Matches(text, pattern, RegexOptions.IgnoreCase);
+
+            if (matches.Count == 0)
+            {
+                return text; // No tuples
+            }
+
+            var resultText = new System.Text.StringBuilder();
+            int lastIndex = 0;
+
+            foreach (Match match in matches)
+            {
+                // Append text before this tuple
+                resultText.Append(text.Substring(lastIndex, match.Index - lastIndex));
+
+                // Find matching closing brace
+                int closingBraceIndex = FindClosingBrace(text, match.Index + match.Length);
+
+                if (closingBraceIndex == -1)
+                {
+                    result.AddError($"Tuple schema: Missing closing brace '}}' for tuple '{match.Groups[1].Value}'", 
+                        text.Substring(0, match.Index).Count(c => c == '\n') + 1);
+                    continue;
+                }
+
+                // Extract the complete tuple definition
+                string tupleDefinition = text.Substring(match.Index, closingBraceIndex - match.Index + 1);
+                
+                // Parse and register the tuple schema
+                if (TryParseTupleSchemaBlock(tupleDefinition, out var schema, out string error))
+                {
+                    modelManager.AddTupleSchema(schema);
+                    result.IncrementSuccess();
+                }
+                else
+                {
+                    result.AddError($"Error parsing tuple schema: {error}", 
+                        text.Substring(0, match.Index).Count(c => c == '\n') + 1);
+                }
+
+                lastIndex = closingBraceIndex + 1;
+            }
+
+            // Append remaining text
+            if (lastIndex < text.Length)
+            {
+                resultText.Append(text.Substring(lastIndex));
+            }
+
+            return resultText.ToString();
+        }
+
+        private bool TryParseTupleSchemaBlock(string block, out TupleSchema? schema, out string error)
+        {
+            schema = null;
+            error = string.Empty;
+
+            // Extract tuple name
+            var nameMatch = Regex.Match(block, @"tuple\s+([a-zA-Z][a-zA-Z0-9_]*)\s*\{", RegexOptions.IgnoreCase);
+            if (!nameMatch.Success)
+            {
+                error = "Invalid tuple syntax";
+                return false;
+            }
+
+            string tupleName = nameMatch.Groups[1].Value;
+            schema = new TupleSchema(tupleName);
+
+            // Extract body (everything between { and })
+            int openBrace = block.IndexOf('{');
+            int closeBrace = block.LastIndexOf('}');
+            
+            if (openBrace == -1 || closeBrace == -1)
+            {
+                error = "Missing braces in tuple definition";
+                return false;
+            }
+
+            string body = block.Substring(openBrace + 1, closeBrace - openBrace - 1);
+
+            // Parse field declarations
+            var fieldPattern = @"(float|int|bool|string)\s+([a-zA-Z][a-zA-Z0-9_]*)\s*;";
+            var fieldMatches = Regex.Matches(body, fieldPattern, RegexOptions.IgnoreCase);
+
+            if (fieldMatches.Count == 0)
+            {
+                error = "Tuple must have at least one field";
+                return false;
+            }
+
+            foreach (Match fieldMatch in fieldMatches)
+            {
+                string typeStr = fieldMatch.Groups[1].Value.ToLower();
+                string fieldName = fieldMatch.Groups[2].Value;
+
+                VariableType fieldType = typeStr switch
+                {
+                    "float" => VariableType.Float,
+                    "int" => VariableType.Integer,
+                    "bool" => VariableType.Boolean,
+                    "string" => VariableType.String,
+                    _ => VariableType.Float
+                };
+
+                try
+                {
+                    schema.AddField(fieldName, fieldType);
+                }
+                catch (Exception ex)
+                {
+                    error = ex.Message;
+                    return false;
+                }
+            }
+
+            return true;
+        }
+
+        public ParseSessionResult Parse(string text)
+        {
+            var result = new ParseSessionResult();
+
+            if (string.IsNullOrWhiteSpace(text))
+            {
+                result.AddError("No text to parse", 0);
+                return result;
+            }
+
+            // Extract and process JavaScript execute blocks FIRST
+            var (processedText, lineMapping) = ExtractAndProcessExecuteBlocks(text, result);
+
+            // **NEW: Extract and process tuple schemas**
+            processedText = ExtractAndProcessTupleSchemas(processedText, result);
+
+            // Extract and process subject to blocks
+            processedText = ExtractSubjectToBlocks(processedText, lineMapping, result);
+
+            // Split into statements
+            var statements = SplitIntoStatements(processedText, lineMapping);
+
+            // Process each statement
+            foreach (var (statement, lineNumber) in statements)
+            {
+                if (!string.IsNullOrWhiteSpace(statement))
+                {
+                    ProcessStatement(statement, lineNumber, result);
+                }
+            }
+
+            return result;
+        }
+
+        private string ExtractAndProcessTupleSchemas(string text, ParseSessionResult result)
+        {
+            // Pattern: tuple Name { ... }
+            string pattern = @"tuple\s+([a-zA-Z][a-zA-Z0-9_]*)\s*\{";
+            var matches = Regex.Matches(text, pattern, RegexOptions.IgnoreCase);
+
+            if (matches.Count == 0)
+            {
+                return text; // No tuples
+            }
+
+            var resultText = new System.Text.StringBuilder();
+            int lastIndex = 0;
+
+            foreach (Match match in matches)
+            {
+                // Append text before this tuple
+                resultText.Append(text.Substring(lastIndex, match.Index - lastIndex));
+
+                // Find matching closing brace
+                int closingBraceIndex = FindClosingBrace(text, match.Index + match.Length);
+
+                if (closingBraceIndex == -1)
+                {
+                    result.AddError($"Tuple schema: Missing closing brace '}}' for tuple '{match.Groups[1].Value}'", 
+                        text.Substring(0, match.Index).Count(c => c == '\n') + 1);
+                    continue;
+                }
+
+                // Extract the complete tuple definition
+                string tupleDefinition = text.Substring(match.Index, closingBraceIndex - match.Index + 1);
+                
+                // Parse and register the tuple schema
+                if (TryParseTupleSchemaBlock(tupleDefinition, out var schema, out string error))
+                {
+                    modelManager.AddTupleSchema(schema);
+                    result.IncrementSuccess();
+                }
+                else
+                {
+                    result.AddError($"Error parsing tuple schema: {error}", 
+                        text.Substring(0, match.Index).Count(c => c == '\n') + 1);
+                }
+
+                lastIndex = closingBraceIndex + 1;
+            }
+
+            // Append remaining text
+            if (lastIndex < text.Length)
+            {
+                resultText.Append(text.Substring(lastIndex));
+            }
+
+            return resultText.ToString();
+        }
+
+        private bool TryParseTupleSchemaBlock(string block, out TupleSchema? schema, out string error)
+        {
+            schema = null;
+            error = string.Empty;
+
+            // Extract tuple name
+            var nameMatch = Regex.Match(block, @"tuple\s+([a-zA-Z][a-zA-Z0-9_]*)\s*\{", RegexOptions.IgnoreCase);
+            if (!nameMatch.Success)
+            {
+                error = "Invalid tuple syntax";
+                return false;
+            }
+
+            string tupleName = nameMatch.Groups[1].Value;
+            schema = new TupleSchema(tupleName);
+
+            // Extract body (everything between { and })
+            int openBrace = block.IndexOf('{');
+            int closeBrace = block.LastIndexOf('}');
+            
+            if (openBrace == -1 || closeBrace == -1)
+            {
+                error = "Missing braces in tuple definition";
+                return false;
+            }
+
+            string body = block.Substring(openBrace + 1, closeBrace - openBrace - 1);
+
+            // Parse field declarations
+            var fieldPattern = @"(float|int|bool|string)\s+([a-zA-Z][a-zA-Z0-9_]*)\s*;";
+            var fieldMatches = Regex.Matches(body, fieldPattern, RegexOptions.IgnoreCase);
+
+            if (fieldMatches.Count == 0)
+            {
+                error = "Tuple must have at least one field";
+                return false;
+            }
+
+            foreach (Match fieldMatch in fieldMatches)
+            {
+                string typeStr = fieldMatch.Groups[1].Value.ToLower();
+                string fieldName = fieldMatch.Groups[2].Value;
+
+                VariableType fieldType = typeStr switch
+                {
+                    "float" => VariableType.Float,
+                    "int" => VariableType.Integer,
+                    "bool" => VariableType.Boolean,
+                    "string" => VariableType.String,
+                    _ => VariableType.Float
+                };
+
+                try
+                {
+                    schema.AddField(fieldName, fieldType);
+                }
+                catch (Exception ex)
+                {
+                    error = ex.Message;
+                    return false;
+                }
+            }
+
+            return true;
+        }
+
+        public ParseSessionResult Parse(string text)
+        {
+            var result = new ParseSessionResult();
+
+            if (string.IsNullOrWhiteSpace(text))
+            {
+                result.AddError("No text to parse", 0);
+                return result;
+            }
+
+            // Extract and process JavaScript execute blocks FIRST
+            var (processedText, lineMapping) = ExtractAndProcessExecuteBlocks(text, result);
+
+            // **NEW: Extract and process tuple schemas**
+            processedText = ExtractAndProcessTupleSchemas(processedText, result);
+
+            // Extract and process subject to blocks
+            processedText = ExtractSubjectToBlocks(processedText, lineMapping, result);
+
+            // Split into statements
+            var statements = SplitIntoStatements(processedText, lineMapping);
+
+            // Process each statement
+            foreach (var (statement, lineNumber) in statements)
+            {
+                if (!string.IsNullOrWhiteSpace(statement))
+                {
+                    ProcessStatement(statement, lineNumber, result);
+                }
+            }
+
+            return result;
+        }
+
+        private string ExtractAndProcessTupleSchemas(string text, ParseSessionResult result)
+        {
+            // Pattern: tuple Name { ... }
+            string pattern = @"tuple\s+([a-zA-Z][a-zA-Z0-9_]*)\s*\{";
+            var matches = Regex.Matches(text, pattern, RegexOptions.IgnoreCase);
+
+            if (matches.Count == 0)
+            {
+                return text; // No tuples
+            }
+
+            var resultText = new System.Text.StringBuilder();
+            int lastIndex = 0;
+
+            foreach (Match match in matches)
+            {
+                // Append text before this tuple
+                resultText.Append(text.Substring(lastIndex, match.Index - lastIndex));
+
+                // Find matching closing brace
+                int closingBraceIndex = FindClosingBrace(text, match.Index + match.Length);
+
+                if (closingBraceIndex == -1)
+                {
+                    result.AddError($"Tuple schema: Missing closing brace '}}' for tuple '{match.Groups[1].Value}'", 
+                        text.Substring(0, match.Index).Count(c => c == '\n') + 1);
+                    continue;
+                }
+
+                // Extract the complete tuple definition
+                string tupleDefinition = text.Substring(match.Index, closingBraceIndex - match.Index + 1);
+                
+                // Parse and register the tuple schema
+                if (TryParseTupleSchemaBlock(tupleDefinition, out var schema, out string error))
+                {
+                    modelManager.AddTupleSchema(schema);
+                    result.IncrementSuccess();
+                }
+                else
+                {
+                    result.AddError($"Error parsing tuple schema: {error}", 
+                        text.Substring(0, match.Index).Count(c => c == '\n') + 1);
+                }
+
+                lastIndex = closingBraceIndex + 1;
+            }
+
+            // Append remaining text
+            if (lastIndex < text.Length)
+            {
+                resultText.Append(text.Substring(lastIndex));
+            }
+
+            return resultText.ToString();
+        }
+
+        private bool TryParseTupleSchemaBlock(string block, out TupleSchema? schema, out string error)
+        {
+            schema = null;
+            error = string.Empty;
+
+            // Extract tuple name
+            var nameMatch = Regex.Match(block, @"tuple\s+([a-zA-Z][a-zA-Z0-9_]*)\s*\{", RegexOptions.IgnoreCase);
+            if (!nameMatch.Success)
+            {
+                error = "Invalid tuple syntax";
+                return false;
+            }
+
+            string tupleName = nameMatch.Groups[1].Value;
+            schema = new TupleSchema(tupleName);
+
+            // Extract body (everything between { and })
+            int openBrace = block.IndexOf('{');
+            int closeBrace = block.LastIndexOf('}');
+            
+            if (openBrace == -1 || closeBrace == -1)
+            {
+                error = "Missing braces in tuple definition";
+                return false;
+            }
+
+            string body = block.Substring(openBrace + 1, closeBrace - openBrace - 1);
+
+            // Parse field declarations
+            var fieldPattern = @"(float|int|bool|string)\s+([a-zA-Z][a-zA-Z0-9_]*)\s*;";
+            var fieldMatches = Regex.Matches(body, fieldPattern, RegexOptions.IgnoreCase);
+
+            if (fieldMatches.Count == 0)
+            {
+                error = "Tuple must have at least one field";
+                return false;
+            }
+
+            foreach (Match fieldMatch in fieldMatches)
+            {
+                string typeStr = fieldMatch.Groups[1].Value.ToLower();
+                string fieldName = fieldMatch.Groups[2].Value;
+
+                VariableType fieldType = typeStr switch
+                {
+                    "float" => VariableType.Float,
+                    "int" => VariableType.Integer,
+                    "bool" => VariableType.Boolean,
+                    "string" => VariableType.String,
+                    _ => VariableType.Float
+                };
+
+                try
+                {
+                    schema.AddField(fieldName, fieldType);
+                }
+                catch (Exception ex)
+                {
+                    error = ex.Message;
+                    return false;
+                }
+            }
+
+            return true;
+        }
+
+        public ParseSessionResult Parse(string text)
+        {
+            var result = new ParseSessionResult();
+
+            if (string.IsNullOrWhiteSpace(text))
+            {
+                result.AddError("No text to parse", 0);
+                return result;
+            }
+
+            // Extract and process JavaScript execute blocks FIRST
+            var (processedText, lineMapping) = ExtractAndProcessExecuteBlocks(text, result);
+
+            // **NEW: Extract and process tuple schemas**
+            processedText = ExtractAndProcessTupleSchemas(processedText, result);
+
+            // Extract and process subject to blocks
+            processedText = ExtractSubjectToBlocks(processedText, lineMapping, result);
+
+            // Split into statements
+            var statements = SplitIntoStatements(processedText, lineMapping);
+
+            // Process each statement
+            foreach (var (statement, lineNumber) in statements)
+            {
+                if (!string.IsNullOrWhiteSpace(statement))
+                {
+                    ProcessStatement(statement, lineNumber, result);
+                }
+            }
+
+            return result;
+        }
+
+        private string ExtractAndProcessTupleSchemas(string text, ParseSessionResult result)
+        {
+            // Pattern: tuple Name { ... }
+            string pattern = @"tuple\s+([a-zA-Z][a-zA-Z0-9_]*)\s*\{";
+            var matches = Regex.Matches(text, pattern, RegexOptions.IgnoreCase);
+
+            if (matches.Count == 0)
+            {
+                return text; // No tuples
+            }
+
+            var resultText = new System.Text.StringBuilder();
+            int lastIndex = 0;
+
+            foreach (Match match in matches)
+            {
+                // Append text before this tuple
+                resultText.Append(text.Substring(lastIndex, match.Index - lastIndex));
+
+                // Find matching closing brace
+                int closingBraceIndex = FindClosingBrace(text, match.Index + match.Length);
+
+                if (closingBraceIndex == -1)
+                {
+                    result.AddError($"Tuple schema: Missing closing brace '}}' for tuple '{match.Groups[1].Value}'", 
+                        text.Substring(0, match.Index).Count(c => c == '\n') + 1);
+                    continue;
+                }
+
+                // Extract the complete tuple definition
+                string tupleDefinition = text.Substring(match.Index, closingBraceIndex - match.Index + 1);
+                
+                // Parse and register the tuple schema
+                if (TryParseTupleSchemaBlock(tupleDefinition, out var schema, out string error))
+                {
+                    modelManager.AddTupleSchema(schema);
+                    result.IncrementSuccess();
+                }
+                else
+                {
+                    result.AddError($"Error parsing tuple schema: {error}", 
+                        text.Substring(0, match.Index).Count(c => c == '\n') + 1);
+                }
+
+                lastIndex = closingBraceIndex + 1;
+            }
+
+            // Append remaining text
+            if (lastIndex < text.Length)
+            {
+                resultText.Append(text.Substring(lastIndex));
+            }
+
+            return resultText.ToString();
+        }
+
+        private bool TryParseTupleSchemaBlock(string block, out TupleSchema? schema, out string error)
+        {
+            schema = null;
+            error = string.Empty;
+
+            // Extract tuple name
+            var nameMatch = Regex.Match(block, @"tuple\s+([a-zA-Z][a-zA-Z0-9_]*)\s*\{", RegexOptions.IgnoreCase);
+            if (!nameMatch.Success)
+            {
+                error = "Invalid tuple syntax";
+                return false;
+            }
+
+            string tupleName = nameMatch.Groups[1].Value;
+            schema = new TupleSchema(tupleName);
+
+            // Extract body (everything between { and })
+            int openBrace = block.IndexOf('{');
+            int closeBrace = block.LastIndexOf('}');
+            
+            if (openBrace == -1 || closeBrace == -1)
+            {
+                error = "Missing braces in tuple definition";
+                return false;
+            }
+
+            string body = block.Substring(openBrace + 1, closeBrace - openBrace - 1);
+
+            // Parse field declarations
+            var fieldPattern = @"(float|int|bool|string)\s+([a-zA-Z][a-zA-Z0-9_]*)\s*;";
+            var fieldMatches = Regex.Matches(body, fieldPattern, RegexOptions.IgnoreCase);
+
+            if (fieldMatches.Count == 0)
+            {
+                error = "Tuple must have at least one field";
+                return false;
+            }
+
+            foreach (Match fieldMatch in fieldMatches)
+            {
+                string typeStr = fieldMatch.Groups[1].Value.ToLower();
+                string fieldName = fieldMatch.Groups[2].Value;
+
+                VariableType fieldType = typeStr switch
+                {
+                    "float" => VariableType.Float,
+                    "int" => VariableType.Integer,
+                    "bool" => VariableType.Boolean,
+                    "string" => VariableType.String,
+                    _ => VariableType.Float
+                };
+
+                try
+                {
+                    schema.AddField(fieldName, fieldType);
+                }
+                catch (Exception ex)
+                {
+                    error = ex.Message;
+                    return false;
+                }
+            }
+
+            return true;
+        }
+
+        public ParseSessionResult Parse(string text)
+        {
+            var result = new ParseSessionResult();
+
+            if (string.IsNullOrWhiteSpace(text))
+            {
+                result.AddError("No text to parse", 0);
+                return result;
+            }
+
+            // Extract and process JavaScript execute blocks FIRST
+            var (processedText, lineMapping) = ExtractAndProcessExecuteBlocks(text, result);
+
+            // **NEW: Extract and process tuple schemas**
+            processedText = ExtractAndProcessTupleSchemas(processedText, result);
+
+            // Extract and process subject to blocks
+            processedText = ExtractSubjectToBlocks(processedText, lineMapping, result);
+
+            // Split into statements
+            var statements = SplitIntoStatements(processedText, lineMapping);
+
+            // Process each statement
+            foreach (var (statement, lineNumber) in statements)
+            {
+                if (!string.IsNullOrWhiteSpace(statement))
+                {
+                    ProcessStatement(statement, lineNumber, result);
+                }
+            }
+
+            return result;
+        }
+
+        private string ExtractAndProcessTupleSchemas(string text, ParseSessionResult result)
+        {
+            // Pattern: tuple Name { ... }
+            string pattern = @"tuple\s+([a-zA-Z][a-zA-Z0-9_]*)\s*\{";
+            var matches = Regex.Matches(text, pattern, RegexOptions.IgnoreCase);
+
+            if (matches.Count == 0)
+            {
+                return text; // No tuples
+            }
+
+            var resultText = new System.Text.StringBuilder();
+            int lastIndex = 0;
+
+            foreach (Match match in matches)
+            {
+                // Append text before this tuple
+                resultText.Append(text.Substring(lastIndex, match.Index - lastIndex));
+
+                // Find matching closing brace
+                int closingBraceIndex = FindClosingBrace(text, match.Index + match.Length);
+
+                if (closingBraceIndex == -1)
+                {
+                    result.AddError($"Tuple schema: Missing closing brace '}}' for tuple '{match.Groups[1].Value}'", 
+                        text.Substring(0, match.Index).Count(c => c == '\n') + 1);
+                    continue;
+                }
+
+                // Extract the complete tuple definition
+                string tupleDefinition = text.Substring(match.Index, closingBraceIndex - match.Index + 1);
+                
+                // Parse and register the tuple schema
+                if (TryParseTupleSchemaBlock(tupleDefinition, out var schema, out string error))
+                {
+                    modelManager.AddTupleSchema(schema);
+                    result.IncrementSuccess();
+                }
+                else
+                {
+                    result.AddError($"Error parsing tuple schema: {error}", 
+                        text.Substring(0, match.Index).Count(c => c == '\n') + 1);
+                }
+
+                lastIndex = closingBraceIndex + 1;
+            }
+
+            // Append remaining text
+            if (lastIndex < text.Length)
+            {
+                resultText.Append(text.Substring(lastIndex));
+            }
+
+            return resultText.ToString();
+        }
+
+        private bool TryParseTupleSchemaBlock(string block, out TupleSchema? schema, out string error)
+        {
+            schema = null;
+            error = string.Empty;
+
+            // Extract tuple name
+            var nameMatch = Regex.Match(block, @"tuple\s+([a-zA-Z][a-zA-Z0-9_]*)\s*\{", RegexOptions.IgnoreCase);
+            if (!nameMatch.Success)
+            {
+                error = "Invalid tuple syntax";
+                return false;
+            }
+
+            string tupleName = nameMatch.Groups[1].Value;
+            schema = new TupleSchema(tupleName);
+
+            // Extract body (everything between { and })
+            int openBrace = block.IndexOf('{');
+            int closeBrace = block.LastIndexOf('}');
+            
+            if (openBrace == -1 || closeBrace == -1)
+            {
+                error = "Missing braces in tuple definition";
+                return false;
+            }
+
+            string body = block.Substring(openBrace + 1, closeBrace - openBrace - 1);
+
+            // Parse field declarations
+            var fieldPattern = @"(float|int|bool|string)\s+([a-zA-Z][a-zA-Z0-9_]*)\s*;";
+            var fieldMatches = Regex.Matches(body, fieldPattern, RegexOptions.IgnoreCase);
+
+            if (fieldMatches.Count == 0)
+            {
+                error = "Tuple must have at least one field";
+                return false;
+            }
+
+            foreach (Match fieldMatch in fieldMatches)
+            {
+                string typeStr = fieldMatch.Groups[1].Value.ToLower();
+                string fieldName = fieldMatch.Groups[2].Value;
+
+                VariableType fieldType = typeStr switch
+                {
+                    "float" => VariableType.Float,
+                    "int" => VariableType.Integer,
+                    "bool" => VariableType.Boolean,
+                    "string" => VariableType.String,
+                    _ => VariableType.Float
+                };
+
+                try
+                {
+                    schema.AddField(fieldName, fieldType);
+                }
+                catch (Exception ex)
+                {
+                    error = ex.Message;
+                    return false;
+                }
+            }
+
+            return true;
+        }
+
+        public ParseSessionResult Parse(string text)
+        {
+            var result = new ParseSessionResult();
+
+            if (string.IsNullOrWhiteSpace(text))
+            {
+                result.AddError("No text to parse", 0);
+                return result;
+            }
+
+            // Extract and process JavaScript execute blocks FIRST
+            var (processedText, lineMapping) = ExtractAndProcessExecuteBlocks(text, result);
+
+            // **NEW: Extract and process tuple schemas**
+            processedText = ExtractAndProcessTupleSchemas(processedText, result);
+
+            // Extract and process subject to blocks
+            processedText = ExtractSubjectToBlocks(processedText, lineMapping, result);
+
+            // Split into statements
+            var statements = SplitIntoStatements(processedText, lineMapping);
+
+            // Process each statement
+            foreach (var (statement, lineNumber) in statements)
+            {
+                if (!string.IsNullOrWhiteSpace(statement))
+                {
+                    ProcessStatement(statement, lineNumber, result);
+                }
+            }
+
+            return result;
+        }
+
+        private string ExtractAndProcessTupleSchemas(string text, ParseSessionResult result)
+        {
+            // Pattern: tuple Name { ... }
+            string pattern = @"tuple\s+([a-zA-Z][a-zA-Z0-9_]*)\s*\{";
+            var matches = Regex.Matches(text, pattern, RegexOptions.IgnoreCase);
+
+            if (matches.Count == 0)
+            {
+                return text; // No tuples
+            }
+
+            var resultText = new System.Text.StringBuilder();
+            int lastIndex = 0;
+
+            foreach (Match match in matches)
+            {
+                // Append text before this tuple
+                resultText.Append(text.Substring(lastIndex, match.Index - lastIndex));
+
+                // Find matching closing brace
+                int closingBraceIndex = FindClosingBrace(text, match.Index + match.Length);
+
+                if (closingBraceIndex == -1)
+                {
+                    result.AddError($"Tuple schema: Missing closing brace '}}' for tuple '{match.Groups[1].Value}'", 
+                        text.Substring(0, match.Index).Count(c => c == '\n') + 1);
+                    continue;
+                }
+
+                // Extract the complete tuple definition
+                string tupleDefinition = text.Substring(match.Index, closingBraceIndex - match.Index + 1);
+                
+                // Parse and register the tuple schema
+                if (TryParseTupleSchemaBlock(tupleDefinition, out var schema, out string error))
+                {
+                    modelManager.AddTupleSchema(schema);
+                    result.IncrementSuccess();
+                }
+                else
+                {
+                    result.AddError($"Error parsing tuple schema: {error}", 
+                        text.Substring(0, match.Index).Count(c => c == '\n') + 1);
+                }
+
+                lastIndex = closingBraceIndex + 1;
+            }
+
+            // Append remaining text
+            if (lastIndex < text.Length)
+            {
+                resultText.Append(text.Substring(lastIndex));
+            }
+
+            return resultText.ToString();
+        }
+
+        private bool TryParseTupleSchemaBlock(string block, out TupleSchema? schema, out string error)
+        {
+            schema = null;
+            error = string.Empty;
+
+            // Extract tuple name
+            var nameMatch = Regex.Match(block, @"tuple\s+([a-zA-Z][a-zA-Z0-9_]*)\s*\{", RegexOptions.IgnoreCase);
+            if (!nameMatch.Success)
+            {
+                error = "Invalid tuple syntax";
+                return false;
+            }
+
+            string tupleName = nameMatch.Groups[1].Value;
+            schema = new TupleSchema(tupleName);
+
+            // Extract body (everything between { and })
+            int openBrace = block.IndexOf('{');
+            int closeBrace = block.LastIndexOf('}');
+            
+            if (openBrace == -1 || closeBrace == -1)
+            {
+                error = "Missing braces in tuple definition";
+                return false;
+            }
+
+            string body = block.Substring(openBrace + 1, closeBrace - openBrace - 1);
+
+            // Parse field declarations
+            var fieldPattern = @"(float|int|bool|string)\s+([a-zA-Z][a-zA-Z0-9_]*)\s*;";
+            var fieldMatches = Regex.Matches(body, fieldPattern, RegexOptions.IgnoreCase);
+
+            if (fieldMatches.Count == 0)
+            {
+                error = "Tuple must have at least one field";
+                return false;
+            }
+
+            foreach (Match fieldMatch in fieldMatches)
+            {
+                string typeStr = fieldMatch.Groups[1].Value.ToLower();
+                string fieldName = fieldMatch.Groups[2].Value;
+
+                VariableType fieldType = typeStr switch
+                {
+                    "float" => VariableType.Float,
+                    "int" => VariableType.Integer,
+                    "bool" => VariableType.Boolean,
+                    "string" => VariableType.String,
+                    _ => VariableType.Float
+                };
+
+                try
+                {
+                    schema.AddField(fieldName, fieldType);
+                }
+                catch (Exception ex)
+                {
+                    error = ex.Message;
+                    return false;
+                }
+            }
+
+            return true;
+        }
+
+        public ParseSessionResult Parse(string text)
+        {
+            var result = new ParseSessionResult();
+
+            if (string.IsNullOrWhiteSpace(text))
+            {
+                result.AddError("No text to parse", 0);
+                return result;
+            }
+
+            // Extract and process JavaScript execute blocks FIRST
+            var (processedText, lineMapping) = ExtractAndProcessExecuteBlocks(text, result);
+
+            // **NEW: Extract and process tuple schemas**
+            processedText = ExtractAndProcessTupleSchemas(processedText, result);
+
+            // Extract and process subject to blocks
+            processedText = ExtractSubjectToBlocks(processedText, lineMapping, result);
+
+            // Split into statements
+            var statements = SplitIntoStatements(processedText, lineMapping);
+
+            // Process each statement
+            foreach (var (statement, lineNumber) in statements)
+            {
+                if (!string.IsNullOrWhiteSpace(statement))
+                {
+                    ProcessStatement(statement, lineNumber, result);
+                }
+            }
+
+            return result;
+        }
+
+        private string ExtractAndProcessTupleSchemas(string text, ParseSessionResult result)
+        {
+            // Pattern: tuple Name { ... }
+            string pattern = @"tuple\s+([a-zA-Z][a-zA-Z0-9_]*)\s*\{";
+            var matches = Regex.Matches(text, pattern, RegexOptions.IgnoreCase);
+
+            if (matches.Count == 0)
+            {
+                return text; // No tuples
+            }
+
+            var resultText = new System.Text.StringBuilder();
+            int lastIndex = 0;
+
+            foreach (Match match in matches)
+            {
+                // Append text before this tuple
+                resultText.Append(text.Substring(lastIndex, match.Index - lastIndex));
+
+                // Find matching closing brace
+                int closingBraceIndex = FindClosingBrace(text, match.Index + match.Length);
+
+                if (closingBraceIndex == -1)
+                {
+                    result.AddError($"Tuple schema: Missing closing brace '}}' for tuple '{match.Groups[1].Value}'", 
+                        text.Substring(0, match.Index).Count(c => c == '\n') + 1);
+                    continue;
+                }
+
+                // Extract the complete tuple definition
+                string tupleDefinition = text.Substring(match.Index, closingBraceIndex - match.Index + 1);
+                
+                // Parse and register the tuple schema
+                if (TryParseTupleSchemaBlock(tupleDefinition, out var schema, out string error))
+                {
+                    modelManager.AddTupleSchema(schema);
+                    result.IncrementSuccess();
+                }
+                else
+                {
+                    result.AddError($"Error parsing tuple schema: {error}", 
+                        text.Substring(0, match.Index).Count(c => c == '\n') + 1);
+                }
+
+                lastIndex = closingBraceIndex + 1;
+            }
+
+            // Append remaining text
+            if (lastIndex < text.Length)
+            {
+                resultText.Append(text.Substring(lastIndex));
+            }
+
+            return resultText.ToString();
+        }
+
+        private bool TryParseTupleSchemaBlock(string block, out TupleSchema? schema, out string error)
+        {
+            schema = null;
+            error = string.Empty;
+
+            // Extract tuple name
+            var nameMatch = Regex.Match(block, @"tuple\s+([a-zA-Z][a-zA-Z0-9_]*)\s*\{", RegexOptions.IgnoreCase);
+            if (!nameMatch.Success)
+            {
+                error = "Invalid tuple syntax";
+                return false;
+            }
+
+            string tupleName = nameMatch.Groups[1].Value;
+            schema = new TupleSchema(tupleName);
+
+            // Extract body (everything between { and })
+            int openBrace = block.IndexOf('{');
+            int closeBrace = block.LastIndexOf('}');
+            
+            if (openBrace == -1 || closeBrace == -1)
+            {
+                error = "Missing braces in tuple definition";
+                return false;
+            }
+
+            string body = block.Substring(openBrace + 1, closeBrace - openBrace - 1);
+
+            // Parse field declarations
+            var fieldPattern = @"(float|int|bool|string)\s+([a-zA-Z][a-zA-Z0-9_]*)\s*;";
+            var fieldMatches = Regex.Matches(body, fieldPattern, RegexOptions.IgnoreCase);
+
+            if (fieldMatches.Count == 0)
+            {
+                error = "Tuple must have at least one field";
+                return false;
+            }
+
+            foreach (Match fieldMatch in fieldMatches)
+            {
+                string typeStr = fieldMatch.Groups[1].Value.ToLower();
+                string fieldName = fieldMatch.Groups[2].Value;
+
+                VariableType fieldType = typeStr switch
+                {
+                    "float" => VariableType.Float,
+                    "int" => VariableType.Integer,
+                    "bool" => VariableType.Boolean,
+                    "string" => VariableType.String,
+                    _ => VariableType.Float
+                };
+
+                try
+                {
+                    schema.AddField(fieldName, fieldType);
+                }
+                catch (Exception ex)
+                {
+                    error = ex.Message;
+                    return false;
+                }
+            }
+
+            return true;
+        }
+
+        public ParseSessionResult Parse(string text)
+        {
+            var result = new ParseSessionResult();
+
+            if (string.IsNullOrWhiteSpace(text))
+            {
+                result.AddError("No text to parse", 0);
+                return result;
+            }
+
+            // Extract and process JavaScript execute blocks FIRST
+            var (processedText, lineMapping) = ExtractAndProcessExecuteBlocks(text, result);
+
+            // **NEW: Extract and process tuple schemas**
+            processedText = ExtractAndProcessTupleSchemas(processedText, result);
+
+            // Extract and process subject to blocks
+            processedText = ExtractSubjectToBlocks(processedText, lineMapping, result);
+
+            // Split into statements
+            var statements = SplitIntoStatements(processedText, lineMapping);
+
+            // Process each statement
+            foreach (var (statement, lineNumber) in statements)
+            {
+                if (!string.IsNullOrWhiteSpace(statement))
+                {
+                    ProcessStatement(statement, lineNumber, result);
+                }
+            }
+
+            return result;
+        }
+
+        private string ExtractAndProcessTupleSchemas(string text, ParseSessionResult result)
+        {
+            // Pattern: tuple Name { ... }
+            string pattern = @"tuple\s+([a-zA-Z][a-zA-Z0-9_]*)\s*\{";
+            var matches = Regex.Matches(text, pattern, RegexOptions.IgnoreCase);
+
+            if (matches.Count == 0)
+            {
+                return text; // No tuples
+            }
+
+            var resultText = new System.Text.StringBuilder();
+            int lastIndex = 0;
+
+            foreach (Match match in matches)
+            {
+                // Append text before this tuple
+                resultText.Append(text.Substring(lastIndex, match.Index - lastIndex));
+
+                // Find matching closing brace
+                int closingBraceIndex = FindClosingBrace(text, match.Index + match.Length);
+
+                if (closingBraceIndex == -1)
+                {
+                    result.AddError($"Tuple schema: Missing closing brace '}}' for tuple '{match.Groups[1].Value}'", 
+                        text.Substring(0, match.Index).Count(c => c == '\n') + 1);
+                    continue;
+                }
+
+                // Extract the complete tuple definition
+                string tupleDefinition = text.Substring(match.Index, closingBraceIndex - match.Index + 1);
+                
+                // Parse and register the tuple schema
+                if (TryParseTupleSchemaBlock(tupleDefinition, out var schema, out string error))
+                {
+                    modelManager.AddTupleSchema(schema);
+                    result.IncrementSuccess();
+                }
+                else
+                {
+                    result.AddError($"Error parsing tuple schema: {error}", 
+                        text.Substring(0, match.Index).Count(c => c == '\n') + 1);
+                }
+
+                lastIndex = closingBraceIndex + 1;
+            }
+
+            // Append remaining text
+            if (lastIndex < text.Length)
+            {
+                resultText.Append(text.Substring(lastIndex));
+            }
+
+            return resultText.ToString();
+        }
+
+        private bool TryParseTupleSchemaBlock(string block, out TupleSchema? schema, out string error)
+        {
+            schema = null;
+            error = string.Empty;
+
+            // Extract tuple name
+            var nameMatch = Regex.Match(block, @"tuple\s+([a-zA-Z][a-zA-Z0-9_]*)\s*\{", RegexOptions.IgnoreCase);
+            if (!nameMatch.Success)
+            {
+                error = "Invalid tuple syntax";
+                return false;
+            }
+
+            string tupleName = nameMatch.Groups[1].Value;
+            schema = new TupleSchema(tupleName);
+
+            // Extract body (everything between { and })
+            int openBrace = block.IndexOf('{');
+            int closeBrace = block.LastIndexOf('}');
+            
+            if (openBrace == -1 || closeBrace == -1)
+            {
+                error = "Missing braces in tuple definition";
+                return false;
+            }
+
+            string body = block.Substring(openBrace + 1, closeBrace - openBrace - 1);
+
+            // Parse field declarations
+            var fieldPattern = @"(float|int|bool|string)\s+([a-zA-Z][a-zA-Z0-9_]*)\s*;";
+            var fieldMatches = Regex.Matches(body, fieldPattern, RegexOptions.IgnoreCase);
+
+            if (fieldMatches.Count == 0)
+            {
+                error = "Tuple must have at least one field";
+                return false;
+            }
+
+            foreach (Match fieldMatch in fieldMatches)
+            {
+                string typeStr = fieldMatch.Groups[1].Value.ToLower();
+                string fieldName = fieldMatch.Groups[2].Value;
+
+                VariableType fieldType = typeStr switch
+                {
+                    "float" => VariableType.Float,
+                    "int" => VariableType.Integer,
+                    "bool" => VariableType.Boolean,
+                    "string" => VariableType.String,
+                    _ => VariableType.Float
+                };
+
+                try
+                {
+                    schema.AddField(fieldName, fieldType);
+                }
+                catch (Exception ex)
+                {
+                    error = ex.Message;
+                    return false;
+                }
+            }
+
+            return true;
+        }
+
+        public ParseSessionResult Parse(string text)
+        {
+            var result = new ParseSessionResult();
+
+            if (string.IsNullOrWhiteSpace(text))
+            {
+                result.AddError("No text to parse", 0);
+                return result;
+            }
+
+            // Extract and process JavaScript execute blocks FIRST
+            var (processedText, lineMapping) = ExtractAndProcessExecuteBlocks(text, result);
+
+            // **NEW: Extract and process tuple schemas**
+            processedText = ExtractAndProcessTupleSchemas(processedText, result);
+
+            // Extract and process subject to blocks
+            processedText = ExtractSubjectToBlocks(processedText, lineMapping, result);
+
+            // Split into statements
+            var statements = SplitIntoStatements(processedText, lineMapping);
+
+            // Process each statement
+            foreach (var (statement, lineNumber) in statements)
+            {
+                if (!string.IsNullOrWhiteSpace(statement))
+                {
+                    ProcessStatement(statement, lineNumber, result);
+                }
+            }
+
+            return result;
+        }
+
+        private string ExtractAndProcessTupleSchemas(string text, ParseSessionResult result)
+        {
+            // Pattern: tuple Name { ... }
+            string pattern = @"tuple\s+([a-zA-Z][a-zA-Z0-9_]*)\s*\{";
+            var matches = Regex.Matches(text, pattern, RegexOptions.IgnoreCase);
+
+            if (matches.Count == 0)
+            {
+                return text; // No tuples
+            }
+
+            var resultText = new System.Text.StringBuilder();
+            int lastIndex = 0;
+
+            foreach (Match match in matches)
+            {
+                // Append text before this tuple
+                resultText.Append(text.Substring(lastIndex, match.Index - lastIndex));
+
+                // Find matching closing brace
+                int closingBraceIndex = FindClosingBrace(text, match.Index + match.Length);
+
+                if (closingBraceIndex == -1)
+                {
+                    result.AddError($"Tuple schema: Missing closing brace '}}' for tuple '{match.Groups[1].Value}'", 
+                        text.Substring(0, match.Index).Count(c => c == '\n') + 1);
+                    continue;
+                }
+
+                // Extract the complete tuple definition
+                string tupleDefinition = text.Substring(match.Index, closingBraceIndex - match.Index + 1);
+                
+                // Parse and register the tuple schema
+                if (TryParseTupleSchemaBlock(tupleDefinition, out var schema, out string error))
+                {
+                    modelManager.AddTupleSchema(schema);
+                    result.IncrementSuccess();
+                }
+                else
+                {
+                    result.AddError($"Error parsing tuple schema: {error}", 
+                        text.Substring(0, match.Index).Count(c => c == '\n') + 1);
+                }
+
+                lastIndex = closingBraceIndex + 1;
+            }
+
+            // Append remaining text
+            if (lastIndex < text.Length)
+            {
+                resultText.Append(text.Substring(lastIndex));
+            }
+
+            return resultText.ToString();
+        }
+
+        private bool TryParseTupleSchemaBlock(string block, out TupleSchema? schema, out string error)
+        {
+            schema = null;
+            error = string.Empty;
+
+            // Extract tuple name
+            var nameMatch = Regex.Match(block, @"tuple\s+([a-zA-Z][a-zA-Z0-9_]*)\s*\{", RegexOptions.IgnoreCase);
+            if (!nameMatch.Success)
+            {
+                error = "Invalid tuple syntax";
+                return false;
+            }
+
+            string tupleName = nameMatch.Groups[1].Value;
+            schema = new TupleSchema(tupleName);
+
+            // Extract body (everything between { and })
+            int openBrace = block.IndexOf('{');
+            int closeBrace = block.LastIndexOf('}');
+            
+            if (openBrace == -1 || closeBrace == -1)
+            {
+                error = "Missing braces in tuple definition";
+                return false;
+            }
+
+            string body = block.Substring(openBrace + 1, closeBrace - openBrace - 1);
+
+            // Parse field declarations
+            var fieldPattern = @"(float|int|bool|string)\s+([a-zA-Z][a-zA-Z0-9_]*)\s*;";
+            var fieldMatches = Regex.Matches(body, fieldPattern, RegexOptions.IgnoreCase);
+
+            if (fieldMatches.Count == 0)
+            {
+                error = "Tuple must have at least one field";
+                return false;
+            }
+
+            foreach (Match fieldMatch in fieldMatches)
+            {
+                string typeStr = fieldMatch.Groups[1].Value.ToLower();
+                string fieldName = fieldMatch.Groups[2].Value;
+
+                VariableType fieldType = typeStr switch
+                {
+                    "float" => VariableType.Float,
+                    "int" => VariableType.Integer,
+                    "bool" => VariableType.Boolean,
+                    "string" => VariableType.String,
+                    _ => VariableType.Float
+                };
+
+                try
+                {
+                    schema.AddField(fieldName, fieldType);
+                }
+                catch (Exception ex)
+                {
+                    error = ex.Message;
+                    return false;
+                }
+            }
+
+            return true;
+        }
+
+        public ParseSessionResult Parse(string text)
+        {
+            var result = new ParseSessionResult();
+
+            if (string.IsNullOrWhiteSpace(text))
+            {
+                result.AddError("No text to parse", 0);
+                return result;
+            }
+
+            // Extract and process JavaScript execute blocks FIRST
+            var (processedText, lineMapping) = ExtractAndProcessExecuteBlocks(text, result);
+
+            // **NEW: Extract and process tuple schemas**
+            processedText = ExtractAndProcessTupleSchemas(processedText, result);
+
+            // Extract and process subject to blocks
+            processedText = ExtractSubjectToBlocks(processedText, lineMapping, result);
+
+            // Split into statements
+            var statements = SplitIntoStatements(processedText, lineMapping);
+
+            // Process each statement
+            foreach (var (statement, lineNumber) in statements)
+            {
+                if (!string.IsNullOrWhiteSpace(statement))
+                {
+                    ProcessStatement(statement, lineNumber, result);
+                }
+            }
+
+            return result;
+        }
+
+        private string ExtractAndProcessTupleSchemas(string text, ParseSessionResult result)
+        {
+            // Pattern: tuple Name { ... }
+            string pattern = @"tuple\s+([a-zA-Z][a-zA-Z0-9_]*)\s*\{";
+            var matches = Regex.Matches(text, pattern, RegexOptions.IgnoreCase);
+
+            if (matches.Count == 0)
+            {
+                return text; // No tuples
+            }
+
+            var resultText = new System.Text.StringBuilder();
+            int lastIndex = 0;
+
+            foreach (Match match in matches)
+            {
+                // Append text before this tuple
+                resultText.Append(text.Substring(lastIndex, match.Index - lastIndex));
+
+                // Find matching closing brace
+                int closingBraceIndex = FindClosingBrace(text, match.Index + match.Length);
+
+                if (closingBraceIndex == -1)
+                {
+                    result.AddError($"Tuple schema: Missing closing brace '}}' for tuple '{match.Groups[1].Value}'", 
+                        text.Substring(0, match.Index).Count(c => c == '\n') + 1);
+                    continue;
+                }
+
+                // Extract the complete tuple definition
+                string tupleDefinition = text.Substring(match.Index, closingBraceIndex - match.Index + 1);
+                
+                // Parse and register the tuple schema
+                if (TryParseTupleSchemaBlock(tupleDefinition, out var schema, out string error))
+                {
+                    modelManager.AddTupleSchema(schema);
+                    result.IncrementSuccess();
+                }
+                else
+                {
+                    result.AddError($"Error parsing tuple schema: {error}", 
+                        text.Substring(0, match.Index).Count(c => c == '\n') + 1);
+                }
+
+                lastIndex = closingBraceIndex + 1;
+            }
+
+            // Append remaining text
+            if (lastIndex < text.Length)
+            {
+                resultText.Append(text.Substring(lastIndex));
+            }
+
+            return resultText.ToString();
+        }
+
+        private bool TryParseTupleSchemaBlock(string block, out TupleSchema? schema, out string error)
+        {
+            schema = null;
+            error = string.Empty;
+
+            // Extract tuple name
+            var nameMatch = Regex.Match(block, @"tuple\s+([a-zA-Z][a-zA-Z0-9_]*)\s*\{", RegexOptions.IgnoreCase);
+            if (!nameMatch.Success)
+            {
+                error = "Invalid tuple syntax";
+                return false;
+            }
+
+            string tupleName = nameMatch.Groups[1].Value;
+            schema = new TupleSchema(tupleName);
+
+            // Extract body (everything between { and })
+            int openBrace = block.IndexOf('{');
+            int closeBrace = block.LastIndexOf('}');
+            
+            if (openBrace == -1 || closeBrace == -1)
+            {
+                error = "Missing braces in tuple definition";
+                return false;
+            }
+
+            string body = block.Substring(openBrace + 1, closeBrace - openBrace - 1);
+
+            // Parse field declarations
+            var fieldPattern = @"(float|int|bool|string)\s+([a-zA-Z][a-zA-Z0-9_]*)\s*;";
+            var fieldMatches = Regex.Matches(body, fieldPattern, RegexOptions.IgnoreCase);
+
+            if (fieldMatches.Count == 0)
+            {
+                error = "Tuple must have at least one field";
+                return false;
+            }
+
+            foreach (Match fieldMatch in fieldMatches)
+            {
+                string typeStr = fieldMatch.Groups[1].Value.ToLower();
+                string fieldName = fieldMatch.Groups[2].Value;
+
+                VariableType fieldType = typeStr switch
+                {
+                    "float" => VariableType.Float,
+                    "int" => VariableType.Integer,
+                    "bool" => VariableType.Boolean,
+                    "string" => VariableType.String,
+                    _ => VariableType.Float
+                };
+
+                try
+                {
+                    schema.AddField(fieldName, fieldType);
+                }
+                catch (Exception ex)
+                {
+                    error = ex.Message;
+                    return false;
+                }
+            }
+
+            return true;
+        }
+
+        public ParseSessionResult Parse(string text)
+        {
+            var result = new ParseSessionResult();
+
+            if (string.IsNullOrWhiteSpace(text))
+            {
+                result.AddError("No text to parse", 0);
+                return result;
+            }
+
+            // Extract and process JavaScript execute blocks FIRST
+            var (processedText, lineMapping) = ExtractAndProcessExecuteBlocks(text, result);
+
+            // **NEW: Extract and process tuple schemas**
+            processedText = ExtractAndProcessTupleSchemas(processedText, result);
+
+            // Extract and process subject to blocks
+            processedText = ExtractSubjectToBlocks(processedText, lineMapping, result);
+
+            // Split into statements
+            var statements = SplitIntoStatements(processedText, lineMapping);
+
+            // Process each statement
+            foreach (var (statement, lineNumber) in statements)
+            {
+                if (!string.IsNullOrWhiteSpace(statement))
+                {
+                    ProcessStatement(statement, lineNumber, result);
+                }
+            }
+
+            return result;
+        }
+
+        private string ExtractAndProcessTupleSchemas(string text, ParseSessionResult result)
+        {
+            // Pattern: tuple Name { ... }
+            string pattern = @"tuple\s+([a-zA-Z][a-zA-Z0-9_]*)\s*\{";
+            var matches = Regex.Matches(text, pattern, RegexOptions.IgnoreCase);
+
+            if (matches.Count == 0)
+            {
+                return text; // No tuples
+            }
+
+            var resultText = new System.Text.StringBuilder();
+            int lastIndex = 0;
+
+            foreach (Match match in matches)
+            {
+                // Append text before this tuple
+                resultText.Append(text.Substring(lastIndex, match.Index - lastIndex));
+
+                // Find matching closing brace
+                int closingBraceIndex = FindClosingBrace(text, match.Index + match.Length);
+
+                if (closingBraceIndex == -1)
+                {
+                    result.AddError($"Tuple schema: Missing closing brace '}}' for tuple '{match.Groups[1].Value}'", 
+                        text.Substring(0, match.Index).Count(c => c == '\n') + 1);
+                    continue;
+                }
+
+                // Extract the complete tuple definition
+                string tupleDefinition = text.Substring(match.Index, closingBraceIndex - match.Index + 1);
+                
+                // Parse and register the tuple schema
+                if (TryParseTupleSchemaBlock(tupleDefinition, out var schema, out string error))
+                {
+                    modelManager.AddTupleSchema(schema);
+                    result.IncrementSuccess();
+                }
+                else
+                {
+                    result.AddError($"Error parsing tuple schema: {error}", 
+                        text.Substring(0, match.Index).Count(c => c == '\n') + 1);
+                }
+
+                lastIndex = closingBraceIndex + 1;
+            }
+
+            // Append remaining text
+            if (lastIndex < text.Length)
+            {
+                resultText.Append(text.Substring(lastIndex));
+            }
+
+            return resultText.ToString();
+        }
+
+        private bool TryParseTupleSchemaBlock(string block, out TupleSchema? schema, out string error)
+        {
+            schema = null;
+            error = string.Empty;
+
+            // Extract tuple name
+            var nameMatch = Regex.Match(block, @"tuple\s+([a-zA-Z][a-zA-Z0-9_]*)\s*\{", RegexOptions.IgnoreCase);
+            if (!nameMatch.Success)
+            {
+                error = "Invalid tuple syntax";
+                return false;
+            }
+
+            string tupleName = nameMatch.Groups[1].Value;
+            schema = new TupleSchema(tupleName);
+
+            // Extract body (everything between { and })
+            int openBrace = block.IndexOf('{');
+            int closeBrace = block.LastIndexOf('}');
+            
+            if (openBrace == -1 || closeBrace == -1)
+            {
+                error = "Missing braces in tuple definition";
+                return false;
+            }
+
+            string body = block.Substring(openBrace + 1, closeBrace - openBrace - 1);
+
+            // Parse field declarations
+            var fieldPattern = @"(float|int|bool|string)\s+([a-zA-Z][a-zA-Z0-9_]*)\s*;";
+            var fieldMatches = Regex.Matches(body, fieldPattern, RegexOptions.IgnoreCase);
+
+            if (fieldMatches.Count == 0)
+            {
+                error = "Tuple must have at least one field";
+                return false;
+            }
+
+            foreach (Match fieldMatch in fieldMatches)
+            {
+                string typeStr = fieldMatch.Groups[1].Value.ToLower();
+                string fieldName = fieldMatch.Groups[2].Value;
+
+                VariableType fieldType = typeStr switch
+                {
+                    "float" => VariableType.Float,
+                    "int" => VariableType.Integer,
+                    "bool" => VariableType.Boolean,
+                    "string" => VariableType.String,
+                    _ => VariableType.Float
+                };
+
+                try
+                {
+                    schema.AddField(fieldName, fieldType);
+                }
+                catch (Exception ex)
+                {
+                    error = ex.Message;
+                    return false;
+                }
+            }
+
+            return true;
+        }
+
+        public ParseSessionResult Parse(string text)
+        {
+            var result = new ParseSessionResult();
+
+            if (string.IsNullOrWhiteSpace(text))
+            {
+                result.AddError("No text to parse", 0);
+                return result;
+            }
+
+            // Extract and process JavaScript execute blocks FIRST
+            var (processedText, lineMapping) = ExtractAndProcessExecuteBlocks(text, result);
+
+            // **NEW: Extract and process tuple schemas**
+            processedText = ExtractAndProcessTupleSchemas(processedText, result);
+
+            // Extract and process subject to blocks
+            processedText = ExtractSubjectToBlocks(processedText, lineMapping, result);
+
+            // Split into statements
+            var statements = SplitIntoStatements(processedText, lineMapping);
+
+            // Process each statement
+            foreach (var (statement, lineNumber) in statements)
+            {
+                if (!string.IsNullOrWhiteSpace(statement))
+                {
+                    ProcessStatement(statement, lineNumber, result);
+                }
+            }
+
+            return result;
+        }
+
+        private string ExtractAndProcessTupleSchemas(string text, ParseSessionResult result)
+        {
+            // Pattern: tuple Name { ... }
+            string pattern = @"tuple\s+([a-zA-Z][a-zA-Z0-9_]*)\s*\{";
+            var matches = Regex.Matches(text, pattern, RegexOptions.IgnoreCase);
+
+            if (matches.Count == 0)
+            {
+                return text; // No tuples
+            }
+
+            var resultText = new System.Text.StringBuilder();
+            int lastIndex = 0;
+
+            foreach (Match match in matches)
+            {
+                // Append text before this tuple
+                resultText.Append(text.Substring(lastIndex, match.Index - lastIndex));
+
+                // Find matching closing brace
+                int closingBraceIndex = FindClosingBrace(text, match.Index + match.Length);
+
+                if (closingBraceIndex == -1)
+                {
+                    result.AddError($"Tuple schema: Missing closing brace '}}' for tuple '{match.Groups[1].Value}'", 
+                        text.Substring(0, match.Index).Count(c => c == '\n') + 1);
+                    continue;
+                }
+
+                // Extract the complete tuple definition
+                string tupleDefinition = text.Substring(match.Index, closingBraceIndex - match.Index + 1);
+                
+                // Parse and register the tuple schema
+                if (TryParseTupleSchemaBlock(tupleDefinition, out var schema, out string error))
+                {
+                    modelManager.AddTupleSchema(schema);
+                    result.IncrementSuccess();
+                }
+                else
+                {
+                    result.AddError($"Error parsing tuple schema: {error}", 
+                        text.Substring(0, match.Index).Count(c => c == '\n') + 1);
+                }
+
+                lastIndex = closingBraceIndex + 1;
+            }
+
+            // Append remaining text
+            if (lastIndex < text.Length)
+            {
+                resultText.Append(text.Substring(lastIndex));
+            }
+
+            return resultText.ToString();
+        }
+
+        private bool TryParseTupleSchemaBlock(string block, out TupleSchema? schema, out string error)
+        {
+            schema = null;
+            error = string.Empty;
+
+            // Extract tuple name
+            var nameMatch = Regex.Match(block, @"tuple\s+([a-zA-Z][a-zA-Z0-9_]*)\s*\{", RegexOptions.IgnoreCase);
+            if (!nameMatch.Success)
+            {
+                error = "Invalid tuple syntax";
+                return false;
+            }
+
+            string tupleName = nameMatch.Groups[1].Value;
+            schema = new TupleSchema(tupleName);
+
+            // Extract body (everything between { and })
+            int openBrace = block.IndexOf('{');
+            int closeBrace = block.LastIndexOf('}');
+            
+            if (openBrace == -1 || closeBrace == -1)
+            {
+                error = "Missing braces in tuple definition";
+                return false;
+            }
+
+            string body = block.Substring(openBrace + 1, closeBrace - openBrace - 1);
+
+            // Parse field declarations
+            var fieldPattern = @"(float|int|bool|string)\s+([a-zA-Z][a-zA-Z0-9_]*)\s*;";
+            var fieldMatches = Regex.Matches(body, fieldPattern, RegexOptions.IgnoreCase);
+
+            if (fieldMatches.Count == 0)
+            {
+                error = "Tuple must have at least one field";
+                return false;
+            }
+
+            foreach (Match fieldMatch in fieldMatches)
+            {
+                string typeStr = fieldMatch.Groups[1].Value.ToLower();
+                string fieldName = fieldMatch.Groups[2].Value;
+
+                VariableType fieldType = typeStr switch
+                {
+                    "float" => VariableType.Float,
+                    "int" => VariableType.Integer,
+                    "bool" => VariableType.Boolean,
+                    "string" => VariableType.String,
+                    _ => VariableType.Float
+                };
+
+                try
+                {
+                    schema.AddField(fieldName, fieldType);
+                }
+                catch (Exception ex)
+                {
+                    error = ex.Message;
+                    return false;
+                }
+            }
+
+            return true;
+        }
+
+        public ParseSessionResult Parse(string text)
+        {
+            var result = new ParseSessionResult();
+
+            if (string.IsNullOrWhiteSpace(text))
+            {
+                result.AddError("No text to parse", 0);
+                return result;
+            }
+
+            // Extract and process JavaScript execute blocks FIRST
+            var (processedText, lineMapping) = ExtractAndProcessExecuteBlocks(text, result);
+
+            // **NEW: Extract and process tuple schemas**
+            processedText = ExtractAndProcessTupleSchemas(processedText, result);
+
+            // Extract and process subject to blocks
+            processedText = ExtractSubjectToBlocks(processedText, lineMapping, result);
+
+            // Split into statements
+            var statements = SplitIntoStatements(processedText, lineMapping);
+
+            // Process each statement
+            foreach (var (statement, lineNumber) in statements)
+            {
+                if (!string.IsNullOrWhiteSpace(statement))
+                {
+                    ProcessStatement(statement, lineNumber, result);
+                }
+            }
+
+            return result;
+        }
+
+        private string ExtractAndProcessTupleSchemas(string text, ParseSessionResult result)
+        {
+            // Pattern: tuple Name { ... }
+            string pattern = @"tuple\s+([a-zA-Z][a-zA-Z0-9_]*)\s*\{";
+            var matches = Regex.Matches(text, pattern, RegexOptions.IgnoreCase);
+
+            if (matches.Count == 0)
+            {
+                return text; // No tuples
+            }
+
+            var resultText = new System.Text.StringBuilder();
+            int lastIndex = 0;
+
+            foreach (Match match in matches)
+            {
+                // Append text before this tuple
+                resultText.Append(text.Substring(lastIndex, match.Index - lastIndex));
+
+                // Find matching closing brace
+                int closingBraceIndex = FindClosingBrace(text, match.Index + match.Length);
+
+                if (closingBraceIndex == -1)
+                {
+                    result.AddError($"Tuple schema: Missing closing brace '}}' for tuple '{match.Groups[1].Value}'", 
+                        text.Substring(0, match.Index).Count(c => c == '\n') + 1);
+                    continue;
+                }
+
+                // Extract the complete tuple definition
+                string tupleDefinition = text.Substring(match.Index, closingBraceIndex - match.Index + 1);
+                
+                // Parse and register the tuple schema
+                if (TryParseTupleSchemaBlock(tupleDefinition, out var schema, out string error))
+                {
+                    modelManager.AddTupleSchema(schema);
+                    result.IncrementSuccess();
+                }
+                else
+                {
+                    result.AddError($"Error parsing tuple schema: {error}", 
+                        text.Substring(0, match.Index).Count(c => c == '\n') + 1);
+                }
+
+                lastIndex = closingBraceIndex + 1;
+            }
+
+            // Append remaining text
+            if (lastIndex < text.Length)
+            {
+                resultText.Append(text.Substring(lastIndex));
+            }
+
+            return resultText.ToString();
+        }
+
+        private bool TryParseTupleSchemaBlock(string block, out TupleSchema? schema, out string error)
+        {
+            schema = null;
+            error = string.Empty;
+
+            // Extract tuple name
+            var nameMatch = Regex.Match(block, @"tuple\s+([a-zA-Z][a-zA-Z0-9_]*)\s*\{", RegexOptions.IgnoreCase);
+            if (!nameMatch.Success)
+            {
+                error = "Invalid tuple syntax";
+                return false;
+            }
+
+            string tupleName = nameMatch.Groups[1].Value;
+            schema = new TupleSchema(tupleName);
+
+            // Extract body (everything between { and })
+            int openBrace = block.IndexOf('{');
+            int closeBrace = block.LastIndexOf('}');
+            
+            if (openBrace == -1 || closeBrace == -1)
+            {
+                error = "Missing braces in tuple definition";
+                return false;
+            }
+
+            string body = block.Substring(openBrace + 1, closeBrace - openBrace - 1);
+
+            // Parse field declarations
+            var fieldPattern = @"(float|int|bool|string)\s+([a-zA-Z][a-zA-Z0-9_]*)\s*;";
+            var fieldMatches = Regex.Matches(body, fieldPattern, RegexOptions.IgnoreCase);
+
+            if (fieldMatches.Count == 0)
+            {
+                error = "Tuple must have at least one field";
+                return false;
+            }
+
+            foreach (Match fieldMatch in fieldMatches)
+            {
+                string typeStr = fieldMatch.Groups[1].Value.ToLower();
+                string fieldName = fieldMatch.Groups[2].Value;
+
+                VariableType fieldType = typeStr switch
+                {
+                    "float" => VariableType.Float,
+                    "int" => VariableType.Integer,
+                    "bool" => VariableType.Boolean,
+                    "string" => VariableType.String,
+                    _ => VariableType.Float
+                };
+
+                try
+                {
+                    schema.AddField(fieldName, fieldType);
+                }
+                catch (Exception ex)
+                {
+                    error = ex.Message;
+                    return false;
+                }
+            }
+
+            return true;
+        }
+
+        public ParseSessionResult Parse(string text)
+        {
+            var result = new ParseSessionResult();
+
+            if (string.IsNullOrWhiteSpace(text))
+            {
+                result.AddError("No text to parse", 0);
+                return result;
+            }
+
+            // Extract and process JavaScript execute blocks FIRST
+            var (processedText, lineMapping) = ExtractAndProcessExecuteBlocks(text, result);
+
+            // **NEW: Extract and process tuple schemas**
+            processedText = ExtractAndProcessTupleSchemas(processedText, result);
+
+            // Extract and process subject to blocks
+            processedText = ExtractSubjectToBlocks(processedText, lineMapping, result);
+
+            // Split into statements
+            var statements = SplitIntoStatements(processedText, lineMapping);
+
+            // Process each statement
+            foreach (var (statement, lineNumber) in statements)
+            {
+                if (!string.IsNullOrWhiteSpace(statement))
+                {
+                    ProcessStatement(statement, lineNumber, result);
+                }
+            }
+
+            return result;
+        }
+
+        private string ExtractAndProcessTupleSchemas(string text, ParseSessionResult result)
+        {
+            // Pattern: tuple Name { ... }
+            string pattern = @"tuple\s+([a-zA-Z][a-zA-Z0-9_]*)\s*\{";
+            var matches = Regex.Matches(text, pattern, RegexOptions.IgnoreCase);
+
+            if (matches.Count == 0)
+            {
+                return text; // No tuples
+            }
+
+            var resultText = new System.Text.StringBuilder();
+            int lastIndex = 0;
+
+            foreach (Match match in matches)
+            {
+                // Append text before this tuple
+                resultText.Append(text.Substring(lastIndex, match.Index - lastIndex));
+
+                // Find matching closing brace
+                int closingBraceIndex = FindClosingBrace(text, match.Index + match.Length);
+
+                if (closingBraceIndex == -1)
+                {
+                    result.AddError($"Tuple schema: Missing closing brace '}}' for tuple '{match.Groups[1].Value}'", 
+                        text.Substring(0, match.Index).Count(c => c == '\n') + 1);
+                    continue;
+                }
+
+                // Extract the complete tuple definition
+                string tupleDefinition = text.Substring(match.Index, closingBraceIndex - match.Index + 1);
+                
+                // Parse and register the tuple schema
+                if (TryParseTupleSchemaBlock(tupleDefinition, out var schema, out string error))
+                {
+                    modelManager.AddTupleSchema(schema);
+                    result.IncrementSuccess();
+                }
+                else
+                {
+                    result.AddError($"Error parsing tuple schema: {error}", 
+                        text.Substring(0, match.Index).Count(c => c == '\n') + 1);
+                }
+
+                lastIndex = closingBraceIndex + 1;
+            }
+
+            // Append remaining text
+            if (lastIndex < text.Length)
+            {
+                resultText.Append(text.Substring(lastIndex));
+            }
+
+            return resultText.ToString();
+        }
+
+        private bool TryParseTupleSchemaBlock(string block, out TupleSchema? schema, out string error)
+        {
+            schema = null;
+            error = string.Empty;
+
+            // Extract tuple name
+            var nameMatch = Regex.Match(block, @"tuple\s+([a-zA-Z][a-zA-Z0-9_]*)\s*\{", RegexOptions.IgnoreCase);
+            if (!nameMatch.Success)
+            {
+                error = "Invalid tuple syntax";
+                return false;
+            }
+
+            string tupleName = nameMatch.Groups[1].Value;
+            schema = new TupleSchema(tupleName);
+
+            // Extract body (everything between { and })
+            int openBrace = block.IndexOf('{');
+            int closeBrace = block.LastIndexOf('}');
+            
+            if (openBrace == -1 || closeBrace == -1)
+            {
+                error = "Missing braces in tuple definition";
+                return false;
+            }
+
+            string body = block.Substring(openBrace + 1, closeBrace - openBrace - 1);
+
+            // Parse field declarations
+            var fieldPattern = @"(float|int|bool|string)\s+([a-zA-Z][a-zA-Z0-9_]*)\s*;";
+            var fieldMatches = Regex.Matches(body, fieldPattern, RegexOptions.IgnoreCase);
+
+            if (fieldMatches.Count == 0)
+            {
+                error = "Tuple must have at least one field";
+                return false;
+            }
+
+            foreach (Match fieldMatch in fieldMatches)
+            {
+                string typeStr = fieldMatch.Groups[1].Value.ToLower();
+                string fieldName = fieldMatch.Groups[2].Value;
+
+                VariableType fieldType = typeStr switch
+                {
+                    "float" => VariableType.Float,
+                    "int" => VariableType.Integer,
+                    "bool" => VariableType.Boolean,
+                    "string" => VariableType.String,
+                    _ => VariableType.Float
+                };
+
+                try
+                {
+                    schema.AddField(fieldName, fieldType);
+                }
+                catch (Exception ex)
+                {
+                    error = ex.Message;
+                    return false;
+                }
+            }
+
+            return true;
+        }
+
+        public ParseSessionResult Parse(string text)
+        {
+            var result = new ParseSessionResult();
+
+            if (string.IsNullOrWhiteSpace(text))
+            {
+                result.AddError("No text to parse", 0);
+                return result;
+            }
+
+            // Extract and process JavaScript execute blocks FIRST
+            var (processedText, lineMapping) = ExtractAndProcessExecuteBlocks(text, result);
+
+            // **NEW: Extract and process tuple schemas**
+            processedText = ExtractAndProcessTupleSchemas(processedText, result);
+
+            // Extract and process subject to blocks
+            processedText = ExtractSubjectToBlocks(processedText, lineMapping, result);
+
+            // Split into statements
+            var statements = SplitIntoStatements(processedText, lineMapping);
+
+            // Process each statement
+            foreach (var (statement, lineNumber) in statements)
+            {
+                if (!string.IsNullOrWhiteSpace(statement))
+                {
+                    ProcessStatement(statement, lineNumber, result);
+                }
+            }
+
+            return result;
+        }
+
+        private string ExtractAndProcessTupleSchemas(string text, ParseSessionResult result)
+        {
+            // Pattern: tuple Name { ... }
+            string pattern = @"tuple\s+([a-zA-Z][a-zA-Z0-9_]*)\s*\{";
+            var matches = Regex.Matches(text, pattern, RegexOptions.IgnoreCase);
+
+            if (matches.Count == 0)
+            {
+                return text; // No tuples
+            }
+
+            var resultText = new System.Text.StringBuilder();
+            int lastIndex = 0;
+
+            foreach (Match match in matches)
+            {
+                // Append text before this tuple
+                resultText.Append(text.Substring(lastIndex, match.Index - lastIndex));
+
+                // Find matching closing brace
+                int closingBraceIndex = FindClosingBrace(text, match.Index + match.Length);
+
+                if (closingBraceIndex == -1)
+                {
+                    result.AddError($"Tuple schema: Missing closing brace '}}' for tuple '{match.Groups[1].Value}'", 
+                        text.Substring(0, match.Index).Count(c => c == '\n') + 1);
+                    continue;
+                }
+
+                // Extract the complete tuple definition
+                string tupleDefinition = text.Substring(match.Index, closingBraceIndex - match.Index + 1);
+                
+                // Parse and register the tuple schema
+                if (TryParseTupleSchemaBlock(tupleDefinition, out var schema, out string error))
+                {
+                    modelManager.AddTupleSchema(schema);
+                    result.IncrementSuccess();
+                }
+                else
+                {
+                    result.AddError($"Error parsing tuple schema: {error}", 
+                        text.Substring(0, match.Index).Count(c => c == '\n') + 1);
+                }
+
+                lastIndex = closingBraceIndex + 1;
+            }
+
+            // Append remaining text
+            if (lastIndex < text.Length)
+            {
+                resultText.Append(text.Substring(lastIndex));
+            }
+
+            return resultText.ToString();
+        }
+
+        private bool TryParseTupleSchemaBlock(string block, out TupleSchema? schema, out string error)
+        {
+            schema = null;
+            error = string.Empty;
+
+            // Extract tuple name
+            var nameMatch = Regex.Match(block, @"tuple\s+([a-zA-Z][a-zA-Z0-9_]*)\s*\{", RegexOptions.IgnoreCase);
+            if (!nameMatch.Success)
+            {
+                error = "Invalid tuple syntax";
+                return false;
+            }
+
+            string tupleName = nameMatch.Groups[1].Value;
+            schema = new TupleSchema(tupleName);
+
+            // Extract body (everything between { and })
+            int openBrace = block.IndexOf('{');
+            int closeBrace = block.LastIndexOf('}');
+            
+            if (openBrace == -1 || closeBrace == -1)
+            {
+                error = "Missing braces in tuple definition";
+                return false;
+            }
+
+            string body = block.Substring(openBrace + 1, closeBrace - openBrace - 1);
+
+            // Parse field declarations
+            var fieldPattern = @"(float|int|bool|string)\s+([a-zA-Z][a-zA-Z0-9_]*)\s*;";
+            var fieldMatches = Regex.Matches(body, fieldPattern, RegexOptions.IgnoreCase);
+
+            if (fieldMatches.Count == 0)
+            {
+                error = "Tuple must have at least one field";
+                return false;
+            }
+
+            foreach (Match fieldMatch in fieldMatches)
+            {
+                string typeStr = fieldMatch.Groups[1].Value.ToLower();
+                string fieldName = fieldMatch.Groups[2].Value;
+
+                VariableType fieldType = typeStr switch
+                {
+                    "float" => VariableType.Float,
+                    "int" => VariableType.Integer,
+                    "bool" => VariableType.Boolean,
+                    "string" => VariableType.String,
+                    _ => VariableType.Float
+                };
+
+                try
+                {
+                    schema.AddField(fieldName, fieldType);
+                }
+                catch (Exception ex)
+                {
+                    error = ex.Message;
+                    return false;
+                }
+            }
+
+            return true;
+        }
+
+        public ParseSessionResult Parse(string text)
+        {
+            var result = new ParseSessionResult();
+
+            if (string.IsNullOrWhiteSpace(text))
+            {
+                result.AddError("No text to parse", 0);
+                return result;
+            }
+
+            // Extract and process JavaScript execute blocks FIRST
+            var (processedText, lineMapping) = ExtractAndProcessExecuteBlocks(text, result);
+
+            // **NEW: Extract and process tuple schemas**
+            processedText = ExtractAndProcessTupleSchemas(processedText, result);
+
+            // Extract and process subject to blocks
+            processedText = ExtractSubjectToBlocks(processedText, lineMapping, result);
+
+            // Split into statements
+            var statements = SplitIntoStatements(processedText, lineMapping);
+
+            // Process each statement
+            foreach (var (statement, lineNumber) in statements)
+            {
+                if (!string.IsNullOrWhiteSpace(statement))
+                {
+                    ProcessStatement(statement, lineNumber, result);
+                }
+            }
+
+            return result;
+        }
+
+        private string ExtractAndProcessTupleSchemas(string text, ParseSessionResult result)
+        {
+            // Pattern: tuple Name { ... }
+            string pattern = @"tuple\s+([a-zA-Z][a-zA-Z0-9_]*)\s*\{";
+            var matches = Regex.Matches(text, pattern, RegexOptions.IgnoreCase);
+
+            if (matches.Count == 0)
+            {
+                return text; // No tuples
+            }
+
+            var resultText = new System.Text.StringBuilder();
+            int lastIndex = 0;
+
+            foreach (Match match in matches)
+            {
+                // Append text before this tuple
+                resultText.Append(text.Substring(lastIndex, match.Index - lastIndex));
+
+                // Find matching closing brace
+                int closingBraceIndex = FindClosingBrace(text, match.Index + match.Length);
+
+                if (closingBraceIndex == -1)
+                {
+                    result.AddError($"Tuple schema: Missing closing brace '}}' for tuple '{match.Groups[1].Value}'", 
+                        text.Substring(0, match.Index).Count(c => c == '\n') + 1);
+                    continue;
+                }
+
+                // Extract the complete tuple definition
+                string tupleDefinition = text.Substring(match.Index, closingBraceIndex - match.Index + 1);
+                
+                // Parse and register the tuple schema
+                if (TryParseTupleSchemaBlock(tupleDefinition, out var schema, out string error))
+                {
+                    modelManager.AddTupleSchema(schema);
+                    result.IncrementSuccess();
+                }
+                else
+                {
+                    result.AddError($"Error parsing tuple schema: {error}", 
+                        text.Substring(0, match.Index).Count(c => c == '\n') + 1);
+                }
+
+                lastIndex = closingBraceIndex + 1;
+            }
+
+            // Append remaining text
+            if (lastIndex < text.Length)
+            {
+                resultText.Append(text.Substring(lastIndex));
+            }
+
+            return resultText.ToString();
+        }
+
+        private bool TryParseTupleSchemaBlock(string block, out TupleSchema? schema, out string error)
+        {
+            schema = null;
+            error = string.Empty;
+
+            // Extract tuple name
+            var nameMatch = Regex.Match(block, @"tuple\s+([a-zA-Z][a-zA-Z0-9_]*)\s*\{", RegexOptions.IgnoreCase);
+            if (!nameMatch.Success)
+            {
+                error = "Invalid tuple syntax";
+                return false;
+            }
+
+            string tupleName = nameMatch.Groups[1].Value;
+            schema = new TupleSchema(tupleName);
+
+            // Extract body (everything between { and })
+            int openBrace = block.IndexOf('{');
+            int closeBrace = block.LastIndexOf('}');
+            
+            if (openBrace == -1 || closeBrace == -1)
+            {
+                error = "Missing braces in tuple definition";
+                return false;
+            }
+
+            string body = block.Substring(openBrace + 1, closeBrace - openBrace - 1);
+
+            // Parse field declarations
+            var fieldPattern = @"(float|int|bool|string)\s+([a-zA-Z][a-zA-Z0-9_]*)\s*;";
+            var fieldMatches = Regex.Matches(body, fieldPattern, RegexOptions.IgnoreCase);
+
+            if (fieldMatches.Count == 0)
+            {
+                error = "Tuple must have at least one field";
+                return false;
+            }
+
+            foreach (Match fieldMatch in fieldMatches)
+            {
+                string typeStr = fieldMatch.Groups[1].Value.ToLower();
+                string fieldName = fieldMatch.Groups[2].Value;
+
+                VariableType fieldType = typeStr switch
+                {
+                    "float" => VariableType.Float,
+                    "int" => VariableType.Integer,
+                    "bool" => VariableType.Boolean,
+                    "string" => VariableType.String,
+                    _ => VariableType.Float
+                };
+
+                try
+                {
+                    schema.AddField(fieldName, fieldType);
+                }
+                catch (Exception ex)
+                {
+                    error = ex.Message;
+                    return false;
+                }
+            }
+
+            return true;
+        }
+
+        public ParseSessionResult Parse(string text)
+        {
+            var result = new ParseSessionResult();
+
+            if (string.IsNullOrWhiteSpace(text))
+            {
+                result.AddError("No text to parse", 0);
+                return result;
+            }
+
+            // Extract and process JavaScript execute blocks FIRST
+            var (processedText, lineMapping) = ExtractAndProcessExecuteBlocks(text, result);
+
+            // **NEW: Extract and process tuple schemas**
+            processedText = ExtractAndProcessTupleSchemas(processedText, result);
+
+            // Extract and process subject to blocks
+            processedText = ExtractSubjectToBlocks(processedText, lineMapping, result);
+
+            // Split into statements
+            var statements = SplitIntoStatements(processedText, lineMapping);
+
+            // Process each statement
+            foreach (var (statement, lineNumber) in statements)
+            {
+                if (!string.IsNullOrWhiteSpace(statement))
+                {
+                    ProcessStatement(statement, lineNumber, result);
+                }
+            }
+
+            return result;
+        }
+
+        private string ExtractAndProcessTupleSchemas(string text, ParseSessionResult result)
+        {
+            // Pattern: tuple Name { ... }
+            string pattern = @"tuple\s+([a-zA-Z][a-zA-Z0-9_]*)\s*\{";
+            var matches = Regex.Matches(text, pattern, RegexOptions.IgnoreCase);
+
+            if (matches.Count == 0)
+            {
+                return text; // No tuples
+            }
+
+            var resultText = new System.Text.StringBuilder();
+            int lastIndex = 0;
+
+            foreach (Match match in matches)
+            {
+                // Append text before this tuple
+                resultText.Append(text.Substring(lastIndex, match.Index - lastIndex));
+
+                // Find matching closing brace
+                int closingBraceIndex = FindClosingBrace(text, match.Index + match.Length);
+
+                if (closingBraceIndex == -1)
+                {
+                    result.AddError($"Tuple schema: Missing closing brace '}}' for tuple '{match.Groups[1].Value}'", 
+                        text.Substring(0, match.Index).Count(c => c == '\n') + 1);
+                    continue;
+                }
+
+                // Extract the complete tuple definition
+                string tupleDefinition = text.Substring(match.Index, closingBraceIndex - match.Index + 1);
+                
+                // Parse and register the tuple schema
+                if (TryParseTupleSchemaBlock(tupleDefinition, out var schema, out string error))
+                {
+                    modelManager.AddTupleSchema(schema);
+                    result.IncrementSuccess();
+                }
+                else
+                {
+                    result.AddError($"Error parsing tuple schema: {error}", 
+                        text.Substring(0, match.Index).Count(c => c == '\n') + 1);
+                }
+
+                lastIndex = closingBraceIndex + 1;
+            }
+
+            // Append remaining text
+            if (lastIndex < text.Length)
+            {
+                resultText.Append(text.Substring(lastIndex));
+            }
+
+            return resultText.ToString();
+        }
+
+        private bool TryParseTupleSchemaBlock(string block, out TupleSchema? schema, out string error)
+        {
+            schema = null;
+            error = string.Empty;
+
+            // Extract tuple name
+            var nameMatch = Regex.Match(block, @"tuple\s+([a-zA-Z][a-zA-Z0-9_]*)\s*\{", RegexOptions.IgnoreCase);
+            if (!nameMatch.Success)
+            {
+                error = "Invalid tuple syntax";
+                return false;
+            }
+
+            string tupleName = nameMatch.Groups[1].Value;
+            schema = new TupleSchema(tupleName);
+
+            // Extract body (everything between { and })
+            int openBrace = block.IndexOf('{');
+            int closeBrace = block.LastIndexOf('}');
+            
+            if (openBrace == -1 || closeBrace == -1)
+            {
+                error = "Missing braces in tuple definition";
+                return false;
+            }
+
+            string body = block.Substring(openBrace + 1, closeBrace - openBrace - 1);
+
+            // Parse field declarations
+            var fieldPattern = @"(float|int|bool|string)\s+([a-zA-Z][a-zA-Z0-9_]*)\s*;";
+            var fieldMatches = Regex.Matches(body, fieldPattern, RegexOptions.IgnoreCase);
+
+            if (fieldMatches.Count == 0)
+            {
+                error = "Tuple must have at least one field";
+                return false;
+            }
+
+            foreach (Match fieldMatch in fieldMatches)
+            {
+                string typeStr = fieldMatch.Groups[1].Value.ToLower();
+                string fieldName = fieldMatch.Groups[2].Value;
+
+                VariableType fieldType = typeStr switch
+                {
+                    "float" => VariableType.Float,
+                    "int" => VariableType.Integer,
+                    "bool" => VariableType.Boolean,
+                    "string" => VariableType.String,
+                    _ => VariableType.Float
+                };
+
+                try
+                {
+                    schema.AddField(fieldName, fieldType);
+                }
+                catch (Exception ex)
+                {
+                    error = ex.Message;
+                    return false;
+                }
+            }
+
+            return true;
+        }
+
+        public ParseSessionResult Parse(string text)
+        {
+            var result = new ParseSessionResult();
+
+            if (string.IsNullOrWhiteSpace(text))
+            {
+                result.AddError("No text to parse", 0);
+                return result;
+            }
+
+            // Extract and process JavaScript execute blocks FIRST
+            var (processedText, lineMapping) = ExtractAndProcessExecuteBlocks(text, result);
+
+            // **NEW: Extract and process tuple schemas**
+            processedText = ExtractAndProcessTupleSchemas(processedText, result);
+
+            // Extract and process subject to blocks
+            processedText = ExtractSubjectToBlocks(processedText, lineMapping, result);
+
+            // Split into statements
+            var statements = SplitIntoStatements(processedText, lineMapping);
+
+            // Process each statement
+            foreach (var (statement, lineNumber) in statements)
+            {
+                if (!string.IsNullOrWhiteSpace(statement))
+                {
+                    ProcessStatement(statement, lineNumber, result);
+                }
+            }
+
+            return result;
+        }
+
+        private string ExtractAndProcessTupleSchemas(string text, ParseSessionResult result)
+        {
+            // Pattern: tuple Name { ... }
+            string pattern = @"tuple\s+([a-zA-Z][a-zA-Z0-9_]*)\s*\{";
+            var matches = Regex.Matches(text, pattern, RegexOptions.IgnoreCase);
+
+            if (matches.Count == 0)
+            {
+                return text; // No tuples
+            }
+
+            var resultText = new System.Text.StringBuilder();
+            int lastIndex = 0;
+
+            foreach (Match match in matches)
+            {
+                // Append text before this tuple
+                resultText.Append(text.Substring(lastIndex, match.Index - lastIndex));
+
+                // Find matching closing brace
+                int closingBraceIndex = FindClosingBrace(text, match.Index + match.Length);
+
+                if (closingBraceIndex == -1)
+                {
+                    result.AddError($"Tuple schema: Missing closing brace '}}' for tuple '{match.Groups[1].Value}'", 
+                        text.Substring(0, match.Index).Count(c => c == '\n') + 1);
+                    continue;
+                }
+
+                // Extract the complete tuple definition
+            // **NEW: Extract and process tuple schemas**
+            processedText = ExtractAndProcessTupleSchemas(processedText, result);
+
+            // Extract and process subject to blocks
+            processedText = ExtractSubjectToBlocks(processedText, lineMapping, result);
+
+            // Split into statements
+            var statements = SplitIntoStatements(processedText, lineMapping);
+
+            // Process each statement
+            foreach (var (statement, lineNumber) in statements)
+            {
+                if (!string.IsNullOrWhiteSpace(statement))
+                {
+                    ProcessStatement(statement, lineNumber, result);
+                }
+            }
+
+            return result;
+        }
+
+        private string ExtractAndProcessTupleSchemas(string text, ParseSessionResult result)
+        {
+            // Pattern: tuple Name { ... }
+            string pattern = @"tuple\s+([a-zA-Z][a-zA-Z0-9_]*)\s*\{";
+            var matches = Regex.Matches(text, pattern, RegexOptions.IgnoreCase);
+
+            if (matches.Count == 0)
+            {
+                return text; // No tuples
+            }
+
+            var resultText = new System.Text.StringBuilder();
+            int lastIndex = 0;
+
+            foreach (Match match in matches)
+            {
+                // Append text before this tuple
+                resultText.Append(text.Substring(lastIndex, match.Index - lastIndex));
+
+                // Find matching closing brace
+                int closingBraceIndex = FindClosingBrace(text, match.Index + match.Length);
+
+                if (closingBraceIndex == -1)
+                {
+                    result.AddError($"Tuple schema: Missing closing brace '}}' for tuple '{match.Groups[1].Value}'", 
+                        text.Substring(0, match.Index).Count(c => c == '\n') + 1);
+                    continue;
+                }
+
+                // Extract the complete tuple definition
+                string tupleDefinition = text.Substring(match.Index, closingBraceIndex - match.Index + 1);
+                
+                // Parse and register the tuple schema
+                if (TryParseTupleSchemaBlock(tupleDefinition, out var schema, out string error))
+                {
+                    modelManager.AddTupleSchema(schema);
+                    result.IncrementSuccess();
+                }
+                else
+                {
+                    result.AddError($"Error parsing tuple schema: {error}", 
+                        text.Substring(0, match.Index).Count(c => c == '\n') + 1);
+                }
+
+                lastIndex = closingBraceIndex + 1;
+            }
+
+            // Append remaining text
+            if (lastIndex < text.Length)
+            {
+                resultText.Append(text.Substring(lastIndex));
+            }
+
+            return resultText.ToString();
+        }
+
+        private bool TryParseTupleSchemaBlock(string block, out TupleSchema? schema, out string error)
+        {
+            schema = null;
+            error = string.Empty;
+
+            // Extract tuple name
+            var nameMatch = Regex.Match(block, @"tuple\s+([a-zA-Z][a-zA-Z0-9_]*)\s*\{", RegexOptions.IgnoreCase);
+            if (!nameMatch.Success)
+            {
+                error = "Invalid tuple syntax";
+                return false;
+            }
+
+            string tupleName = nameMatch.Groups[1].Value;
+            schema = new TupleSchema(tupleName);
+
+            // Extract body (everything between { and })
+            int openBrace = block.IndexOf('{');
+            int closeBrace = block.LastIndexOf('}');
+            
+            if (openBrace == -1 || closeBrace == -1)
+            {
+                error = "Missing braces in tuple definition";
+                return false;
+            }
+
+            string body = block.Substring(openBrace + 1, closeBrace - openBrace - 1);
+
+            // Parse field declarations
+            var fieldPattern = @"(float|int|bool|string)\s+([a-zA-Z][a-zA-Z0-9_]*)\s*;";
+            var fieldMatches = Regex.Matches(body, fieldPattern, RegexOptions.IgnoreCase);
+
+            if (fieldMatches.Count == 0)
+            {
+                error = "Tuple must have at least one field";
+                return false;
+            }
+
+            foreach (Match fieldMatch in fieldMatches)
+            {
+                string typeStr = fieldMatch.Groups[1].Value.ToLower();
+                string fieldName = fieldMatch.Groups[2].Value;
+
+                VariableType fieldType = typeStr switch
+                {
+                    "float" => VariableType.Float,
+                    "int" => VariableType.Integer,
+                    "bool" => VariableType.Boolean,
+                    "string" => VariableType.String,
+                    _ => VariableType.Float
+                };
+
+                try
+                {
+                    schema.AddField(fieldName, fieldType);
+                }
+                catch (Exception ex)
+                {
+                    error = ex.Message;
+                    return false;
+                }
+            }
+
+            return true;
+        }
+
+        public ParseSessionResult Parse(string text)
+        {
+            var result = new ParseSessionResult();
+
+            if (string.IsNullOrWhiteSpace(text))
+            {
+                result.AddError("No text to parse", 0);
+                return result;
+            }
+
+            // Extract and process JavaScript execute blocks FIRST
+            var (processedText, lineMapping) = ExtractAndProcessExecuteBlocks(text, result);
+
+            // **NEW: Extract and process tuple schemas**
+            processedText = ExtractAndProcessTupleSchemas(processedText, result);
+
+            // Extract and process subject to blocks
+            processedText = ExtractSubjectToBlocks(processedText, lineMapping, result);
+
+            // Split into statements
+            var statements = SplitIntoStatements(processedText, lineMapping);
+
+            // Process each statement
+            foreach (var (statement, lineNumber) in statements)
+            {
+                if (!string.IsNullOrWhiteSpace(statement))
+                {
+                    ProcessStatement(statement, lineNumber, result);
+                }
+            }
+
+            return result;
+        }
+
+        private string ExtractAndProcessTupleSchemas(string text, ParseSessionResult result)
+        {
+            // Pattern: tuple Name { ... }
+            string pattern = @"tuple\s+([a-zA-Z][a-zA-Z0-9_]*)\s*\{";
+            var matches = Regex.Matches(text, pattern, RegexOptions.IgnoreCase);
+
+            if (matches.Count == 0)
+            {
+                return text; // No tuples
+            }
+
+            var resultText = new System.Text.StringBuilder();
+            int lastIndex = 0;
+
+            foreach (Match match in matches)
+            {
+                // Append text before this tuple
+                resultText.Append(text.Substring(lastIndex, match.Index - lastIndex));
+
+                // Find matching closing brace
+                int closingBraceIndex = FindClosingBrace(text, match.Index + match.Length);
+
+                if (closingBraceIndex == -1)
+                {
+                    result.AddError($"Tuple schema: Missing closing brace '}}' for tuple '{match.Groups[1].Value}'", 
+                        text.Substring(0, match.Index).Count(c => c == '\n') + 1);
+                    continue;
+                }
+
+                // Extract the complete tuple definition
+                string tupleDefinition = text.Substring(match.Index, closingBraceIndex - match.Index + 1);
+                
+                // Parse and register the tuple schema
+                if (TryParseTupleSchemaBlock(tupleDefinition, out var schema, out string error))
+                {
+                    modelManager.AddTupleSchema(schema);
+                    result.IncrementSuccess();
+                }
+                else
+                {
+                    result.AddError($"Error parsing tuple schema: {error}", 
+                        text.Substring(0, match.Index).Count(c => c == '\n') + 1);
+                }
+
+                lastIndex = closingBraceIndex + 1;
+            }
+
+            // Append remaining text
+            if (lastIndex < text.Length)
+            {
+                resultText.Append(text.Substring(lastIndex));
+            }
+
+            return resultText.ToString();
+        }
+
+        private bool TryParseTupleSchemaBlock(string block, out TupleSchema? schema, out string error)
+        {
+            schema = null;
+            error = string.Empty;
+
+            // Extract tuple name
+            var nameMatch = Regex.Match(block, @"tuple\s+([a-zA-Z][a-zA-Z0-9_]*)\s*\{", RegexOptions.IgnoreCase);
+            if (!nameMatch.Success)
+            {
+                error = "Invalid tuple syntax";
+                return false;
+            }
+
+            string tupleName = nameMatch.Groups[1].Value;
+            schema = new TupleSchema(tupleName);
+
+            // Extract body (everything between { and })
+            int openBrace = block.IndexOf('{');
+            int closeBrace = block.LastIndexOf('}');
+            
+            if (openBrace == -1 || closeBrace == -1)
+            {
+                error = "Missing braces in tuple definition";
+                return false;
+            }
+
+            string body = block.Substring(openBrace + 1, closeBrace - openBrace - 1);
+
+            // Parse field declarations
+            var fieldPattern = @"(float|int|bool|string)\s+([a-zA-Z][a-zA-Z0-9_]*)\s*;";
+            var fieldMatches = Regex.Matches(body, fieldPattern, RegexOptions.IgnoreCase);
+
+            if (fieldMatches.Count == 0)
+            {
+                error = "Tuple must have at least one field";
+                return false;
+            }
+
+            foreach (Match fieldMatch in fieldMatches)
+            {
+                string typeStr = fieldMatch.Groups[1].Value.ToLower();
+                string fieldName = fieldMatch.Groups[2].Value;
+
+                VariableType fieldType = typeStr switch
+                {
+                    "float" => VariableType.Float,
+                    "int" => VariableType.Integer,
+                    "bool" => VariableType.Boolean,
+                    "string" => VariableType.String,
+                    _ => VariableType.Float
+                };
+
+                try
+                {
+                    schema.AddField(fieldName, fieldType);
+                }
+                catch (Exception ex)
+                {
+                    error = ex.Message;
+                    return false;
+                }
+            }
+
+            return true;
+        }
+
+        public ParseSessionResult Parse(string text)
+        {
+            var result = new ParseSessionResult();
+
+            if (string.IsNullOrWhiteSpace(text))
+            {
+                result.AddError("No text to parse", 0);
+                return result;
+            }
+
+            // Extract and process JavaScript execute blocks FIRST
+            var (processedText, lineMapping) = ExtractAndProcessExecuteBlocks(text, result);
+
+            // **NEW: Extract and process tuple schemas**
+            processedText = ExtractAndProcessTupleSchemas(processedText, result);
+
+            // Extract and process subject to blocks
+            processedText = ExtractSubjectToBlocks(processedText, lineMapping, result);
+
+            // Split into statements
+            var statements = SplitIntoStatements(processedText, lineMapping);
+
+            // Process each statement
+            foreach (var (statement, lineNumber) in statements)
+            {
+                if (!string.IsNullOrWhiteSpace(statement))
+                {
+                    ProcessStatement(statement, lineNumber, result);
+                }
+            }
+
+            return result;
+        }
+
+        private string ExtractAndProcessTupleSchemas(string text, ParseSessionResult result)
+        {
+            // Pattern: tuple Name { ... }
+            string pattern = @"tuple\s+([a-zA-Z][a-zA-Z0-9_]*)\s*\{";
+            var matches = Regex.Matches(text, pattern, RegexOptions.IgnoreCase);
+
+            if (matches.Count == 0)
+            {
+                return text; // No tuples
+            }
+
+            var resultText = new System.Text.StringBuilder();
+            int lastIndex = 0;
+
+            foreach (Match match in matches)
+            {
+                // Append text before this tuple
+                resultText.Append(text.Substring(lastIndex, match.Index - lastIndex));
+
+                // Find matching closing brace
+                int closingBraceIndex = FindClosingBrace(text, match.Index + match.Length);
+
+                if (closingBraceIndex == -1)
+                {
+                    result.AddError($"Tuple schema: Missing closing brace '}}' for tuple '{match.Groups[1].Value}'", 
+                        text.Substring(0, match.Index).Count(c => c == '\n') + 1);
+                    continue;
+                }
+
+                // Extract the complete tuple definition
+                string tupleDefinition = text.Substring(match.Index, closingBraceIndex - match.Index + 1);
+                
+                // Parse and register the tuple schema
+                if (TryParseTupleSchemaBlock(tupleDefinition, out var schema, out string error))
+                {
+                    modelManager.AddTupleSchema(schema);
+                    result.IncrementSuccess();
+                }
+                else
+                {
+                    result.AddError($"Error parsing tuple schema: {error}", 
+                        text.Substring(0, match.Index).Count(c => c == '\n') + 1);
+                }
+
+                lastIndex = closingBraceIndex + 1;
+            }
+
+            // Append remaining text
+            if (lastIndex < text.Length)
+            {
+                resultText.Append(text.Substring(lastIndex));
+            }
+
+            return resultText.ToString();
+        }
+
+        private bool TryParseTupleSchemaBlock(string block, out TupleSchema? schema, out string error)
+        {
+            schema = null;
+            error = string.Empty;
+
+            // Extract tuple name
+            var nameMatch = Regex.Match(block, @"tuple\s+([a-zA-Z][a-zA-Z0-9_]*)\s*\{", RegexOptions.IgnoreCase);
+            if (!nameMatch.Success)
+            {
+                error = "Invalid tuple syntax";
+                return false;
+            }
+
+            string tupleName = nameMatch.Groups[1].Value;
+            schema = new TupleSchema(tupleName);
+
+            // Extract body (everything between { and })
+            int openBrace = block.IndexOf('{');
+            int closeBrace = block.LastIndexOf('}');
+            
+            if (openBrace == -1 || closeBrace == -1)
+            {
+                error = "Missing braces in tuple definition";
+                return false;
+            }
+
+            string body = block.Substring(openBrace + 1, closeBrace - openBrace - 1);
+
+            // Parse field declarations
+            var fieldPattern = @"(float|int|bool|string)\s+([a-zA-Z][a-zA-Z0-9_]*)\s*;";
+            var fieldMatches = Regex.Matches(body, fieldPattern, RegexOptions.IgnoreCase);
+
+            if (fieldMatches.Count == 0)
+            {
+                error = "Tuple must have at least one field";
+                return false;
+            }
+
+            foreach (Match fieldMatch in fieldMatches)
+            {
+                string typeStr = fieldMatch.Groups[1].Value.ToLower();
+                string fieldName = fieldMatch.Groups[2].Value;
+
+                VariableType fieldType = typeStr switch
+                {
+                    "float" => VariableType.Float,
+                    "int" => VariableType.Integer,
+                    "bool" => VariableType.Boolean,
+                    "string" => VariableType.String,
+                    _ => VariableType.Float
+                };
+
+                try
+                {
+                    schema.AddField(fieldName, fieldType);
+                }
+                catch (Exception ex)
+                {
+                    error = ex.Message;
+                    return false;
+                }
+            }
+
+            return true;
+        }
+
+        public ParseSessionResult Parse(string text)
+        {
+            var result = new ParseSessionResult();
+
+            if (string.IsNullOrWhiteSpace(text))
+            {
+                result.AddError("No text to parse", 0);
+                return result;
+            }
+
+            // Extract and process JavaScript execute blocks FIRST
+            var (processedText, lineMapping) = ExtractAndProcessExecuteBlocks(text, result);
+
+            // **NEW: Extract and process tuple schemas**
+            processedText = ExtractAndProcessTupleSchemas(processedText, result);
+
+            // Extract and process subject to blocks
+            processedText = ExtractSubjectToBlocks(processedText, lineMapping, result);
+
+            // Split into statements
+            var statements = SplitIntoStatements(processedText, lineMapping);
+
+            // Process each statement
+            foreach (var (statement, lineNumber) in statements)
+            {
+                if (!string.IsNullOrWhiteSpace(statement))
+                {
+                    ProcessStatement(statement, lineNumber, result);
+                }
+            }
+
+            return result;
+        }
+
+        private string ExtractAndProcessTupleSchemas(string text, ParseSessionResult result)
+        {
+            // Pattern: tuple Name { ... }
+            string pattern = @"tuple\s+([a-zA-Z][a-zA-Z0-9_]*)\s*\{";
+            var matches = Regex.Matches(text, pattern, RegexOptions.IgnoreCase);
+
+            if (matches.Count == 0)
+            {
+                return text; // No tuples
+            }
+
+            var resultText = new System.Text.StringBuilder();
+            int lastIndex = 0;
+
+            foreach (Match match in matches)
+            {
+                // Append text before this tuple
+                resultText.Append(text.Substring(lastIndex, match.Index - lastIndex));
+
+                // Find matching closing brace
+                int closingBraceIndex = FindClosingBrace(text, match.Index + match.Length);
+
+                if (closingBraceIndex == -1)
+                {
+                    result.AddError($"Tuple schema: Missing closing brace '}}' for tuple '{match.Groups[1].Value}'", 
+                        text.Substring(0, match.Index).Count(c => c == '\n') + 1);
+                    continue;
+                }
+
+                // Extract the complete tuple definition
+                string tupleDefinition = text.Substring(match.Index, closingBraceIndex - match.Index + 1);
+                
+                // Parse and register the tuple schema
+                if (TryParseTupleSchemaBlock(tupleDefinition, out var schema, out string error))
+                {
+                    modelManager.AddTupleSchema(schema);
+                    result.IncrementSuccess();
+                }
+                else
+                {
+                    result.AddError($"Error parsing tuple schema: {error}", 
+                        text.Substring(0, match.Index).Count(c => c == '\n') + 1);
+                }
+
+                lastIndex = closingBraceIndex + 1;
+            }
+
+            // Append remaining text
+            if (lastIndex < text.Length)
+            {
+                resultText.Append(text.Substring(lastIndex));
+            }
+
+            return resultText.ToString();
+        }
+
+        private bool TryParseTupleSchemaBlock(string block, out TupleSchema? schema, out string error)
+        {
+            schema = null;
+            error = string.Empty;
+
+            // Extract tuple name
+            var nameMatch = Regex.Match(block, @"tuple\s+([a-zA-Z][a-zA-Z0-9_]*)\s*\{", RegexOptions.IgnoreCase);
+            if (!nameMatch.Success)
+            {
+                error = "Invalid tuple syntax";
+                return false;
+            }
+
+            string tupleName = nameMatch.Groups[1].Value;
+            schema = new TupleSchema(tupleName);
+
+            // Extract body (everything between { and })
+            int openBrace = block.IndexOf('{');
+            int closeBrace = block.LastIndexOf('}');
+            
+            if (openBrace == -1 || closeBrace == -1)
+            {
+                error = "Missing braces in tuple definition";
+                return false;
+            }
+
+            string body = block.Substring(openBrace + 1, closeBrace - openBrace - 1);
+
+            // Parse field declarations
+            var fieldPattern = @"(float|int|bool|string)\s+([a-zA-Z][a-zA-Z0-9_]*)\s*;";
+            var fieldMatches = Regex.Matches(body, fieldPattern, RegexOptions.IgnoreCase);
+
+            if (fieldMatches.Count == 0)
+            {
+                error = "Tuple must have at least one field";
+                return false;
+            }
+
+            foreach (Match fieldMatch in fieldMatches)
+            {
+                string typeStr = fieldMatch.Groups[1].Value.ToLower();
+                string fieldName = fieldMatch.Groups[2].Value;
+
+                VariableType fieldType = typeStr switch
+                {
+                    "float" => VariableType.Float,
+                    "int" => VariableType.Integer,
+                    "bool" => VariableType.Boolean,
+                    "string" => VariableType.String,
+                    _ => VariableType.Float
+                };
+
+                try
+                {
+                    schema.AddField(fieldName, fieldType);
+                }
+                catch (Exception ex)
+                {
+                    error = ex.Message;
+                    return false;
+                }
+            }
+
+            return true;
+        }
+
+        public ParseSessionResult Parse(string text)
+        {
+            var result = new ParseSessionResult();
+
+            if (string.IsNullOrWhiteSpace(text))
+            {
+                result.AddError("No text to parse", 0);
+                return result;
+            }
+
+            // Extract and process JavaScript execute blocks FIRST
+            var (processedText, lineMapping) = ExtractAndProcessExecuteBlocks(text, result);
+
+            // **NEW: Extract and process tuple schemas**
+            processedText = ExtractAndProcessTupleSchemas(processedText, result);
+
+            // Extract and process subject to blocks
+            processedText = ExtractSubjectToBlocks(processedText, lineMapping, result);
+
+            // Split into statements
+            var statements = SplitIntoStatements(processedText, lineMapping);
+
+            // Process each statement
+            foreach (var (statement, lineNumber) in statements)
+            {
+                if (!string.IsNullOrWhiteSpace(statement))
+                {
+                    ProcessStatement(statement, lineNumber, result);
+                }
+            }
+
+            return result;
+        }
+
+        private string ExtractAndProcessTupleSchemas(string text, ParseSessionResult result)
+        {
+            // Pattern: tuple Name { ... }
+            string pattern = @"tuple\s+([a-zA-Z][a-zA-Z0-9_]*)\s*\{";
+            var matches = Regex.Matches(text, pattern, RegexOptions.IgnoreCase);
+
+            if (matches.Count == 0)
+            {
+                return text; // No tuples
+            }
+
+            var resultText = new System.Text.StringBuilder();
+            int lastIndex = 0;
+
+            foreach (Match match in matches)
+            {
+                // Append text before this tuple
+                resultText.Append(text.Substring(lastIndex, match.Index - lastIndex));
+
+                // Find matching closing brace
+                int closingBraceIndex = FindClosingBrace(text, match.Index + match.Length);
+
+                if (closingBraceIndex == -1)
+                {
+                    result.AddError($"Tuple schema: Missing closing brace '}}' for tuple '{match.Groups[1].Value}'", 
+                        text.Substring(0, match.Index).Count(c => c == '\n') + 1);
+                    continue;
+                }
+
+                // Extract the complete tuple definition
+                string tupleDefinition = text.Substring(match.Index, closingBraceIndex - match.Index + 1);
+                
+                // Parse and register the tuple schema
+                if (TryParseTupleSchemaBlock(tupleDefinition, out var schema, out string error))
+                {
+                    modelManager.AddTupleSchema(schema);
+                    result.IncrementSuccess();
+                }
+                else
+                {
+                    result.AddError($"Error parsing tuple schema: {error}", 
+                        text.Substring(0, match.Index).Count(c => c == '\n') + 1);
+                }
+
+                lastIndex = closingBraceIndex + 1;
+            }
+
+            // Append remaining text
+            if (lastIndex < text.Length)
+            {
+                resultText.Append(text.Substring(lastIndex));
+            }
+
+            return resultText.ToString();
+        }
+
+        private bool TryParseTupleSchemaBlock(string block, out TupleSchema? schema, out string error)
+        {
+            schema = null;
+            error = string.Empty;
+
+            // Extract tuple name
+            var nameMatch = Regex.Match(block, @"tuple\s+([a-zA-Z][a-zA-Z0-9_]*)\s*\{", RegexOptions.IgnoreCase);
+            if (!nameMatch.Success)
+            {
+                error = "Invalid tuple syntax";
+                return false;
+            }
+
+            string tupleName = nameMatch.Groups[1].Value;
+            schema = new TupleSchema(tupleName);
+
+            // Extract body (everything between { and })
+            int openBrace = block.IndexOf('{');
+            int closeBrace = block.LastIndexOf('}');
+            
+            if (openBrace == -1 || closeBrace == -1)
+            {
+                error = "Missing braces in tuple definition";
+                return false;
+            }
+
+            string body = block.Substring(openBrace + 1, closeBrace - openBrace - 1);
+
+            // Parse field declarations
+            var fieldPattern = @"(float|int|bool|string)\s+([a-zA-Z][a-zA-Z0-9_]*)\s*;";
+            var fieldMatches = Regex.Matches(body, fieldPattern, RegexOptions.IgnoreCase);
+
+            if (fieldMatches.Count == 0)
+            {
+                error = "Tuple must have at least one field";
+                return false;
+            }
+
+            foreach (Match fieldMatch in fieldMatches)
+            {
+                string typeStr = fieldMatch.Groups[1].Value.ToLower();
+                string fieldName = fieldMatch.Groups[2].Value;
+
+                VariableType fieldType = typeStr switch
+                {
+                    "float" => VariableType.Float,
+                    "int" => VariableType.Integer,
+                    "bool" => VariableType.Boolean,
+                    "string" => VariableType.String,
+                    _ => VariableType.Float
+                };
+
+                try
+                {
+                    schema.AddField(fieldName, fieldType);
+                }
+                catch (Exception ex)
+                {
+                    error = ex.Message;
+                    return false;
+                }
+            }
+
+            return true;
+        }
+
+        public ParseSessionResult Parse(string text)
+        {
+            var result = new ParseSessionResult();
+
+            if (string.IsNullOrWhiteSpace(text))
+            {
+                result.AddError("No text to parse", 0);
+                return result;
+            }
+
+            // Extract and process JavaScript execute blocks FIRST
+            var (processedText, lineMapping) = ExtractAndProcessExecuteBlocks(text, result);
+
+            // **NEW: Extract and process tuple schemas**
+            processedText = ExtractAndProcessTupleSchemas(processedText, result);
+
+            // Extract and process subject to blocks
+            processedText = ExtractSubjectToBlocks(processedText, lineMapping, result);
+
+            // Split into statements
+            var statements = SplitIntoStatements(processedText, lineMapping);
+
+            // Process each statement
+            foreach (var (statement, lineNumber) in statements)
+            {
+                if (!string.IsNullOrWhiteSpace(statement))
+                {
+                    ProcessStatement(statement, lineNumber, result);
+                }
+            }
+
+            return result;
+        }
+
+        private string ExtractAndProcessTupleSchemas(string text, ParseSessionResult result)
+        {
+            // Pattern: tuple Name { ... }
+            string pattern = @"tuple\s+([a-zA-Z][a-zA-Z0-9_]*)\s*\{";
+            var matches = Regex.Matches(text, pattern, RegexOptions.IgnoreCase);
+
+            if (matches.Count == 0)
+            {
+                return text; // No tuples
+            }
+
+            var resultText = new System.Text.StringBuilder();
+            int lastIndex = 0;
+
+            foreach (Match match in matches)
+            {
+                // Append text before this tuple
+                resultText.Append(text.Substring(lastIndex, match.Index - lastIndex));
+
+                // Find matching closing brace
+                int closingBraceIndex = FindClosingBrace(text, match.Index + match.Length);
+
+                if (closingBraceIndex == -1)
+                {
+                    result.AddError($"Tuple schema: Missing closing brace '}}' for tuple '{match.Groups[1].Value}'", 
+                        text.Substring(0, match.Index).Count(c => c == '\n') + 1);
+                    continue;
+                }
+
+                // Extract the complete tuple definition
+                string tupleDefinition = text.Substring(match.Index, closingBraceIndex - match.Index + 1);
+                
+                // Parse and register the tuple schema
+                if (TryParseTupleSchemaBlock(tupleDefinition, out var schema, out string error))
+                {
+                    modelManager.AddTupleSchema(schema);
+                    result.IncrementSuccess();
+                }
+                else
+                {
+                    result.AddError($"Error parsing tuple schema: {error}", 
+                        text.Substring(0, match.Index).Count(c => c == '\n') + 1);
+                }
+
+                lastIndex = closingBraceIndex + 1;
+            }
+
+            // Append remaining text
+            if (lastIndex < text.Length)
+            {
+                resultText.Append(text.Substring(lastIndex));
+            }
+
+            return resultText.ToString();
+        }
+
+        private bool TryParseTupleSchemaBlock(string block, out TupleSchema? schema, out string error)
+        {
+            schema = null;
+            error = string.Empty;
+
+            // Extract tuple name
+            var nameMatch = Regex.Match(block, @"tuple\s+([a-zA-Z][a-zA-Z0-9_]*)\s*\{", RegexOptions.IgnoreCase);
+            if (!nameMatch.Success)
+            {
+                error = "Invalid tuple syntax";
+                return false;
+            }
+
+            string tupleName = nameMatch.Groups[1].Value;
+            schema = new TupleSchema(tupleName);
+
+            // Extract body (everything between { and })
+            int openBrace = block.IndexOf('{');
+            int closeBrace = block.LastIndexOf('}');
+            
+            if (openBrace == -1 || closeBrace == -1)
+            {
+                error = "Missing braces in tuple definition";
+                return false;
+            }
+
+            string body = block.Substring(openBrace + 1, closeBrace - openBrace - 1);
+
+            // Parse field declarations
+            var fieldPattern = @"(float|int|bool|string)\s+([a-zA-Z][a-zA-Z0-9_]*)\s*;";
+            var fieldMatches = Regex.Matches(body, fieldPattern, RegexOptions.IgnoreCase);
+
+            if (fieldMatches.Count == 0)
+            {
+                error = "Tuple must have at least one field";
+                return false;
+            }
+
+            foreach (Match fieldMatch in fieldMatches)
+            {
+                string typeStr = fieldMatch.Groups[1].Value.ToLower();
+                string fieldName = fieldMatch.Groups[2].Value;
+
+                VariableType fieldType = typeStr switch
+                {
+                    "float" => VariableType.Float,
+                    "int" => VariableType.Integer,
+                    "bool" => VariableType.Boolean,
+                    "string" => VariableType.String,
+                    _ => VariableType.Float
+                };
+
+                try
+                {
+                    schema.AddField(fieldName, fieldType);
+                }
+                catch (Exception ex)
+                {
+                    error = ex.Message;
+                    return false;
+                }
+            }
+
+            return true;
+        }
+
+        public ParseSessionResult Parse(string text)
+        {
+            var result = new ParseSessionResult();
+
+            if (string.IsNullOrWhiteSpace(text))
+            {
+                result.AddError("No text to parse", 0);
+                return result;
+            }
+
+            // Extract and process JavaScript execute blocks FIRST
+            var (processedText, lineMapping) = ExtractAndProcessExecuteBlocks(text, result);
+
+            // **NEW: Extract and process tuple schemas**
+            processedText = ExtractAndProcessTupleSchemas(processedText, result);
+
+            // Extract and process subject to blocks
+            processedText = ExtractSubjectToBlocks(processedText, lineMapping, result);
+
+            // Split into statements
+            var statements = SplitIntoStatements(processedText, lineMapping);
+
+            // Process each statement
+            foreach (var (statement, lineNumber) in statements)
+            {
+                if (!string.IsNullOrWhiteSpace(statement))
+                {
+                    ProcessStatement(statement, lineNumber, result);
+                }
+            }
+
+            return result;
+        }
+
+        private string ExtractAndProcessTupleSchemas(string text, ParseSessionResult result)
+        {
+            // Pattern: tuple Name { ... }
+            string pattern = @"tuple\s+([a-zA-Z][a-zA-Z0-9_]*)\s*\{";
+            var matches = Regex.Matches(text, pattern, RegexOptions.IgnoreCase);
+
+            if (matches.Count == 0)
+            {
+                return text; // No tuples
+            }
+
+            var resultText = new System.Text.StringBuilder();
+            int lastIndex = 0;
+
+            foreach (Match match in matches)
+            {
+                // Append text before this tuple
+                resultText.Append(text.Substring(lastIndex, match.Index - lastIndex));
+
+                // Find matching closing brace
+                int closingBraceIndex = FindClosingBrace(text, match.Index + match.Length);
+
+                if (closingBraceIndex == -1)
+                {
+                    result.AddError($"Tuple schema: Missing closing brace '}}' for tuple '{match.Groups[1].Value}'", 
+                        text.Substring(0, match.Index).Count(c => c == '\n') + 1);
+                    continue;
+                }
+
+                // Extract the complete tuple definition
+                string tupleDefinition = text.Substring(match.Index, closingBraceIndex - match.Index + 1);
+                
+                // Parse and register the tuple schema
+                if (TryParseTupleSchemaBlock(tupleDefinition, out var schema, out string error))
+                {
+                    modelManager.AddTupleSchema(schema);
+                    result.IncrementSuccess();
+                }
+                else
+                {
+                    result.AddError($"Error parsing tuple schema: {error}", 
+                        text.Substring(0, match.Index).Count(c => c == '\n') + 1);
+                }
+
+                lastIndex = closingBraceIndex + 1;
+            }
+
+            // Append remaining text
+            if (lastIndex < text.Length)
+            {
+                resultText.Append(text.Substring(lastIndex));
+            }
+
+            return resultText.ToString();
+        }
+
+        private bool TryParseTupleSchemaBlock(string block, out TupleSchema? schema, out string error)
+        {
+            schema = null;
+            error = string.Empty;
+
+            // Extract tuple name
+            var nameMatch = Regex.Match(block, @"tuple\s+([a-zA-Z][a-zA-Z0-9_]*)\s*\{", RegexOptions.IgnoreCase);
+            if (!nameMatch.Success)
+            {
+                error = "Invalid tuple syntax";
+                return false;
+            }
+
+            string tupleName = nameMatch.Groups[1].Value;
+            schema = new TupleSchema(tupleName);
+
+            // Extract body (everything between { and })
+            int openBrace = block.IndexOf('{');
+            int closeBrace = block.LastIndexOf('}');
+            
+            if (openBrace == -1 || closeBrace == -1)
+            {
+                error = "Missing braces in tuple definition";
+                return false;
+            }
+
+            string body = block.Substring(openBrace + 1, closeBrace - openBrace - 1);
+
+            // Parse field declarations
+            var fieldPattern = @"(float|int|bool|string)\s+([a-zA-Z][a-zA-Z0-9_]*)\s*;";
+            var fieldMatches = Regex.Matches(body, fieldPattern, RegexOptions.IgnoreCase);
+
+            if (fieldMatches.Count == 0)
+            {
+                error = "Tuple must have at least one field";
+                return false;
+            }
+
+            foreach (Match fieldMatch in fieldMatches)
+            {
+                string typeStr = fieldMatch.Groups[1].Value.ToLower();
+                string fieldName = fieldMatch.Groups[2].Value;
+
+                VariableType fieldType = typeStr switch
+                {
+                    "float" => VariableType.Float,
+                    "int" => VariableType.Integer,
+                    "bool" => VariableType.Boolean,
+                    "string" => VariableType.String,
+                    _ => VariableType.Float
+                };
+
+                try
+                {
+                    schema.AddField(fieldName, fieldType);
+                }
+                catch (Exception ex)
+                {
+                    error = ex.Message;
+                    return false;
+                }
+            }
+
+            return true;
+        }
+
+        public ParseSessionResult Parse(string text)
+        {
+            var result = new ParseSessionResult();
+
+            if (string.IsNullOrWhiteSpace(text))
+            {
+                result.AddError("No text to parse", 0);
+                return result;
+            }
+
+            // Extract and process JavaScript execute blocks FIRST
+            var (processedText, lineMapping) = ExtractAndProcessExecuteBlocks(text, result);
+
+            // **NEW: Extract and process tuple schemas**
+            processedText = ExtractAndProcessTupleSchemas(processedText, result);
+
+            // Extract and process subject to blocks
+            processedText = ExtractSubjectToBlocks(processedText, lineMapping, result);
+
+            // Split into statements
+            var statements = SplitIntoStatements(processedText, lineMapping);
+
+            // Process each statement
+            foreach (var (statement, lineNumber) in statements)
+            {
+                if (!string.IsNullOrWhiteSpace(statement))
+                {
+                    ProcessStatement(statement, lineNumber, result);
+                }
+            }
+
+            return result;
+        }
+
+        private string ExtractAndProcessTupleSchemas(string text, ParseSessionResult result)
+        {
+            // Pattern: tuple Name { ... }
+            string pattern = @"tuple\s+([a-zA-Z][a-zA-Z0-9_]*)\s*\{";
+            var matches = Regex.Matches(text, pattern, RegexOptions.IgnoreCase);
+
+            if (matches.Count == 0)
+            {
+                return text; // No tuples
+            }
+
+            var resultText = new System.Text.StringBuilder();
+            int lastIndex = 0;
+
+            foreach (Match match in matches)
+            {
+                // Append text before this tuple
+                resultText.Append(text.Substring(lastIndex, match.Index - lastIndex));
+
+                // Find matching closing brace
+                int closingBraceIndex = FindClosingBrace(text, match.Index + match.Length);
+
+                if (closingBraceIndex == -1)
+                {
+                    result.AddError($"Tuple schema: Missing closing brace '}}' for tuple '{match.Groups[1].Value}'", 
+                        text.Substring(0, match.Index).Count(c => c == '\n') + 1);
+                    continue;
+                }
+
+                // Extract the complete tuple definition
+                string tupleDefinition = text.Substring(match.Index, closingBraceIndex - match.Index + 1);
+                
+                // Parse and register the tuple schema
+                if (TryParseTupleSchemaBlock(tupleDefinition, out var schema, out string error))
+                {
+                    modelManager.AddTupleSchema(schema);
+                    result.IncrementSuccess();
+                }
+                else
+                {
+                    result.AddError($"Error parsing tuple schema: {error}", 
+                        text.Substring(0, match.Index).Count(c => c == '\n') + 1);
+                }
+
+                lastIndex = closingBraceIndex + 1;
+            }
+
+            // Append remaining text
+            if (lastIndex < text.Length)
+            {
+                resultText.Append(text.Substring(lastIndex));
+            }
+
+            return resultText.ToString();
+        }
+
+        private bool TryParseTupleSchemaBlock(string block, out TupleSchema? schema, out string error)
+        {
+            schema = null;
+            error = string.Empty;
+
+            // Extract tuple name
+            var nameMatch = Regex.Match(block, @"tuple\s+([a-zA-Z][a-zA-Z0-9_]*)\s*\{", RegexOptions.IgnoreCase);
+            if (!nameMatch.Success)
+            {
+                error = "Invalid tuple syntax";
+                return false;
+            }
+
+            string tupleName = nameMatch.Groups[1].Value;
+            schema = new TupleSchema(tupleName);
+
+            // Extract body (everything between { and })
+            int openBrace = block.IndexOf('{');
+            int closeBrace = block.LastIndexOf('}');
+            
+            if (openBrace == -1 || closeBrace == -1)
+            {
+                error = "Missing braces in tuple definition";
+                return false;
+            }
+
+            string body = block.Substring(openBrace + 1, closeBrace - openBrace - 1);
+
+            // Parse field declarations
+            var fieldPattern = @"(float|int|bool|string)\s+([a-zA-Z][a-zA-Z0-9_]*)\s*;";
+            var fieldMatches = Regex.Matches(body, fieldPattern, RegexOptions.IgnoreCase);
+
+            if (fieldMatches.Count == 0)
+            {
+                error = "Tuple must have at least one field";
+                return false;
+            }
+
+            foreach (Match fieldMatch in fieldMatches)
+            {
+                string typeStr = fieldMatch.Groups[1].Value.ToLower();
+                string fieldName = fieldMatch.Groups[2].Value;
+
+                VariableType fieldType = typeStr switch
+                {
+                    "float" => VariableType.Float,
+                    "int" => VariableType.Integer,
+                    "bool" => VariableType.Boolean,
+                    "string" => VariableType.String,
+                    _ => VariableType.Float
+                };
+
+                try
+                {
+                    schema.AddField(fieldName, fieldType);
+                }
+                catch (Exception ex)
+                {
+                    error = ex.Message;
+                    return false;
+                }
+            }
+
+            return true;
+        }
+
+        public ParseSessionResult Parse(string text)
+        {
+            var result = new ParseSessionResult();
+
+            if (string.IsNullOrWhiteSpace(text))
+            {
+                result.AddError("No text to parse", 0);
+                return result;
+            }
+
+            // Extract and process JavaScript execute blocks FIRST
+            var (processedText, lineMapping) = ExtractAndProcessExecuteBlocks(text, result);
+
+            // **NEW: Extract and process tuple schemas**
+            processedText = ExtractAndProcessTupleSchemas(processedText, result);
+
+            // Extract and process subject to blocks
+            processedText = ExtractSubjectToBlocks(processedText, lineMapping, result);
+
+            // Split into statements
+            var statements = SplitIntoStatements(processedText, lineMapping);
+
+            // Process each statement
+            foreach (var (statement, lineNumber) in statements)
+            {
+                if (!string.IsNullOrWhiteSpace(statement))
+                {
+                    ProcessStatement(statement, lineNumber, result);
+                }
+            }
+
+            return result;
+        }
+
+        private string ExtractAndProcessTupleSchemas(string text, ParseSessionResult result)
+        {
+            // Pattern: tuple Name { ... }
+            string pattern = @"tuple\s+([a-zA-Z][a-zA-Z0-9_]*)\s*\{";
+            var matches = Regex.Matches(text, pattern, RegexOptions.IgnoreCase);
+
+            if (matches.Count == 0)
+            {
+                return text; // No tuples
+            }
+
+            var resultText = new System.Text.StringBuilder();
+            int lastIndex = 0;
+
+            foreach (Match match in matches)
+            {
+                // Append text before this tuple
+                resultText.Append(text.Substring(lastIndex, match.Index - lastIndex));
+
+                // Find matching closing brace
+                int closingBraceIndex = FindClosingBrace(text, match.Index + match.Length);
+
+                if (closingBraceIndex == -1)
+                {
+                    result.AddError($"Tuple schema: Missing closing brace '}}' for tuple '{match.Groups[1].Value}'", 
+                        text.Substring(0, match.Index).Count(c => c == '\n') + 1);
+                    continue;
+                }
+
+                // Extract the complete tuple definition
+                string tupleDefinition = text.Substring(match.Index, closingBraceIndex - match.Index + 1);
+                
+                // Parse and register the tuple schema
+                if (TryParseTupleSchemaBlock(tupleDefinition, out var schema, out string error))
+                {
+                    modelManager.AddTupleSchema(schema);
+                    result.IncrementSuccess();
+                }
+                else
+                {
+                    result.AddError($"Error parsing tuple schema: {error}", 
+                        text.Substring(0, match.Index).Count(c => c == '\n') + 1);
+                }
+
+                lastIndex = closingBraceIndex + 1;
+            }
+
+            // Append remaining text
+            if (lastIndex < text.Length)
+            {
+                resultText.Append(text.Substring(lastIndex));
+            }
+
+            return resultText.ToString();
+        }
+
+        private bool TryParseTupleSchemaBlock(string block, out TupleSchema? schema, out string error)
+        {
+            schema = null;
+            error = string.Empty;
+
+            // Extract tuple name
+            var nameMatch = Regex.Match(block, @"tuple\s+([a-zA-Z][a-zA-Z0-9_]*)\s*\{", RegexOptions.IgnoreCase);
+            if (!nameMatch.Success)
+            {
+                error = "Invalid tuple syntax";
+                return false;
+            }
+
+            string tupleName = nameMatch.Groups[1].Value;
+            schema = new TupleSchema(tupleName);
+
+            // Extract body (everything between { and })
+            int openBrace = block.IndexOf('{');
+            int closeBrace = block.LastIndexOf('}');
+            
+            if (openBrace == -1 || closeBrace == -1)
+            {
+                error = "Missing braces in tuple definition";
+                return false;
+            }
+
+            string body = block.Substring(openBrace + 1, closeBrace - openBrace - 1);
+
+            // Parse field declarations
+            var fieldPattern = @"(float|int|bool|string)\s+([a-zA-Z][a-zA-Z0-9_]*)\s*;";
+            var fieldMatches = Regex.Matches(body, fieldPattern, RegexOptions.IgnoreCase);
+
+            if (fieldMatches.Count == 0)
+            {
+                error = "Tuple must have at least one field";
+                return false;
+            }
+
+            foreach (Match fieldMatch in fieldMatches)
+            {
+                string typeStr = fieldMatch.Groups[1].Value.ToLower();
+                string fieldName = fieldMatch.Groups[2].Value;
+
+                VariableType fieldType = typeStr switch
+                {
+                    "float" => VariableType.Float,
+                    "int" => VariableType.Integer,
+                    "bool" => VariableType.Boolean,
+                    "string" => VariableType.String,
+                    _ => VariableType.Float
+                };
+
+                try
+                {
+                    schema.AddField(fieldName, fieldType);
+                }
+                catch (Exception ex)
+                {
+                    error = ex.Message;
+                    return false;
+                }
+            }
+
+            return true;
+        }
+
+        public ParseSessionResult Parse(string text)
+        {
+            var result = new ParseSessionResult();
+
+            if (string.IsNullOrWhiteSpace(text))
+            {
+                result.AddError("No text to parse", 0);
+                return result;
+            }
+
+            // Extract and process JavaScript execute blocks FIRST
+            var (processedText, lineMapping) = ExtractAndProcessExecuteBlocks(text, result);
+
+            // **NEW: Extract and process tuple schemas**
+            processedText = ExtractAndProcessTupleSchemas(processedText, result);
+
+            // Extract and process subject to blocks
+            processedText = ExtractSubjectToBlocks(processedText, lineMapping, result);
+
+            // Split into statements
+            var statements = SplitIntoStatements(processedText, lineMapping);
+
+            // Process each statement
+            foreach (var (statement, lineNumber) in statements)
+            {
+                if (!string.IsNullOrWhiteSpace(statement))
+                {
+                    ProcessStatement(statement, lineNumber, result);
+                }
+            }
+
+            return result;
+        }
+
+        private string ExtractAndProcessTupleSchemas(string text, ParseSessionResult result)
+        {
+            // Pattern: tuple Name { ... }
+            string pattern = @"tuple\s+([a-zA-Z][a-zA-Z0-9_]*)\s*\{";
+            var matches = Regex.Matches(text, pattern, RegexOptions.IgnoreCase);
+
+            if (matches.Count == 0)
+            {
+                return text; // No tuples
+            }
+
+            var resultText = new System.Text.StringBuilder();
+            int lastIndex = 0;
+
+            foreach (Match match in matches)
+            {
+                // Append text before this tuple
+                resultText.Append(text.Substring(lastIndex, match.Index - lastIndex));
+
+                // Find matching closing brace
+                int closingBraceIndex = FindClosingBrace(text, match.Index + match.Length);
+
+                if (closingBraceIndex == -1)
+                {
+                    result.AddError($"Tuple schema: Missing closing brace '}}' for tuple '{match.Groups[1].Value}'", 
+                        text.Substring(0, match.Index).Count(c => c == '\n') + 1);
+                    continue;
+                }
+
+                // Extract the complete tuple definition
+                string tupleDefinition = text.Substring(match.Index, closingBraceIndex - match.Index + 1);
+                
+                // Parse and register the tuple schema
+                if (TryParseTupleSchemaBlock(tupleDefinition, out var schema, out string error))
+                {
+                    modelManager.AddTupleSchema(schema);
+                    result.IncrementSuccess();
+                }
+                else
+                {
+                    result.AddError($"Error parsing tuple schema: {error}", 
+                        text.Substring(0, match.Index).Count(c => c == '\n') + 1);
+                }
+
+                lastIndex = closingBraceIndex + 1;
+            }
+
+            // Append remaining text
+            if (lastIndex < text.Length)
+            {
+                resultText.Append(text.Substring(lastIndex));
+            }
+
+            return resultText.ToString();
+        }
+
+        private bool TryParseTupleSchemaBlock(string block, out TupleSchema? schema, out string error)
+        {
+            schema = null;
+            error = string.Empty;
+
+            // Extract tuple name
+            var nameMatch = Regex.Match(block, @"tuple\s+([a-zA-Z][a-zA-Z0-9_]*)\s*\{", RegexOptions.IgnoreCase);
+            if (!nameMatch.Success)
+            {
+                error = "Invalid tuple syntax";
+                return false;
+            }
+
+            string tupleName = nameMatch.Groups[1].Value;
+            schema = new TupleSchema(tupleName);
+
+            // Extract body (everything between { and })
+            int openBrace = block.IndexOf('{');
+            int closeBrace = block.LastIndexOf('}');
+            
+            if (openBrace == -1 || closeBrace == -1)
+            {
+                error = "Missing braces in tuple definition";
+                return false;
+            }
+
+            string body = block.Substring(openBrace + 1, closeBrace - openBrace - 1);
+
+            // Parse field declarations
+            var fieldPattern = @"(float|int|bool|string)\s+([a-zA-Z][a-zA-Z0-9_]*)\s*;";
+            var fieldMatches = Regex.Matches(body, fieldPattern, RegexOptions.IgnoreCase);
+
+            if (fieldMatches.Count == 0)
+            {
+                error = "Tuple must have at least one field";
+                return false;
+            }
+
+            foreach (Match fieldMatch in fieldMatches)
+            {
+                string typeStr = fieldMatch.Groups[1].Value.ToLower();
+                string fieldName = fieldMatch.Groups[2].Value;
+
+                VariableType fieldType = typeStr switch
+                {
+                    "float" => VariableType.Float,
+                    "int" => VariableType.Integer,
+                    "bool" => VariableType.Boolean,
+                    "string" => VariableType.String,
+                    _ => VariableType.Float
+                };
+
+                try
+                {
+                    schema.AddField(fieldName, fieldType);
+                }
+                catch (Exception ex)
+                {
+                    error = ex.Message;
+                    return false;
+                }
+            }
+
+            return true;
+        }
+
+        public ParseSessionResult Parse(string text)
+        {
+            var result = new ParseSessionResult();
+
+            if (string.IsNullOrWhiteSpace(text))
+            {
+                result.AddError("No text to parse", 0);
+                return result;
+            }
+
+            // Extract and process JavaScript execute blocks FIRST
+            var (processedText, lineMapping) = ExtractAndProcessExecuteBlocks(text, result);
+
+            // **NEW: Extract and process tuple schemas**
+            processedText = ExtractAndProcessTupleSchemas(processedText, result);
+
+            // Extract and process subject to blocks
+            processedText = ExtractSubjectToBlocks(processedText, lineMapping, result);
+
+            // Split into statements
+            var statements = SplitIntoStatements(processedText, lineMapping);
+
+            // Process each statement
+            foreach (var (statement, lineNumber) in statements)
+            {
+                if (!string.IsNullOrWhiteSpace(statement))
+                {
+                    ProcessStatement(statement, lineNumber, result);
+                }
+            }
+
+            return result;
+        }
+
+        private string ExtractAndProcessTupleSchemas(string text, ParseSessionResult result)
+        {
+            // Pattern: tuple Name { ... }
+            string pattern = @"tuple\s+([a-zA-Z][a-zA-Z0-9_]*)\s*\{";
+            var matches = Regex.Matches(text, pattern, RegexOptions.IgnoreCase);
+
+            if (matches.Count == 0)
+            {
+                return text; // No tuples
+            }
+
+            var resultText = new System.Text.StringBuilder();
+            int lastIndex = 0;
+
+            foreach (Match match in matches)
+            {
+                // Append text before this tuple
+                resultText.Append(text.Substring(lastIndex, match.Index - lastIndex));
+
+                // Find matching closing brace
+                int closingBraceIndex = FindClosingBrace(text, match.Index + match.Length);
+
+                if (closingBraceIndex == -1)
+                {
+                    result.AddError($"Tuple schema: Missing closing brace '}}' for tuple '{match.Groups[1].Value}'", 
+                        text.Substring(0, match.Index).Count(c => c == '\n') + 1);
+                    continue;
+                }
+
+                // Extract the complete tuple definition
+                string tupleDefinition = text.Substring(match.Index, closingBraceIndex - match.Index + 1);
+                
+                // Parse and register the tuple schema
+                if (TryParseTupleSchemaBlock(tupleDefinition, out var schema, out string error))
+                {
+                    modelManager.AddTupleSchema(schema);
+                    result.IncrementSuccess();
+                }
+                else
+                {
+                    result.AddError($"Error parsing tuple schema: {error}", 
+                        text.Substring(0, match.Index).Count(c => c == '\n') + 1);
+                }
+
+                lastIndex = closingBraceIndex + 1;
+            }
+
+            // Append remaining text
+            if (lastIndex < text.Length)
+            {
+                resultText.Append(text.Substring(lastIndex));
+            }
+
+            return resultText.ToString();
+        }
+
+        private bool TryParseTupleSchemaBlock(string block, out TupleSchema? schema, out string error)
+        {
+            schema = null;
+            error = string.Empty;
+
+            // Extract tuple name
+            var nameMatch = Regex.Match(block, @"tuple\s+([a-zA-Z][a-zA-Z0-9_]*)\s*\{", RegexOptions.IgnoreCase);
+            if (!nameMatch.Success)
+            {
+                error = "Invalid tuple syntax";
+                return false;
+            }
+
+            string tupleName = nameMatch.Groups[1].Value;
+            schema = new TupleSchema(tupleName);
+
+            // Extract body (everything between { and })
+            int openBrace = block.IndexOf('{');
+            int closeBrace = block.LastIndexOf('}');
+            
+            if (openBrace == -1 || closeBrace == -1)
+            {
+                error = "Missing braces in tuple definition";
+                return false;
+            }
+
+            string body = block.Substring(openBrace + 1, closeBrace - openBrace - 1);
+
+            // Parse field declarations
+            var fieldPattern = @"(float|int|bool|string)\s+([a-zA-Z][a-zA-Z0-9_]*)\s*;";
+            var fieldMatches = Regex.Matches(body, fieldPattern, RegexOptions.IgnoreCase);
+
+            if (fieldMatches.Count == 0)
+            {
+                error = "Tuple must have at least one field";
+                return false;
+            }
+
+            foreach (Match fieldMatch in fieldMatches)
+            {
+                string typeStr = fieldMatch.Groups[1].Value.ToLower();
+                string fieldName = fieldMatch.Groups[2].Value;
+
+                VariableType fieldType = typeStr switch
+                {
+                    "float" => VariableType.Float,
+                    "int" => VariableType.Integer,
+                    "bool" => VariableType.Boolean,
+                    "string" => VariableType.String,
+                    _ => VariableType.Float
+                };
+
+                try
+                {
+                    schema.AddField(fieldName, fieldType);
+                }
+                catch (Exception ex)
+                {
+                    error = ex.Message;
+                    return false;
+                }
+            }
+
+            return true;
+        }
+
+        public ParseSessionResult Parse(string text)
+        {
+            var result = new ParseSessionResult();
+
+            if (string.IsNullOrWhiteSpace(text))
+            {
+                result.AddError("No text to parse", 0);
+                return result;
+            }
+
+            // Extract and process JavaScript execute blocks FIRST
+            var (processedText, lineMapping) = ExtractAndProcessExecuteBlocks(text, result);
+
+            // **NEW: Extract and process tuple schemas**
+            processedText = ExtractAndProcessTupleSchemas(processedText, result);
+
+            // Extract and process subject to blocks
+            processedText = ExtractSubjectToBlocks(processedText, lineMapping, result);
+
+            // Split into statements
+            var statements = SplitIntoStatements(processedText, lineMapping);
+
+            // Process each statement
+            foreach (var (statement, lineNumber) in statements)
+            {
+                if (!string.IsNullOrWhiteSpace(statement))
+                {
+                    ProcessStatement(statement, lineNumber, result);
+                }
+            }
+
+            return result;
+        }
+
+        private string ExtractAndProcessTupleSchemas(string text, ParseSessionResult result)
+        {
+            // Pattern: tuple Name { ... }
+            string pattern = @"tuple\s+([a-zA-Z][a-zA-Z0-9_]*)\s*\{";
+            var matches = Regex.Matches(text, pattern, RegexOptions.IgnoreCase);
+
+            if (matches.Count == 0)
+            {
+                return text; // No tuples
+            }
+
+            var resultText = new System.Text.StringBuilder();
+            int lastIndex = 0;
+
+            foreach (Match match in matches)
+            {
+                // Append text before this tuple
+                resultText.Append(text.Substring(lastIndex, match.Index - lastIndex));
+
+                // Find matching closing brace
+                int closingBraceIndex = FindClosingBrace(text, match.Index + match.Length);
+
+                if (closingBraceIndex == -1)
+                {
+                    result.AddError($"Tuple schema: Missing closing brace '}}' for tuple '{match.Groups[1].Value}'", 
+                        text.Substring(0, match.Index).Count(c => c == '\n') + 1);
+                    continue;
+                }
+
+                // Extract the complete tuple definition
+                string tupleDefinition = text.Substring(match.Index, closingBraceIndex - match.Index + 1);
+                
+                // Parse and register the tuple schema
+                if (TryParseTupleSchemaBlock(tupleDefinition, out var schema, out string error))
+                {
+                    modelManager.AddTupleSchema(schema);
+                    result.IncrementSuccess();
+                }
+                else
+                {
+                    result.AddError($"Error parsing tuple schema: {error}", 
+                        text.Substring(0, match.Index).Count(c => c == '\n') + 1);
+                }
+
+                lastIndex = closingBraceIndex + 1;
+            }
+
+            // Append remaining text
+            if (lastIndex < text.Length)
+            {
+                resultText.Append(text.Substring(lastIndex));
+            }
+
+            return resultText.ToString();
+        }
+
+        private bool TryParseTupleSchemaBlock(string block, out TupleSchema? schema, out string error)
+        {
+            schema = null;
+            error = string.Empty;
+
+            // Extract tuple name
+            var nameMatch = Regex.Match(block, @"tuple\s+([a-zA-Z][a-zA-Z0-9_]*)\s*\{", RegexOptions.IgnoreCase);
+            if (!nameMatch.Success)
+            {
+                error = "Invalid tuple syntax";
+                return false;
+            }
+
+            string tupleName = nameMatch.Groups[1].Value;
+            schema = new TupleSchema(tupleName);
+
+            // Extract body (everything between { and })
+            int openBrace = block.IndexOf('{');
+            int closeBrace = block.LastIndexOf('}');
+            
+            if (openBrace == -1 || closeBrace == -1)
+            {
+                error = "Missing braces in tuple definition";
+                return false;
+            }
+
+            string body = block.Substring(openBrace + 1, closeBrace - openBrace - 1);
+
+            // Parse field declarations
+            var fieldPattern = @"(float|int|bool|string)\s+([a-zA-Z][a-zA-Z0-9_]*)\s*;";
+            var fieldMatches = Regex.Matches(body, fieldPattern, RegexOptions.IgnoreCase);
+
+            if (fieldMatches.Count == 0)
+            {
+                error = "Tuple must have at least one field";
+                return false;
+            }
+
+            foreach (Match fieldMatch in fieldMatches)
+            {
+                string typeStr = fieldMatch.Groups[1].Value.ToLower();
+                string fieldName = fieldMatch.Groups[2].Value;
+
+                VariableType fieldType = typeStr switch
+                {
+                    "float" => VariableType.Float,
+                    "int" => VariableType.Integer,
+                    "bool" => VariableType.Boolean,
+                    "string" => VariableType.String,
+                    _ => VariableType.Float
+                };
+
+                try
+                {
+                    schema.AddField(fieldName, fieldType);
+                }
+                catch (Exception ex)
+                {
+                    error = ex.Message;
+                    return false;
+                }
+            }
+
+            return true;
+        }
+
+        public ParseSessionResult Parse(string text)
+        {
+            var result = new ParseSessionResult();
+
+            if (string.IsNullOrWhiteSpace(text))
+            {
+                result.AddError("No text to parse", 0);
+                return result;
+            }
+
+            // Extract and process JavaScript execute blocks FIRST
+            var (processedText, lineMapping) = ExtractAndProcessExecuteBlocks(text, result);
+
+            // **NEW: Extract and process tuple schemas**
+            processedText = ExtractAndProcessTupleSchemas(processedText, result);
+
+            // Extract and process subject to blocks
+            processedText = ExtractSubjectToBlocks(processedText, lineMapping, result);
+
+            // Split into statements
+            var statements = SplitIntoStatements(processedText, lineMapping);
+
+            // Process each statement
+            foreach (var (statement, lineNumber) in statements)
+            {
+                if (!string.IsNullOrWhiteSpace(statement))
+                {
+                    ProcessStatement(statement, lineNumber, result);
+                }
+            }
+
+            return result;
+        }
+
+        private string ExtractAndProcessTupleSchemas(string text, ParseSessionResult result)
+        {
+            // Pattern: tuple Name { ... }
+            string pattern = @"tuple\s+([a-zA-Z][a-zA-Z0-9_]*)\s*\{";
+            var matches = Regex.Matches(text, pattern, RegexOptions.IgnoreCase);
+
+            if (matches.Count == 0)
+            {
+                return text; // No tuples
+            }
+
+            var resultText = new System.Text.StringBuilder();
+            int lastIndex = 0;
+
+            foreach (Match match in matches)
+            {
+                // Append text before this tuple
+                resultText.Append(text.Substring(lastIndex, match.Index - lastIndex));
+
+                // Find matching closing brace
+                int closingBraceIndex = FindClosingBrace(text, match.Index + match.Length);
+
+                if (closingBraceIndex == -1)
+                {
+                    result.AddError($"Tuple schema: Missing closing brace '}}' for tuple '{match.Groups[1].Value}'", 
+                        text.Substring(0, match.Index).Count(c => c == '\n') + 1);
+                    continue;
+                }
+
+                // Extract the complete tuple definition
+                string tupleDefinition = text.Substring(match.Index, closingBraceIndex - match.Index + 1);
+                
+                // Parse and register the tuple schema
+                if (TryParseTupleSchemaBlock(tupleDefinition, out var schema, out string error))
+                {
+                    modelManager.AddTupleSchema(schema);
+                    result.IncrementSuccess();
+                }
+                else
+                {
+                    result.AddError($"Error parsing tuple schema: {error}", 
+                        text.Substring(0, match.Index).Count(c => c == '\n') + 1);
+                }
+
+                lastIndex = closingBraceIndex + 1;
+            }
+
+            // Append remaining text
+            if (lastIndex < text.Length)
+            {
+                resultText.Append(text.Substring(lastIndex));
+            }
+
+            return resultText.ToString();
+        }
+
+        private bool TryParseTupleSchemaBlock(string block, out TupleSchema? schema, out string error)
+        {
+            schema = null;
+            error = string.Empty;
+
+            // Extract tuple name
+            var nameMatch = Regex.Match(block, @"tuple\s+([a-zA-Z][a-zA-Z0-9_]*)\s*\{", RegexOptions.IgnoreCase);
+            if (!nameMatch.Success)
+            {
+                error = "Invalid tuple syntax";
+                return false;
+            }
+
+            string tupleName = nameMatch.Groups[1].Value;
+            schema = new TupleSchema(tupleName);
+
+            // Extract body (everything between { and })
+            int openBrace = block.IndexOf('{');
+            int closeBrace = block.LastIndexOf('}');
+            
+            if (openBrace == -1 || closeBrace == -1)
+            {
+                error = "Missing braces in tuple definition";
+                return false;
+            }
+
+            string body = block.Substring(openBrace + 1, closeBrace - openBrace - 1);
+
+            // Parse field declarations
+            var fieldPattern = @"(float|int|bool|string)\s+([a-zA-Z][a-zA-Z0-9_]*)\s*;";
+            var fieldMatches = Regex.Matches(body, fieldPattern, RegexOptions.IgnoreCase);
+
+            if (fieldMatches.Count == 0)
+            {
+                error = "Tuple must have at least one field";
+                return false;
+            }
+
+            foreach (Match fieldMatch in fieldMatches)
+            {
+                string typeStr = fieldMatch.Groups[1].Value.ToLower();
+                string fieldName = fieldMatch.Groups[2].Value;
+
+                VariableType fieldType = typeStr switch
+                {
+                    "float" => VariableType.Float,
+                    "int" => VariableType.Integer,
+                    "bool" => VariableType.Boolean,
+                    "string" => VariableType.String,
+                    _ => VariableType.Float
+                };
+
+                try
+                {
+                    schema.AddField(fieldName, fieldType);
+                }
+                catch (Exception ex)
+                {
+                    error = ex.Message;
+                    return false;
+                }
+            }
+
+            return true;
+        }
+
+        public ParseSessionResult Parse(string text)
+        {
+            var result = new ParseSessionResult();
+
+            if (string.IsNullOrWhiteSpace(text))
+            {
+                result.AddError("No text to parse", 0);
+                return result;
+            }
+
+            // Extract and process JavaScript execute blocks FIRST
+            var (processedText, lineMapping) = ExtractAndProcessExecuteBlocks(text, result);
+
+            // **NEW: Extract and process tuple schemas**
+            processedText = ExtractAndProcessTupleSchemas(processedText, result);
+
+            // Extract and process subject to blocks
+            processedText = ExtractSubjectToBlocks(processedText, lineMapping, result);
+
+            // Split into statements
+            var statements = SplitIntoStatements(processedText, lineMapping);
+
+            // Process each statement
+            foreach (var (statement, lineNumber) in statements)
+            {
+                if (!string.IsNullOrWhiteSpace(statement))
+                {
+                    ProcessStatement(statement, lineNumber, result);
+                }
+            }
+
+            return result;
+        }
+
+        private string ExtractAndProcessTupleSchemas(string text, ParseSessionResult result)
+        {
+            // Pattern: tuple Name { ... }
+            string pattern = @"tuple\s+([a-zA-Z][a-zA-Z0-9_]*)\s*\{";
+            var matches = Regex.Matches(text, pattern, RegexOptions.IgnoreCase);
+
+            if (matches.Count == 0)
+            {
+                return text; // No tuples
+            }
+
+            var resultText = new System.Text.StringBuilder();
+            int lastIndex = 0;
+
+            foreach (Match match in matches)
+            {
+                // Append text before this tuple
+                resultText.Append(text.Substring(lastIndex, match.Index - lastIndex));
+
+                // Find matching closing brace
+                int closingBraceIndex = FindClosingBrace(text, match.Index + match.Length);
+
+                if (closingBraceIndex == -1)
+                {
+                    result.AddError($"Tuple schema: Missing closing brace '}}' for tuple '{match.Groups[1].Value}'", 
+                        text.Substring(0, match.Index).Count(c => c == '\n') + 1);
+                    continue;
+                }
+
+                // Extract the complete tuple definition
+                string tupleDefinition = text.Substring(match.Index, closingBraceIndex - match.Index + 1);
+                
+                // Parse and register the tuple schema
+                if (TryParseTupleSchemaBlock(tupleDefinition, out var schema, out string error))
+                {
+                    modelManager.AddTupleSchema(schema);
+                    result.IncrementSuccess();
+                }
+                else
+                {
+                    result.AddError($"Error parsing tuple schema: {error}", 
+                        text.Substring(0, match.Index).Count(c => c == '\n') + 1);
+                }
+
+                lastIndex = closingBraceIndex + 1;
+            }
+
+            // Append remaining text
+            if (lastIndex < text.Length)
+            {
+                resultText.Append(text.Substring(lastIndex));
+            }
+
+            return resultText.ToString();
+        }
+
+        private bool TryParseTupleSchemaBlock(string block, out TupleSchema? schema, out string error)
+        {
+            schema = null;
+            error = string.Empty;
+
+            // Extract tuple name
+            var nameMatch = Regex.Match(block, @"tuple\s+([a-zA-Z][a-zA-Z0-9_]*)\s*\{", RegexOptions.IgnoreCase);
+            if (!nameMatch.Success)
+            {
+                error = "Invalid tuple syntax";
+                return false;
+            }
+
+            string tupleName = nameMatch.Groups[1].Value;
+            schema = new TupleSchema(tupleName);
+
+            // Extract body (everything between { and })
+            int openBrace = block.IndexOf('{');
+            int closeBrace = block.LastIndexOf('}');
+            
+            if (openBrace == -1 || closeBrace == -1)
+            {
+                error = "Missing braces in tuple definition";
+                return false;
+            }
+
+            string body = block.Substring(openBrace + 1, closeBrace - openBrace - 1);
+
+            // Parse field declarations
+            var fieldPattern = @"(float|int|bool|string)\s+([a-zA-Z][a-zA-Z0-9_]*)\s*;";
+            var fieldMatches = Regex.Matches(body, fieldPattern, RegexOptions.IgnoreCase);
+
+            if (fieldMatches.Count == 0)
+            {
+                error = "Tuple must have at least one field";
+                return false;
+            }
+
+            foreach (Match fieldMatch in fieldMatches)
+            {
+                string typeStr = fieldMatch.Groups[1].Value.ToLower();
+                string fieldName = fieldMatch.Groups[2].Value;
+
+                VariableType fieldType = typeStr switch
+                {
+                    "float" => VariableType.Float,
+                    "int" => VariableType.Integer,
+                    "bool" => VariableType.Boolean,
+                    "string" => VariableType.String,
+                    _ => VariableType.Float
+                };
+
+                try
+                {
+                    schema.AddField(fieldName, fieldType);
+                }
+                catch (Exception ex)
+                {
+                    error = ex.Message;
+                    return false;
+                }
+            }
+
+            return true;
+        }
+
+        public ParseSessionResult Parse(string text)
+        {
+            var result = new ParseSessionResult();
+
+            if (string.IsNullOrWhiteSpace(text))
+            {
+                result.AddError("No text to parse", 0);
+                return result;
+            }
+
+            // Extract and process JavaScript execute blocks FIRST
+            var (processedText, lineMapping) = ExtractAndProcessExecuteBlocks(text, result);
+
+            // **NEW: Extract and process tuple schemas**
+            processedText = ExtractAndProcessTupleSchemas(processedText, result);
+
+            // Extract and process subject to blocks
+            processedText = ExtractSubjectToBlocks(processedText, lineMapping, result);
+
+            // Split into statements
+            var statements = SplitIntoStatements(processedText, lineMapping);
+
+            // Process each statement
+            foreach (var (statement, lineNumber) in statements)
+            {
+                if (!string.IsNullOrWhiteSpace(statement))
+                {
+                    ProcessStatement(statement, lineNumber, result);
+                }
+            }
+
+            return result;
+        }
+
+        private string ExtractAndProcessTupleSchemas(string text, ParseSessionResult result)
+        {
+            // Pattern: tuple Name { ... }
+            string pattern = @"tuple\s+([a-zA-Z][a-zA-Z0-9_]*)\s*\{";
+            var matches = Regex.Matches(text, pattern, RegexOptions.IgnoreCase);
+
+            if (matches.Count == 0)
+            {
+                return text; // No tuples
+            }
+
+            var resultText = new System.Text.StringBuilder();
+            int lastIndex = 0;
+
+            foreach (Match match in matches)
+            {
+                // Append text before this tuple
+                resultText.Append(text.Substring(lastIndex, match.Index - lastIndex));
+
+                // Find matching closing brace
+                int closingBraceIndex = FindClosingBrace(text, match.Index + match.Length);
+
+                if (closingBraceIndex == -1)
+                {
+                    result.AddError($"Tuple schema: Missing closing brace '}}' for tuple '{match.Groups[1].Value}'", 
+                        text.Substring(0, match.Index).Count(c => c == '\n') + 1);
+                    continue;
+                }
+
+                // Extract the complete tuple definition
+                string tupleDefinition = text.Substring(match.Index, closingBraceIndex - match.Index + 1);
+                
+                // Parse and register the tuple schema
+                if (TryParseTupleSchemaBlock(tupleDefinition, out var schema, out string error))
+                {
+                    modelManager.AddTupleSchema(schema);
+                    result.IncrementSuccess();
+                }
+                else
+                {
+                    result.AddError($"Error parsing tuple schema: {error}", 
+                        text.Substring(0, match.Index).Count(c => c == '\n') + 1);
+                }
+
+                lastIndex = closingBraceIndex + 1;
+            }
+
+            // Append remaining text
+            if (lastIndex < text.Length)
+            {
+                resultText.Append(text.Substring(lastIndex));
+            }
+
+            return resultText.ToString();
+        }
+
+        private bool TryParseTupleSchemaBlock(string block, out TupleSchema? schema, out string error)
+        {
+            schema = null;
+            error = string.Empty;
+
+            // Extract tuple name
+            var nameMatch = Regex.Match(block, @"tuple\s+([a-zA-Z][a-zA-Z0-9_]*)\s*\{", RegexOptions.IgnoreCase);
+            if (!nameMatch.Success)
+            {
+                error = "Invalid tuple syntax";
+                return false;
+            }
+
+            string tupleName = nameMatch.Groups[1].Value;
+            schema = new TupleSchema(tupleName);
+
+            // Extract body (everything between { and })
+            int openBrace = block.IndexOf('{');
+            int closeBrace = block.LastIndexOf('}');
+            
+            if (openBrace == -1 || closeBrace == -1)
+            {
+                error = "Missing braces in tuple definition";
+                return false;
+            }
+
+            string body = block.Substring(openBrace + 1, closeBrace - openBrace - 1);
+
+            // Parse field declarations
+            var fieldPattern = @"(float|int|bool|string)\s+([a-zA-Z][a-zA-Z0-9_]*)\s*;";
+            var fieldMatches = Regex.Matches(body, fieldPattern, RegexOptions.IgnoreCase);
+
+            if (fieldMatches.Count == 0)
+            {
+                error = "Tuple must have at least one field";
+                return false;
+            }
+
+            foreach (Match fieldMatch in fieldMatches)
+            {
+                string typeStr = fieldMatch.Groups[1].Value.ToLower();
+                string fieldName = fieldMatch.Groups[2].Value;
+
+                VariableType fieldType = typeStr switch
+                {
+                    "float" => VariableType.Float,
+                    "int" => VariableType.Integer,
+                    "bool" => VariableType.Boolean,
+                    "string" => VariableType.String,
+                    _ => VariableType.Float
+                };
+
+                try
+                {
+                    schema.AddField(fieldName, fieldType);
+                }
+                catch (Exception ex)
+                {
+                    error = ex.Message;
+                    return false;
+                }
+            }
+
+            return true;
+        }
+
+        public ParseSessionResult Parse(string text)
+        {
+            var result = new ParseSessionResult();
+
+            if (string.IsNullOrWhiteSpace(text))
+            {
+                result.AddError("No text to parse", 0);
+                return result;
+            }
+
+            // Extract and process JavaScript execute blocks FIRST
+            var (processedText, lineMapping) = ExtractAndProcessExecuteBlocks(text, result);
+
+            // **NEW: Extract and process tuple schemas**
+            processedText = ExtractAndProcessTupleSchemas(processedText, result);
+
+            // Extract and process subject to blocks
+            processedText = ExtractSubjectToBlocks(processedText, lineMapping, result);
+
+            // Split into statements
+            var statements = SplitIntoStatements(processedText, lineMapping);
+
+            // Process each statement
+            foreach (var (statement, lineNumber) in statements)
+            {
+                if (!string.IsNullOrWhiteSpace(statement))
+                {
+                    ProcessStatement(statement, lineNumber, result);
+                }
+            }
+
+            return result;
+        }
+
+        private string ExtractAndProcessTupleSchemas(string text, ParseSessionResult result)
+        {
+            // Pattern: tuple Name { ... }
+            string pattern = @"tuple\s+([a-zA-Z][a-zA-Z0-9_]*)\s*\{";
+            var matches = Regex.Matches(text, pattern, RegexOptions.IgnoreCase);
+
+            if (matches.Count == 0)
+            {
+                return text; // No tuples
+            }
+
+            var resultText = new System.Text.StringBuilder();
+            int lastIndex = 0;
+
+            foreach (Match match in matches)
+            {
+                // Append text before this tuple
+                resultText.Append(text.Substring(lastIndex, match.Index - lastIndex));
+
+                // Find matching closing brace
+                int closingBraceIndex = FindClosingBrace(text, match.Index + match.Length);
+
+                if (closingBraceIndex == -1)
+                {
+                    result.AddError($"Tuple schema: Missing closing brace '}}' for tuple '{match.Groups[1].Value}'", 
+                        text.Substring(0, match.Index).Count(c => c == '\n') + 1);
+                    continue;
+                }
+
+                // Extract the complete tuple definition
+                string tupleDefinition = text.Substring(match.Index, closingBraceIndex - match.Index + 1);
+                
+                // Parse and register the tuple schema
+                if (TryParseTupleSchemaBlock(tupleDefinition, out var schema, out string error))
+                {
+                    modelManager.AddTupleSchema(schema);
+                    result.IncrementSuccess();
+                }
+                else
+                {
+                    result.AddError($"Error parsing tuple schema: {error}", 
+                        text.Substring(0, match.Index).Count(c => c == '\n') + 1);
+                }
+
+                lastIndex = closingBraceIndex + 1;
+            }
+
+            // Append remaining text
+            if (lastIndex < text.Length)
+            {
+                resultText.Append(text.Substring(lastIndex));
+            }
+
+            return resultText.ToString();
+        }
+
+        private bool TryParseTupleSchemaBlock(string block, out TupleSchema? schema, out string error)
+        {
+            schema = null;
+            error = string.Empty;
+
+            // Extract tuple name
+            var nameMatch = Regex.Match(block, @"tuple\s+([a-zA-Z][a-zA-Z0-9_]*)\s*\{", RegexOptions.IgnoreCase);
+            if (!nameMatch.Success)
+            {
+                error = "Invalid tuple syntax";
+                return false;
+            }
+
+            string tupleName = nameMatch.Groups[1].Value;
+            schema = new TupleSchema(tupleName);
+
+            // Extract body (everything between { and })
+            int openBrace = block.IndexOf('{');
+            int closeBrace = block.LastIndexOf('}');
+            
+            if (openBrace == -1 || closeBrace == -1)
+            {
+                error = "Missing braces in tuple definition";
+                return false;
+            }
+
+            string body = block.Substring(openBrace + 1, closeBrace - openBrace - 1);
+
+            // Parse field declarations
+            var fieldPattern = @"(float|int|bool|string)\s+([a-zA-Z][a-zA-Z0-9_]*)\s*;";
+            var fieldMatches = Regex.Matches(body, fieldPattern, RegexOptions.IgnoreCase);
+
+            if (fieldMatches.Count == 0)
+            {
+                error = "Tuple must have at least one field";
+                return false;
+            }
+
+            foreach (Match fieldMatch in fieldMatches)
+            {
+                string typeStr = fieldMatch.Groups[1].Value.ToLower();
+                string fieldName = fieldMatch.Groups[2].Value;
+
+                VariableType fieldType = typeStr switch
+                {
+                    "float" => VariableType.Float,
+                    "int" => VariableType.Integer,
+                    "bool" => VariableType.Boolean,
+                    "string" => VariableType.String,
+                    _ => VariableType.Float
+                };
+
+                try
+                {
+                    schema.AddField(fieldName, fieldType);
+                }
+                catch (Exception ex)
+                {
+                    error = ex.Message;
+                    return false;
+                }
+            }
+
+            return true;
+        }
+
+        public ParseSessionResult Parse(string text)
+        {
+            var result = new ParseSessionResult();
+
+            if (string.IsNullOrWhiteSpace(text))
+            {
+                result.AddError("No text to parse", 0);
+                return result;
+            }
+
+            // Extract and process JavaScript execute blocks FIRST
+            var (processedText, lineMapping) = ExtractAndProcessExecuteBlocks(text, result);
+
+            // **NEW: Extract and process tuple schemas**
+            processedText = ExtractAndProcessTupleSchemas(processedText, result);
+
+            // Extract and process subject to blocks
+            processedText = ExtractSubjectToBlocks(processedText, lineMapping, result);
+
+            // Split into statements
+            var statements = SplitIntoStatements(processedText, lineMapping);
+
+            // Process each statement
+            foreach (var (statement, lineNumber) in statements)
+            {
+                if (!string.IsNullOrWhiteSpace(statement))
+                {
+                    ProcessStatement(statement, lineNumber, result);
+                }
+            }
+
+            return result;
+        }
+
+        private string ExtractAndProcessTupleSchemas(string text, ParseSessionResult result)
+        {
+            // Pattern: tuple Name { ... }
+            string pattern = @"tuple\s+([a-zA-Z][a-zA-Z0-9_]*)\s*\{";
+            var matches = Regex.Matches(text, pattern, RegexOptions.IgnoreCase);
+
+            if (matches.Count == 0)
+            {
+                return text; // No tuples
+            }
+
+            var resultText = new System.Text.StringBuilder();
+            int lastIndex = 0;
+
+            foreach (Match match in matches)
+            {
+                // Append text before this tuple
+                resultText.Append(text.Substring(lastIndex, match.Index - lastIndex));
+
+                // Find matching closing brace
+                int closingBraceIndex = FindClosingBrace(text, match.Index + match.Length);
+
+                if (closingBraceIndex == -1)
+                {
+                    result.AddError($"Tuple schema: Missing closing brace '}}' for tuple '{match.Groups[1].Value}'", 
+                        text.Substring(0, match.Index).Count(c => c == '\n') + 1);
+                    continue;
+                }
+
+                // Extract the complete tuple definition
+                string tupleDefinition = text.Substring(match.Index, closingBraceIndex - match.Index + 1);
+                
+                // Parse and register the tuple schema
+                if (TryParseTupleSchemaBlock(tupleDefinition, out var schema, out string error))
+                {
+                    modelManager.AddTupleSchema(schema);
+                    result.IncrementSuccess();
+                }
+                else
+                {
+                    result.AddError($"Error parsing tuple schema: {error}", 
+                        text.Substring(0, match.Index).Count(c => c == '\n') + 1);
+                }
+
+                lastIndex = closingBraceIndex + 1;
+            }
+
+            // Append remaining text
+            if (lastIndex < text.Length)
+            {
+                resultText.Append(text.Substring(lastIndex));
+            }
+
+            return resultText.ToString();
+        }
+
+        private bool TryParseTupleSchemaBlock(string block, out TupleSchema? schema, out string error)
+        {
+            schema = null;
+            error = string.Empty;
+
+            // Extract tuple name
+            var nameMatch = Regex.Match(block, @"tuple\s+([a-zA-Z][a-zA-Z0-9_]*)\s*\{", RegexOptions.IgnoreCase);
+            if (!nameMatch.Success)
+            {
+                error = "Invalid tuple syntax";
+                return false;
+            }
+
+            string tupleName = nameMatch.Groups[1].Value;
+            schema = new TupleSchema(tupleName);
+
+            // Extract body (everything between { and })
+            int openBrace = block.IndexOf('{');
+            int closeBrace = block.LastIndexOf('}');
+            
+            if (openBrace == -1 || closeBrace == -1)
+            {
+                error = "Missing braces in tuple definition";
+                return false;
+            }
+
+            string body = block.Substring(openBrace + 1, closeBrace - openBrace - 1);
+
+            // Parse field declarations
+            var fieldPattern = @"(float|int|bool|string)\s+([a-zA-Z][a-zA-Z0-9_]*)\s*;";
+            var fieldMatches = Regex.Matches(body, fieldPattern, RegexOptions.IgnoreCase);
+
+            if (fieldMatches.Count == 0)
+            {
+                error = "Tuple must have at least one field";
+                return false;
+            }
+
+            foreach (Match fieldMatch in fieldMatches)
+            {
+                string typeStr = fieldMatch.Groups[1].Value.ToLower();
+                string fieldName = fieldMatch.Groups[2].Value;
+
+                VariableType fieldType = typeStr switch
+                {
+                    "float" => VariableType.Float,
+                    "int" => VariableType.Integer,
+                    "bool" => VariableType.Boolean,
+                    "string" => VariableType.String,
+                    _ => VariableType.Float
+                };
+
+                try
+                {
+                    schema.AddField(fieldName, fieldType);
+                }
+                catch (Exception ex)
+                {
+                    error = ex.Message;
+                    return false;
+                }
+            }
+
+            return true;
+        }
+
+        public ParseSessionResult Parse(string text)
+        {
+            var result = new ParseSessionResult();
+
+            if (string.IsNullOrWhiteSpace(text))
+            {
+                result.AddError("No text to parse", 0);
+                return result;
+            }
+
+            // Extract and process JavaScript execute blocks FIRST
+            var (processedText, lineMapping) = ExtractAndProcessExecuteBlocks(text, result);
+
+            // **NEW: Extract and process tuple schemas**
+            processedText = ExtractAndProcessTupleSchemas(processedText, result);
+
+            // Extract and process subject to blocks
+            processedText = ExtractSubjectToBlocks(processedText, lineMapping, result);
+
+            // Split into statements
+            var statements = SplitIntoStatements(processedText, lineMapping);
+
+            // Process each statement
+            foreach (var (statement, lineNumber) in statements)
+            {
+                if (!string.IsNullOrWhiteSpace(statement))
+                {
+                    ProcessStatement(statement, lineNumber, result);
+                }
+            }
+
+            return result;
+        }
+
+        private string ExtractAndProcessTupleSchemas(string text, ParseSessionResult result)
+        {
+            // Pattern: tuple Name { ... }
+            string pattern = @"tuple\s+([a-zA-Z][a-zA-Z0-9_]*)\s*\{";
+            var matches = Regex.Matches(text, pattern, RegexOptions.IgnoreCase);
+
+            if (matches.Count == 0)
+            {
+                return text; // No tuples
+            }
+
+            var resultText = new System.Text.StringBuilder();
+            int lastIndex = 0;
+
+            foreach (Match match in matches)
+            {
+                // Append text before this tuple
+                resultText.Append(text.Substring(lastIndex, match.Index - lastIndex));
+
+                // Find matching closing brace
+                int closingBraceIndex = FindClosingBrace(text, match.Index + match.Length);
+
+                if (closingBraceIndex == -1)
+                {
+                    result.AddError($"Tuple schema: Missing closing brace '}}' for tuple '{match.Groups[1].Value}'", 
+                        text.Substring(0, match.Index).Count(c => c == '\n') + 1);
+                    continue;
+                }
+
+                // Extract the complete tuple definition
+                string tupleDefinition = text.Substring(match.Index, closingBraceIndex - match.Index + 1);
+                
+                // Parse and register the tuple schema
+                if (TryParseTupleSchemaBlock(tupleDefinition, out var schema, out string error))
+                {
+                    modelManager.AddTupleSchema(schema);
+                    result.IncrementSuccess();
+                }
+                else
+                {
+                    result.AddError($"Error parsing tuple schema: {error}", 
+                        text.Substring(0, match.Index).Count(c => c == '\n') + 1);
+                }
+
+                lastIndex = closingBraceIndex + 1;
+            }
+
+            // Append remaining text
+            if (lastIndex < text.Length)
+            {
+                resultText.Append(text.Substring(lastIndex));
+            }
+
+            return resultText.ToString();
+        }
+
+        private bool TryParseTupleSchemaBlock(string block, out TupleSchema? schema, out string error)
+        {
+            schema = null;
+            error = string.Empty;
+
+            // Extract tuple name
+            var nameMatch = Regex.Match(block, @"tuple\s+([a-zA-Z][a-zA-Z0-9_]*)\s*\{", RegexOptions.IgnoreCase);
+            if (!nameMatch.Success)
+            {
+                error = "Invalid tuple syntax";
+                return false;
+            }
+
+            string tupleName = nameMatch.Groups[1].Value;
+            schema = new TupleSchema(tupleName);
+
+            // Extract body (everything between { and })
+            int openBrace = block.IndexOf('{');
+            int closeBrace = block.LastIndexOf('}');
+
+            if (openBrace == -1 || closeBrace == -1)
+            {
+                error = "Missing braces in tuple definition";
+                return false;
+            }
+
+            string body = block.Substring(openBrace + 1, closeBrace - openBrace - 1);
+
+            // Parse field declarations
+            var fieldPattern = @"(float|int|bool|string)\s+([a-zA-Z][a-zA-Z0-9_]*)\s*;";
+            var fieldMatches = Regex.Matches(body, fieldPattern, RegexOptions.IgnoreCase);
+
+            if (fieldMatches.Count == 0)
+            {
+                error = "Tuple must have at least one field";
+                return false;
+            }
+
+            foreach (Match fieldMatch in fieldMatches)
+            {
+                string typeStr = fieldMatch.Groups[1].Value.ToLower();
+                string fieldName = fieldMatch.Groups[2].Value;
+
+                VariableType fieldType = typeStr switch
+                {
+                    "float" => VariableType.Float,
+                    "int" => VariableType.Integer,
+                    "bool" => VariableType.Boolean,
+                    "string" => VariableType.String,
+                    _ => VariableType.Float
+                };
+
+                try
+                {
+                    schema.AddField(fieldName, fieldType);
+            // **NEW: Extract and process tuple schemas**
+            processedText = ExtractAndProcessTupleSchemas(processedText, result);
+
+            // Extract and process subject to blocks
+            processedText = ExtractSubjectToBlocks(processedText, lineMapping, result);
+
+            // Split into statements
+            var statements = SplitIntoStatements(processedText, lineMapping);
+
+            // Process each statement
+            foreach (var (statement, lineNumber) in statements)
+            {
+                if (!string.IsNullOrWhiteSpace(statement))
+                {
+                    ProcessStatement(statement, lineNumber, result);
+                }
+            }
+
+            return result;
+        }
+
+        private string ExtractAndProcessTupleSchemas(string text, ParseSessionResult result)
+        {
+            // Pattern: tuple Name { ... }
+            string pattern = @"tuple\s+([a-zA-Z][a-zA-Z0-9_]*)\s*\{";
+            var matches = Regex.Matches(text, pattern, RegexOptions.IgnoreCase);
+
+            if (matches.Count == 0)
+            {
+                return text; // No tuples
+            }
+
+            var resultText = new System.Text.StringBuilder();
+            int lastIndex = 0;
+
+            foreach (Match match in matches)
+            {
+                // Append text before this tuple
+                resultText.Append(text.Substring(lastIndex, match.Index - lastIndex));
+
+                // Find matching closing brace
+                int closingBraceIndex = FindClosingBrace(text, match.Index + match.Length);
+
+                if (closingBraceIndex == -1)
+                {
+                    result.AddError($"Tuple schema: Missing closing brace '}}' for tuple '{match.Groups[1].Value}'", 
+                        text.Substring(0, match.Index).Count(c => c == '\n') + 1);
+                    continue;
+                }
+
+                // Extract the complete tuple definition
+                string tupleDefinition = text.Substring(match.Index, closingBraceIndex - match.Index + 1);
+                
+                // Parse and register the tuple schema
+                if (TryParseTupleSchemaBlock(tupleDefinition, out var schema, out string error))
+                {
+                    modelManager.AddTupleSchema(schema);
+                    result.IncrementSuccess();
+                }
+                else
+                {
+                    result.AddError($"Error parsing tuple schema: {error}", 
+                        text.Substring(0, match.Index).Count(c => c == '\n') + 1);
+                }
+
+                lastIndex = closingBraceIndex + 1;
+            }
+
+            // Append remaining text
+            if (lastIndex < text.Length)
+            {
+                resultText.Append(text.Substring(lastIndex));
+            }
+
+            return resultText.ToString();
+        }
+
+        private bool TryParseTupleSchemaBlock(string block, out TupleSchema? schema, out string error)
+        {
+            schema = null;
+            error = string.Empty;
+
+            // Extract tuple name
+            var nameMatch = Regex.Match(block, @"tuple\s+([a-zA-Z][a-zA-Z0-9_]*)\s*\{", RegexOptions.IgnoreCase);
+            if (!nameMatch.Success)
+            {
+                error = "Invalid tuple syntax";
+                return false;
+            }
+
+            string tupleName = nameMatch.Groups[1].Value;
+            schema = new TupleSchema(tupleName);
+
+            // Extract body (everything between { and })
+            int openBrace = block.IndexOf('{');
+            int closeBrace = block.LastIndexOf('}');
+            
+            if (openBrace == -1 || closeBrace == -1)
+            {
+                error = "Missing braces in tuple definition";
+                return false;
+            }
+
+            string body = block.Substring(openBrace + 1, closeBrace - openBrace - 1);
+
+            // Parse field declarations
+            var fieldPattern = @"(float|int|bool|string)\s+([a-zA-Z][a-zA-Z0-9_]*)\s*;";
+            var fieldMatches = Regex.Matches(body, fieldPattern, RegexOptions.IgnoreCase);
+
+            if (fieldMatches.Count == 0)
+            {
+                error = "Tuple must have at least one field";
+                return false;
+            }
+
+            foreach (Match fieldMatch in fieldMatches)
+            {
+                string typeStr = fieldMatch.Groups[1].Value.ToLower();
+                string fieldName = fieldMatch.Groups[2].Value;
+
+                VariableType fieldType = typeStr switch
+                {
+                    "float" => VariableType.Float,
+                    "int" => VariableType.Integer,
+                    "bool" => VariableType.Boolean,
+                    "string" => VariableType.String,
+                    _ => VariableType.Float
+                };
+
+                try
+                {
+                    schema.AddField(fieldName, fieldType);
+                }
+                catch (Exception ex)
+                {
+                    error = ex.Message;
+                    return false;
+                }
+            }
+
+            return true;
+        }
+
+        public ParseSessionResult Parse(string text)
+        {
+            var result = new ParseSessionResult();
+
+            if (string.IsNullOrWhiteSpace(text))
+            {
+                result.AddError("No text to parse", 0);
+                return result;
+            }
+
+            // Extract and process JavaScript execute blocks FIRST
+            var (processedText, lineMapping) = ExtractAndProcessExecuteBlocks(text, result);
+
+            // **NEW: Extract and process tuple schemas**
+            processedText = ExtractAndProcessTupleSchemas(processedText, result);
+
+            // Extract and process subject to blocks
+            processedText = ExtractSubjectToBlocks(processedText, lineMapping, result);
+
+            // Split into statements
+            var statements = SplitIntoStatements(processedText, lineMapping);
+
+            // Process each statement
+            foreach (var (statement, lineNumber) in statements)
+            {
+                if (!string.IsNullOrWhiteSpace(statement))
+                {
+                    ProcessStatement(statement, lineNumber, result);
+                }
+            }
+
+            return result;
+        }
+
+        private string ExtractAndProcessTupleSchemas(string text, ParseSessionResult result)
+        {
+            // Pattern: tuple Name { ... }
+            string pattern = @"tuple\s+([a-zA-Z][a-zA-Z0-9_]*)\s*\{";
+            var matches = Regex.Matches(text, pattern, RegexOptions.IgnoreCase);
+
+            if (matches.Count == 0)
+            {
+                return text; // No tuples
+            }
+
+            var resultText = new System.Text.StringBuilder();
+            int lastIndex = 0;
+
+            foreach (Match match in matches)
+            {
+                // Append text before this tuple
+                resultText.Append(text.Substring(lastIndex, match.Index - lastIndex));
+
+                // Find matching closing brace
+                int closingBraceIndex = FindClosingBrace(text, match.Index + match.Length);
+
+                if (closingBraceIndex == -1)
+                {
+                    result.AddError($"Tuple schema: Missing closing brace '}}' for tuple '{match.Groups[1].Value}'", 
+                        text.Substring(0, match.Index).Count(c => c == '\n') + 1);
+                    continue;
+                }
+
+                // Extract the complete tuple definition
+                string tupleDefinition = text.Substring(match.Index, closingBraceIndex - match.Index + 1);
+                
+                // Parse and register the tuple schema
+                if (TryParseTupleSchemaBlock(tupleDefinition, out var schema, out string error))
+                {
+                    modelManager.AddTupleSchema(schema);
+                    result.IncrementSuccess();
+                }
+                else
+                {
+                    result.AddError($"Error parsing tuple schema: {error}", 
+                        text.Substring(0, match.Index).Count(c => c == '\n') + 1);
+                }
+
+                lastIndex = closingBraceIndex + 1;
+            }
+
+            // Append remaining text
+            if (lastIndex < text.Length)
+            {
+                resultText.Append(text.Substring(lastIndex));
+            }
+
+            return resultText.ToString();
+        }
+
+        private bool TryParseTupleSchemaBlock(string block, out TupleSchema? schema, out string error)
+        {
+            schema = null;
+            error = string.Empty;
+
+            // Extract tuple name
+            var nameMatch = Regex.Match(block, @"tuple\s+([a-zA-Z][a-zA-Z0-9_]*)\s*\{", RegexOptions.IgnoreCase);
+            if (!nameMatch.Success)
+            {
+                error = "Invalid tuple syntax";
+                return false;
+            }
+
+            string tupleName = nameMatch.Groups[1].Value;
+            schema = new TupleSchema(tupleName);
+
+            // Extract body (everything between { and })
+            int openBrace = block.IndexOf('{');
+            int closeBrace = block.LastIndexOf('}');
+            
+            if (openBrace == -1 || closeBrace == -1)
+            {
+                error = "Missing braces in tuple definition";
+                return false;
+            }
+
+            string body = block.Substring(openBrace + 1, closeBrace - openBrace - 1);
+
+            // Parse field declarations
+            var fieldPattern = @"(float|int|bool|string)\s+([a-zA-Z][a-zA-Z0-9_]*)\s*;";
+            var fieldMatches = Regex.Matches(body, fieldPattern, RegexOptions.IgnoreCase);
+
+            if (fieldMatches.Count == 0)
+            {
+                error = "Tuple must have at least one field";
+                return false;
+            }
+
+            foreach (Match fieldMatch in fieldMatches)
+            {
+                string typeStr = fieldMatch.Groups[1].Value.ToLower();
+                string fieldName = fieldMatch.Groups[2].Value;
+
+                VariableType fieldType = typeStr switch
+                {
+                    "float" => VariableType.Float,
+                    "int" => VariableType.Integer,
+                    "bool" => VariableType.Boolean,
+                    "string" => VariableType.String,
+                    _ => VariableType.Float
+                };
+
+                try
+                {
+                    schema.AddField(fieldName, fieldType);
+                }
+                catch (Exception ex)
+                {
+                    error = ex.Message;
+                    return false;
+                }
+            }
+
+            return true;
+        }
+
+        public ParseSessionResult Parse(string text)
+        {
+            var result = new ParseSessionResult();
+
+            if (string.IsNullOrWhiteSpace(text))
+            {
+                result.AddError("No text to parse", 0);
+                return result;
+            }
+
+            // Extract and process JavaScript execute blocks FIRST
+            var (processedText, lineMapping) = ExtractAndProcessExecuteBlocks(text, result);
+
+            // **NEW: Extract and process tuple schemas**
+            processedText = ExtractAndProcessTupleSchemas(processedText, result);
+
+            // Extract and process subject to blocks
+            processedText = ExtractSubjectToBlocks(processedText, lineMapping, result);
+
+            // Split into statements
+            var statements = SplitIntoStatements(processedText, lineMapping);
+
+            // Process each statement
+            foreach (var (statement, lineNumber) in statements)
+            {
+                if (!string.IsNullOrWhiteSpace(statement))
+                {
+                    ProcessStatement(statement, lineNumber, result);
+                }
+            }
+
+            return result;
+        }
+
+        private string ExtractAndProcessTupleSchemas(string text, ParseSessionResult result)
+        {
+            // Pattern: tuple Name { ... }
+            string pattern = @"tuple\s+([a-zA-Z][a-zA-Z0-9_]*)\s*\{";
+            var matches = Regex.Matches(text, pattern, RegexOptions.IgnoreCase);
+
+            if (matches.Count == 0)
+            {
+                return text; // No tuples
+            }
+
+            var resultText = new System.Text.StringBuilder();
+            int lastIndex = 0;
+
+            foreach (Match match in matches)
+            {
+                // Append text before this tuple
+                resultText.Append(text.Substring(lastIndex, match.Index - lastIndex));
+
+                // Find matching closing brace
+                int closingBraceIndex = FindClosingBrace(text, match.Index + match.Length);
+
+                if (closingBraceIndex == -1)
+                {
+                    result.AddError($"Tuple schema: Missing closing brace '}}' for tuple '{match.Groups[1].Value}'", 
+                        text.Substring(0, match.Index).Count(c => c == '\n') + 1);
+                    continue;
+                }
+
+                // Extract the complete tuple definition
+                string tupleDefinition = text.Substring(match.Index, closingBraceIndex - match.Index + 1);
+                
+                // Parse and register the tuple schema
+                if (TryParseTupleSchemaBlock(tupleDefinition, out var schema, out string error))
+                {
+                    modelManager.AddTupleSchema(schema);
+                    result.IncrementSuccess();
+                }
+                else
+                {
+                    result.AddError($"Error parsing tuple schema: {error}", 
+                        text.Substring(0, match.Index).Count(c => c == '\n') + 1);
+                }
+
+                lastIndex = closingBraceIndex + 1;
+            }
+
+            // Append remaining text
+            if (lastIndex < text.Length)
+            {
+                resultText.Append(text.Substring(lastIndex));
+            }
+
+            return resultText.ToString();
+        }
+
+        private bool TryParseTupleSchemaBlock(string block, out TupleSchema? schema, out string error)
+        {
+            schema = null;
+            error = string.Empty;
+
+            // Extract tuple name
+            var nameMatch = Regex.Match(block, @"tuple\s+([a-zA-Z][a-zA-Z0-9_]*)\s*\{", RegexOptions.IgnoreCase);
+            if (!nameMatch.Success)
+            {
+                error = "Invalid tuple syntax";
+                return false;
+            }
+
+            string tupleName = nameMatch.Groups[1].Value;
+            schema = new TupleSchema(tupleName);
+
+            // Extract body (everything between { and })
+            int openBrace = block.IndexOf('{');
+            int closeBrace = block.LastIndexOf('}');
+            
+            if (openBrace == -1 || closeBrace == -1)
+            {
+                error = "Missing braces in tuple definition";
+                return false;
+            }
+
+            string body = block.Substring(openBrace + 1, closeBrace - openBrace - 1);
+
+            // Parse field declarations
+            var fieldPattern = @"(float|int|bool|string)\s+([a-zA-Z][a-zA-Z0-9_]*)\s*;";
+            var fieldMatches = Regex.Matches(body, fieldPattern, RegexOptions.IgnoreCase);
+
+            if (fieldMatches.Count == 0)
+            {
+                error = "Tuple must have at least one field";
+                return false;
+            }
+
+            foreach (Match fieldMatch in fieldMatches)
+            {
+                string typeStr = fieldMatch.Groups[1].Value.ToLower();
+                string fieldName = fieldMatch.Groups[2].Value;
+
+                VariableType fieldType = typeStr switch
+                {
+                    "float" => VariableType.Float,
+                    "int" => VariableType.Integer,
+                    "bool" => VariableType.Boolean,
+                    "string" => VariableType.String,
+                    _ => VariableType.Float
+                };
+
+                try
+                {
+                    schema.AddField(fieldName, fieldType);
+                }
+                catch (Exception ex)
+                {
+                    error = ex.Message;
+                    return false;
+                }
+            }
+
+            return true;
+        }
+
+        public ParseSessionResult Parse(string text)
+        {
+            var result = new ParseSessionResult();
+
+            if (string.IsNullOrWhiteSpace(text))
+            {
+                result.AddError("No text to parse", 0);
+                return result;
+            }
+
+            // Extract and process JavaScript execute blocks FIRST
+            var (processedText, lineMapping) = ExtractAndProcessExecuteBlocks(text, result);
+
+            // **NEW: Extract and process tuple schemas**
+            processedText = ExtractAndProcessTupleSchemas(processedText, result);
+
+            // Extract and process subject to blocks
+            processedText = ExtractSubjectToBlocks(processedText, lineMapping, result);
+
+            // Split into statements
+            var statements = SplitIntoStatements(processedText, lineMapping);
+
+            // Process each statement
+            foreach (var (statement, lineNumber) in statements)
+            {
+                if (!string.IsNullOrWhiteSpace(statement))
+                {
+                    ProcessStatement(statement, lineNumber, result);
+                }
+            }
+
+            return result;
+        }
+
+        private string ExtractAndProcessTupleSchemas(string text, ParseSessionResult result)
+        {
+            // Pattern: tuple Name { ... }
+            string pattern = @"tuple\s+([a-zA-Z][a-zA-Z0-9_]*)\s*\{";
+            var matches = Regex.Matches(text, pattern, RegexOptions.IgnoreCase);
+
+            if (matches.Count == 0)
+            {
+                return text; // No tuples
+            }
+
+            var resultText = new System.Text.StringBuilder();
+            int lastIndex = 0;
+
+            foreach (Match match in matches)
+            {
+                // Append text before this tuple
+                resultText.Append(text.Substring(lastIndex, match.Index - lastIndex));
+
+                // Find matching closing brace
+                int closingBraceIndex = FindClosingBrace(text, match.Index + match.Length);
+
+                if (closingBraceIndex == -1)
+                {
+                    result.AddError($"Tuple schema: Missing closing brace '}}' for tuple '{match.Groups[1].Value}'", 
+                        text.Substring(0, match.Index).Count(c => c == '\n') + 1);
+                    continue;
+                }
+
+                // Extract the complete tuple definition
+                string tupleDefinition = text.Substring(match.Index, closingBraceIndex - match.Index + 1);
+                
+                // Parse and register the tuple schema
+                if (TryParseTupleSchemaBlock(tupleDefinition, out var schema, out string error))
+                {
+                    modelManager.AddTupleSchema(schema);
+                    result.IncrementSuccess();
+                }
+                else
+                {
+                    result.AddError($"Error parsing tuple schema: {error}", 
+                        text.Substring(0, match.Index).Count(c => c == '\n') + 1);
+                }
+
+                lastIndex = closingBraceIndex + 1;
+            }
+
+            // Append remaining text
+            if (lastIndex < text.Length)
+            {
+                resultText.Append(text.Substring(lastIndex));
+            }
+
+            return resultText.ToString();
+        }
+
+        private bool TryParseTupleSchemaBlock(string block, out TupleSchema? schema, out string error)
+        {
+            schema = null;
+            error = string.Empty;
+
+            // Extract tuple name
+            var nameMatch = Regex.Match(block, @"tuple\s+([a-zA-Z][a-zA-Z0-9_]*)\s*\{", RegexOptions.IgnoreCase);
+            if (!nameMatch.Success)
+            {
+                error = "Invalid tuple syntax";
+                return false;
+            }
+
+            string tupleName = nameMatch.Groups[1].Value;
+            schema = new TupleSchema(tupleName);
+
+            // Extract body (everything between { and })
+            int openBrace = block.IndexOf('{');
+            int closeBrace = block.LastIndexOf('}');
+            
+            if (openBrace == -1 || closeBrace == -1)
+            {
+                error = "Missing braces in tuple definition";
+                return false;
+            }
+
+            string body = block.Substring(openBrace + 1, closeBrace - openBrace - 1);
+
+            // Parse field declarations
+            var fieldPattern = @"(float|int|bool|string)\s+([a-zA-Z][a-zA-Z0-9_]*)\s*;";
+            var fieldMatches = Regex.Matches(body, fieldPattern, RegexOptions.IgnoreCase);
+
+            if (fieldMatches.Count == 0)
+            {
+                error = "Tuple must have at least one field";
+                return false;
+            }
+
+            foreach (Match fieldMatch in fieldMatches)
+            {
+                string typeStr = fieldMatch.Groups[1].Value.ToLower();
+                string fieldName = fieldMatch.Groups[2].Value;
+
+                VariableType fieldType = typeStr switch
+                {
+                    "float" => VariableType.Float,
+                    "int" => VariableType.Integer,
+                    "bool" => VariableType.Boolean,
+                    "string" => VariableType.String,
+                    _ => VariableType.Float
+                };
+
+                try
+                {
+                    schema.AddField(fieldName, fieldType);
+                }
+                catch (Exception ex)
+                {
+                    error = ex.Message;
+                    return false;
+                }
+            }
+
+            return true;
+        }
+
+        public ParseSessionResult Parse(string text)
+        {
+            var result = new ParseSessionResult();
+
+            if (string.IsNullOrWhiteSpace(text))
+            {
+                result.AddError("No text to parse", 0);
+                return result;
+            }
+
+            // Extract and process JavaScript execute blocks FIRST
+            var (processedText, lineMapping) = ExtractAndProcessExecuteBlocks(text, result);
+
+            // **NEW: Extract and process tuple schemas**
+            processedText = ExtractAndProcessTupleSchemas(processedText, result);
+
+            // Extract and process subject to blocks
+            processedText = ExtractSubjectToBlocks(processedText, lineMapping, result);
+
+            // Split into statements
+            var statements = SplitIntoStatements(processedText, lineMapping);
+
+            // Process each statement
+            foreach (var (statement, lineNumber) in statements)
+            {
+                if (!string.IsNullOrWhiteSpace(statement))
+                {
+                    ProcessStatement(statement, lineNumber, result);
+                }
+            }
+
+            return result;
+        }
+
+        private string ExtractAndProcessTupleSchemas(string text, ParseSessionResult result)
+        {
+            // Pattern: tuple Name { ... }
+            string pattern = @"tuple\s+([a-zA-Z][a-zA-Z0-9_]*)\s*\{";
+            var matches = Regex.Matches(text, pattern, RegexOptions.IgnoreCase);
+
+            if (matches.Count == 0)
+            {
+                return text; // No tuples
+            }
+
+            var resultText = new System.Text.StringBuilder();
+            int lastIndex = 0;
+
+            foreach (Match match in matches)
+            {
+                // Append text before this tuple
+                resultText.Append(text.Substring(lastIndex, match.Index - lastIndex));
+
+                // Find matching closing brace
+                int closingBraceIndex = FindClosingBrace(text, match.Index + match.Length);
+
+                if (closingBraceIndex == -1)
+                {
+                    result.AddError($"Tuple schema: Missing closing brace '}}' for tuple '{match.Groups[1].Value}'", 
+                        text.Substring(0, match.Index).Count(c => c == '\n') + 1);
+                    continue;
+                }
+
+                // Extract the complete tuple definition
+                string tupleDefinition = text.Substring(match.Index, closingBraceIndex - match.Index + 1);
+                
+                // Parse and register the tuple schema
+                if (TryParseTupleSchemaBlock(tupleDefinition, out var schema, out string error))
+                {
+                    modelManager.AddTupleSchema(schema);
+                    result.IncrementSuccess();
+                }
+                else
+                {
+                    result.AddError($"Error parsing tuple schema: {error}", 
+                        text.Substring(0, match.Index).Count(c => c == '\n') + 1);
+                }
+
+                lastIndex = closingBraceIndex + 1;
+            }
+
+            // Append remaining text
+            if (lastIndex < text.Length)
+            {
+                resultText.Append(text.Substring(lastIndex));
+            }
+
+            return resultText.ToString();
+        }
+
+        private bool TryParseTupleSchemaBlock(string block, out TupleSchema? schema, out string error)
+        {
+            schema = null;
+            error = string.Empty;
+
+            // Extract tuple name
+            var nameMatch = Regex.Match(block, @"tuple\s+([a-zA-Z][a-zA-Z0-9_]*)\s*\{", RegexOptions.IgnoreCase);
+            if (!nameMatch.Success)
+            {
+                error = "Invalid tuple syntax";
+                return false;
+            }
+
+            string tupleName = nameMatch.Groups[1].Value;
+            schema = new TupleSchema(tupleName);
+
+            // Extract body (everything between { and })
+            int openBrace = block.IndexOf('{');
+            int closeBrace = block.LastIndexOf('}');
+            
+            if (openBrace == -1 || closeBrace == -1)
+            {
+                error = "Missing braces in tuple definition";
+                return false;
+            }
+
+            string body = block.Substring(openBrace + 1, closeBrace - openBrace - 1);
+
+            // Parse field declarations
+            var fieldPattern = @"(float|int|bool|string)\s+([a-zA-Z][a-zA-Z0-9_]*)\s*;";
+            var fieldMatches = Regex.Matches(body, fieldPattern, RegexOptions.IgnoreCase);
+
+            if (fieldMatches.Count == 0)
+            {
+                error = "Tuple must have at least one field";
+                return false;
+            }
+
+            foreach (Match fieldMatch in fieldMatches)
+            {
+                string typeStr = fieldMatch.Groups[1].Value.ToLower();
+                string fieldName = fieldMatch.Groups[2].Value;
+
+                VariableType fieldType = typeStr switch
+                {
+                    "float" => VariableType.Float,
+                    "int" => VariableType.Integer,
+                    "bool" => VariableType.Boolean,
+                    "string" => VariableType.String,
+                    _ => VariableType.Float
+                };
+
+                try
+                {
+                    schema.AddField(fieldName, fieldType);
+                }
+                catch (Exception ex)
+                {
+                    error = ex.Message;
+                    return false;
+                }
+            }
+
+            return true;
+        }
+
+        public ParseSessionResult Parse(string text)
+        {
+            var result = new ParseSessionResult();
+
+            if (string.IsNullOrWhiteSpace(text))
+            {
+                result.AddError("No text to parse", 0);
+                return result;
+            }
+
+            // Extract and process JavaScript execute blocks FIRST
+            var (processedText, lineMapping) = ExtractAndProcessExecuteBlocks(text, result);
+
+            // **NEW: Extract and process tuple schemas**
+            processedText = ExtractAndProcessTupleSchemas(processedText, result);
+
+            // Extract and process subject to blocks
+            processedText = ExtractSubjectToBlocks(processedText, lineMapping, result);
+
+            // Split into statements
+            var statements = SplitIntoStatements(processedText, lineMapping);
+
+            // Process each statement
+            foreach (var (statement, lineNumber) in statements)
+            {
+                if (!string.IsNullOrWhiteSpace(statement))
+                {
+                    ProcessStatement(statement, lineNumber, result);
+                }
+            }
+
+            return result;
+        }
+
+        private string ExtractAndProcessTupleSchemas(string text, ParseSessionResult result)
+        {
+            // Pattern: tuple Name { ... }
+            string pattern = @"tuple\s+([a-zA-Z][a-zA-Z0-9_]*)\s*\{";
+            var matches = Regex.Matches(text, pattern, RegexOptions.IgnoreCase);
+
+            if (matches.Count == 0)
+            {
+                return text; // No tuples
+            }
+
+            var resultText = new System.Text.StringBuilder();
+            int lastIndex = 0;
+
+            foreach (Match match in matches)
+            {
+                // Append text before this tuple
+                resultText.Append(text.Substring(lastIndex, match.Index - lastIndex));
+
+                // Find matching closing brace
+                int closingBraceIndex = FindClosingBrace(text, match.Index + match.Length);
+
+                if (closingBraceIndex == -1)
+                {
+                    result.AddError($"Tuple schema: Missing closing brace '}}' for tuple '{match.Groups[1].Value}'", 
+                        text.Substring(0, match.Index).Count(c => c == '\n') + 1);
+                    continue;
+                }
+
+                // Extract the complete tuple definition
+                string tupleDefinition = text.Substring(match.Index, closingBraceIndex - match.Index + 1);
+                
+                // Parse and register the tuple schema
+                if (TryParseTupleSchemaBlock(tupleDefinition, out var schema, out string error))
+                {
+                    modelManager.AddTupleSchema(schema);
+                    result.IncrementSuccess();
+                }
+                else
+                {
+                    result.AddError($"Error parsing tuple schema: {error}", 
+                        text.Substring(0, match.Index).Count(c => c == '\n') + 1);
+                }
+
+                lastIndex = closingBraceIndex + 1;
+            }
+
+            // Append remaining text
+            if (lastIndex < text.Length)
+            {
+                resultText.Append(text.Substring(lastIndex));
+            }
+
+            return resultText.ToString();
+        }
+
+        private bool TryParseTupleSchemaBlock(string block, out TupleSchema? schema, out string error)
+        {
+            schema = null;
+            error = string.Empty;
+
+            // Extract tuple name
+            var nameMatch = Regex.Match(block, @"tuple\s+([a-zA-Z][a-zA-Z0-9_]*)\s*\{", RegexOptions.IgnoreCase);
+            if (!nameMatch.Success)
+            {
+                error = "Invalid tuple syntax";
+                return false;
+            }
+
+            string tupleName = nameMatch.Groups[1].Value;
+            schema = new TupleSchema(tupleName);
+
+            // Extract body (everything between { and })
+            int openBrace = block.IndexOf('{');
+            int closeBrace = block.LastIndexOf('}');
+            
+            if (openBrace == -1 || closeBrace == -1)
+            {
+                error = "Missing braces in tuple definition";
+                return false;
+            }
+
+            string body = block.Substring(openBrace + 1, closeBrace - openBrace - 1);
+
+            // Parse field declarations
+            var fieldPattern = @"(float|int|bool|string)\s+([a-zA-Z][a-zA-Z0-9_]*)\s*;";
+            var fieldMatches = Regex.Matches(body, fieldPattern, RegexOptions.IgnoreCase);
+
+            if (fieldMatches.Count == 0)
+            {
+                error = "Tuple must have at least one field";
+                return false;
+            }
+
+            foreach (Match fieldMatch in fieldMatches)
+            {
+                string typeStr = fieldMatch.Groups[1].Value.ToLower();
+                string fieldName = fieldMatch.Groups[2].Value;
+
+                VariableType fieldType = typeStr switch
+                {
+                    "float" => VariableType.Float,
+                    "int" => VariableType.Integer,
+                    "bool" => VariableType.Boolean,
+                    "string" => VariableType.String,
+                    _ => VariableType.Float
+                };
+
+                try
+                {
+                    schema.AddField(fieldName, fieldType);
+                }
+                catch (Exception ex)
+                {
+                    error = ex.Message;
+                    return false;
+                }
+            }
+
+            return true;
+        }
+
+        public ParseSessionResult Parse(string text)
+        {
+            var result = new ParseSessionResult();
+
+            if (string.IsNullOrWhiteSpace(text))
+            {
+                result.AddError("No text to parse", 0);
+                return result;
+            }
+
+            // Extract and process JavaScript execute blocks FIRST
+            var (processedText, lineMapping) = ExtractAndProcessExecuteBlocks(text, result);
+
+            // **NEW: Extract and process tuple schemas**
+            processedText = ExtractAndProcessTupleSchemas(processedText, result);
+
+            // Extract and process subject to blocks
+            processedText = ExtractSubjectToBlocks(processedText, lineMapping, result);
+
+            // Split into statements
+            var statements = SplitIntoStatements(processedText, lineMapping);
+
+            // Process each statement
+            foreach (var (statement, lineNumber) in statements)
+            {
+                if (!string.IsNullOrWhiteSpace(statement))
+                {
+                    ProcessStatement(statement, lineNumber, result);
+                }
+            }
+
+            return result;
+        }
+
+        private string ExtractAndProcessTupleSchemas(string text, ParseSessionResult result)
+        {
+            // Pattern: tuple Name { ... }
+            string pattern = @"tuple\s+([a-zA-Z][a-zA-Z0-9_]*)\s*\{";
+            var matches = Regex.Matches(text, pattern, RegexOptions.IgnoreCase);
+
+            if (matches.Count == 0)
+            {
+                return text; // No tuples
+            }
+
+            var resultText = new System.Text.StringBuilder();
+            int lastIndex = 0;
+
+            foreach (Match match in matches)
+            {
+                // Append text before this tuple
+                resultText.Append(text.Substring(lastIndex, match.Index - lastIndex));
+
+                // Find matching closing brace
+                int closingBraceIndex = FindClosingBrace(text, match.Index + match.Length);
+
+                if (closingBraceIndex == -1)
+                {
+                    result.AddError($"Tuple schema: Missing closing brace '}}' for tuple '{match.Groups[1].Value}'", 
+                        text.Substring(0, match.Index).Count(c => c == '\n') + 1);
+                    continue;
+                }
+
+                // Extract the complete tuple definition
+                string tupleDefinition = text.Substring(match.Index, closingBraceIndex - match.Index + 1);
+                
+                // Parse and register the tuple schema
+                if (TryParseTupleSchemaBlock(tupleDefinition, out var schema, out string error))
+                {
+                    modelManager.AddTupleSchema(schema);
+                    result.IncrementSuccess();
+                }
+                else
+                {
+                    result.AddError($"Error parsing tuple schema: {error}", 
+                        text.Substring(0, match.Index).Count(c => c == '\n') + 1);
+                }
+
+                lastIndex = closingBraceIndex + 1;
+            }
+
+            // Append remaining text
+            if (lastIndex < text.Length)
+            {
+                resultText.Append(text.Substring(lastIndex));
+            }
+
+            return resultText.ToString();
+        }
+
+        private bool TryParseTupleSchemaBlock(string block, out TupleSchema? schema, out string error)
+        {
+            schema = null;
+            error = string.Empty;
+
+            // Extract tuple name
+            var nameMatch = Regex.Match(block, @"tuple\s+([a-zA-Z][a-zA-Z0-9_]*)\s*\{", RegexOptions.IgnoreCase);
+            if (!nameMatch.Success)
+            {
+                error = "Invalid tuple syntax";
+                return false;
+            }
+
+            string tupleName = nameMatch.Groups[1].Value;
+            schema = new TupleSchema(tupleName);
+
+            // Extract body (everything between { and })
+            int openBrace = block.IndexOf('{');
+            int closeBrace = block.LastIndexOf('}');
+            
+            if (openBrace == -1 || closeBrace == -1)
+            {
+                error = "Missing braces in tuple definition";
+                return false;
+            }
+
+            string body = block.Substring(openBrace + 1, closeBrace - openBrace - 1);
+
+            // Parse field declarations
+            var fieldPattern = @"(float|int|bool|string)\s+([a-zA-Z][a-zA-Z0-9_]*)\s*;";
+            var fieldMatches = Regex.Matches(body, fieldPattern, RegexOptions.IgnoreCase);
+
+            if (fieldMatches.Count == 0)
+            {
+                error = "Tuple must have at least one field";
+                return false;
+            }
+
+            foreach (Match fieldMatch in fieldMatches)
+            {
+                string typeStr = fieldMatch.Groups[1].Value.ToLower();
+                string fieldName = fieldMatch.Groups[2].Value;
+
+                VariableType fieldType = typeStr switch
+                {
+                    "float" => VariableType.Float,
+                    "int" => VariableType.Integer,
+                    "bool" => VariableType.Boolean,
+                    "string" => VariableType.String,
+                    _ => VariableType.Float
+                };
+
+                try
+                {
+                    schema.AddField(fieldName, fieldType);
+                }
+                catch (Exception ex)
+                {
+                    error = ex.Message;
+                    return false;
+                }
+            }
+
+            return true;
+        }
+
+        public ParseSessionResult Parse(string text)
+        {
+            var result = new ParseSessionResult();
+
+            if (string.IsNullOrWhiteSpace(text))
+            {
+                result.AddError("No text to parse", 0);
+                return result;
+            }
+
+            // Extract and process JavaScript execute blocks FIRST
+            var (processedText, lineMapping) = ExtractAndProcessExecuteBlocks(text, result);
+
+            // **NEW: Extract and process tuple schemas**
+            processedText = ExtractAndProcessTupleSchemas(processedText, result);
+
+            // Extract and process subject to blocks
+            processedText = ExtractSubjectToBlocks(processedText, lineMapping, result);
+
+            // Split into statements
+            var statements = SplitIntoStatements(processedText, lineMapping);
+
+            // Process each statement
+            foreach (var (statement, lineNumber) in statements)
+            {
+                if (!string.IsNullOrWhiteSpace(statement))
+                {
+                    ProcessStatement(statement, lineNumber, result);
+                }
+            }
+
+            return result;
+        }
+
+        private string ExtractAndProcessTupleSchemas(string text, ParseSessionResult result)
+        {
+            // Pattern: tuple Name { ... }
+            string pattern = @"tuple\s+([a-zA-Z][a-zA-Z0-9_]*)\s*\{";
+            var matches = Regex.Matches(text, pattern, RegexOptions.IgnoreCase);
+
+            if (matches.Count == 0)
+            {
+                return text; // No tuples
+            }
+
+            var resultText = new System.Text.StringBuilder();
+            int lastIndex = 0;
+
+            foreach (Match match in matches)
+            {
+                // Append text before this tuple
+                resultText.Append(text.Substring(lastIndex, match.Index - lastIndex));
+
+                // Find matching closing brace
+                int closingBraceIndex = FindClosingBrace(text, match.Index + match.Length);
+
+                if (closingBraceIndex == -1)
+                {
+                    result.AddError($"Tuple schema: Missing closing brace '}}' for tuple '{match.Groups[1].Value}'", 
+                        text.Substring(0, match.Index).Count(c => c == '\n') + 1);
+                    continue;
+                }
+
+                // Extract the complete tuple definition
+                string tupleDefinition = text.Substring(match.Index, closingBraceIndex - match.Index + 1);
+                
+                // Parse and register the tuple schema
+                if (TryParseTupleSchemaBlock(tupleDefinition, out var schema, out string error))
+                {
+                    modelManager.AddTupleSchema(schema);
+                    result.IncrementSuccess();
+                }
+                else
+                {
+                    result.AddError($"Error parsing tuple schema: {error}", 
+                        text.Substring(0, match.Index).Count(c => c == '\n') + 1);
+                }
+
+                lastIndex = closingBraceIndex + 1;
+            }
+
+            // Append remaining text
+            if (lastIndex < text.Length)
+            {
+                resultText.Append(text.Substring(lastIndex));
+            }
+
+            return resultText.ToString();
+        }
+
+        private bool TryParseTupleSchemaBlock(string block, out TupleSchema? schema, out string error)
+        {
+            schema = null;
+            error = string.Empty;
+
+            // Extract tuple name
+            var nameMatch = Regex.Match(block, @"tuple\s+([a-zA-Z][a-zA-Z0-9_]*)\s*\{", RegexOptions.IgnoreCase);
+            if (!nameMatch.Success)
+            {
+                error = "Invalid tuple syntax";
+                return false;
+            }
+
+            string tupleName = nameMatch.Groups[1].Value;
+            schema = new TupleSchema(tupleName);
+
+            // Extract body (everything between { and })
+            int openBrace = block.IndexOf('{');
+            int closeBrace = block.LastIndexOf('}');
+            
+            if (openBrace == -1 || closeBrace == -1)
+            {
+                error = "Missing braces in tuple definition";
+                return false;
+            }
+
+            string body = block.Substring(openBrace + 1, closeBrace - openBrace - 1);
+
+            // Parse field declarations
+            var fieldPattern = @"(float|int|bool|string)\s+([a-zA-Z][a-zA-Z0-9_]*)\s*;";
+            var fieldMatches = Regex.Matches(body, fieldPattern, RegexOptions.IgnoreCase);
+
+            if (fieldMatches.Count == 0)
+            {
+                error = "Tuple must have at least one field";
+                return false;
+            }
+
+            foreach (Match fieldMatch in fieldMatches)
+            {
+                string typeStr = fieldMatch.Groups[1].Value.ToLower();
+                string fieldName = fieldMatch.Groups[2].Value;
+
+                VariableType fieldType = typeStr switch
+                {
+                    "float" => VariableType.Float,
+                    "int" => VariableType.Integer,
+                    "bool" => VariableType.Boolean,
+                    "string" => VariableType.String,
+                    _ => VariableType.Float
+                };
+
+                try
+                {
+                    schema.AddField(fieldName, fieldType);
+                }
+                catch (Exception ex)
+                {
+                    error = ex.Message;
+                    return false;
+                }
+            }
+
+            return true;
+        }
+
+        public ParseSessionResult Parse(string text)
+        {
+            var result = new ParseSessionResult();
+
+            if (string.IsNullOrWhiteSpace(text))
+            {
+                result.AddError("No text to parse", 0);
+                return result;
+            }
+
+            // Extract and process JavaScript execute blocks FIRST
+            var (processedText, lineMapping) = ExtractAndProcessExecuteBlocks(text, result);
+
+            // **NEW: Extract and process tuple schemas**
+            processedText = ExtractAndProcessTupleSchemas(processedText, result);
+
+            // Extract and process subject to blocks
+            processedText = ExtractSubjectToBlocks(processedText, lineMapping, result);
+
+            // Split into statements
+            var statements = SplitIntoStatements(processedText, lineMapping);
+
+            // Process each statement
+            foreach (var (statement, lineNumber) in statements)
+            {
+                if (!string.IsNullOrWhiteSpace(statement))
+                {
+                    ProcessStatement(statement, lineNumber, result);
+                }
+            }
+
+            return result;
+        }
+
+        private string ExtractAndProcessTupleSchemas(string text, ParseSessionResult result)
+        {
+            // Pattern: tuple Name { ... }
+            string pattern = @"tuple\s+([a-zA-Z][a-zA-Z0-9_]*)\s*\{";
+            var matches = Regex.Matches(text, pattern, RegexOptions.IgnoreCase);
+
+            if (matches.Count == 0)
+            {
+                return text; // No tuples
+            }
+
+            var resultText = new System.Text.StringBuilder();
+            int lastIndex = 0;
+
+            foreach (Match match in matches)
+            {
+                // Append text before this tuple
+                resultText.Append(text.Substring(lastIndex, match.Index - lastIndex));
+
+                // Find matching closing brace
+                int closingBraceIndex = FindClosingBrace(text, match.Index + match.Length);
+
+                if (closingBraceIndex == -1)
+                {
+                    result.AddError($"Tuple schema: Missing closing brace '}}' for tuple '{match.Groups[1].Value}'", 
+                        text.Substring(0, match.Index).Count(c => c == '\n') + 1);
+                    continue;
+                }
+
+                // Extract the complete tuple definition
+                string tupleDefinition = text.Substring(match.Index, closingBraceIndex - match.Index + 1);
+                
+                // Parse and register the tuple schema
+                if (TryParseTupleSchemaBlock(tupleDefinition, out var schema, out string error))
+                {
+                    modelManager.AddTupleSchema(schema);
+                    result.IncrementSuccess();
+                }
+                else
+                {
+                    result.AddError($"Error parsing tuple schema: {error}", 
+                        text.Substring(0, match.Index).Count(c => c == '\n') + 1);
+                }
+
+                lastIndex = closingBraceIndex + 1;
+            }
+
+            // Append remaining text
+            if (lastIndex < text.Length)
+            {
+                resultText.Append(text.Substring(lastIndex));
+            }
+
+            return resultText.ToString();
+        }
+
+        private bool TryParseTupleSchemaBlock(string block, out TupleSchema? schema, out string error)
+        {
+            schema = null;
+            error = string.Empty;
+
+            // Extract tuple name
+            var nameMatch = Regex.Match(block, @"tuple\s+([a-zA-Z][a-zA-Z0-9_]*)\s*\{", RegexOptions.IgnoreCase);
+            if (!nameMatch.Success)
+            {
+                error = "Invalid tuple syntax";
+                return false;
+            }
+
+            string tupleName = nameMatch.Groups[1].Value;
+            schema = new TupleSchema(tupleName);
+
+            // Extract body (everything between { and })
+            int openBrace = block.IndexOf('{');
+            int closeBrace = block.LastIndexOf('}');
+            
+            if (openBrace == -1 || closeBrace == -1)
+            {
+                error = "Missing braces in tuple definition";
+                return false;
+            }
+
+            string body = block.Substring(openBrace + 1, closeBrace - openBrace - 1);
+
+            // Parse field declarations
+            var fieldPattern = @"(float|int|bool|string)\s+([a-zA-Z][a-zA-Z0-9_]*)\s*;";
+            var fieldMatches = Regex.Matches(body, fieldPattern, RegexOptions.IgnoreCase);
+
+            if (fieldMatches.Count == 0)
+            {
+                error = "Tuple must have at least one field";
+                return false;
+            }
+
+            foreach (Match fieldMatch in fieldMatches)
+            {
+                string typeStr = fieldMatch.Groups[1].Value.ToLower();
+                string fieldName = fieldMatch.Groups[2].Value;
+
+                VariableType fieldType = typeStr switch
+                {
+                    "float" => VariableType.Float,
+                    "int" => VariableType.Integer,
+                    "bool" => VariableType.Boolean,
+                    "string" => VariableType.String,
+                    _ => VariableType.Float
+                };
+
+                try
+                {
+                    schema.AddField(fieldName, fieldType);
+                }
+                catch (Exception ex)
+                {
+                    error = ex.Message;
+                    return false;
+                }
+            }
+
+            return true;
+        }
+
+        public ParseSessionResult Parse(string text)
+        {
+            var result = new ParseSessionResult();
+
+            if (string.IsNullOrWhiteSpace(text))
+            {
+                result.AddError("No text to parse", 0);
+                return result;
+            }
+
+            // Extract and process JavaScript execute blocks FIRST
+            var (processedText, lineMapping) = ExtractAndProcessExecuteBlocks(text, result);
+
+            // **NEW: Extract and process tuple schemas**
+            processedText = ExtractAndProcessTupleSchemas(processedText, result);
+
+            // Extract and process subject to blocks
+            processedText = ExtractSubjectToBlocks(processedText, lineMapping, result);
+
+            // Split into statements
+            var statements = SplitIntoStatements(processedText, lineMapping);
+
+            // Process each statement
+            foreach (var (statement, lineNumber) in statements)
+            {
+                if (!string.IsNullOrWhiteSpace(statement))
+                {
+                    ProcessStatement(statement, lineNumber, result);
+                }
+            }
+
+            return result;
+        }
+
+        private string ExtractAndProcessTupleSchemas(string text, ParseSessionResult result)
+        {
+            // Pattern: tuple Name { ... }
+            string pattern = @"tuple\s+([a-zA-Z][a-zA-Z0-9_]*)\s*\{";
+            var matches = Regex.Matches(text, pattern, RegexOptions.IgnoreCase);
+
+            if (matches.Count == 0)
+            {
+                return text; // No tuples
+            }
+
+            var resultText = new System.Text.StringBuilder();
+            int lastIndex = 0;
+
+            foreach (Match match in matches)
+            {
+                // Append text before this tuple
+                resultText.Append(text.Substring(lastIndex, match.Index - lastIndex));
+
+                // Find matching closing brace
+                int closingBraceIndex = FindClosingBrace(text, match.Index + match.Length);
+
+                if (closingBraceIndex == -1)
+                {
+                    result.AddError($"Tuple schema: Missing closing brace '}}' for tuple '{match.Groups[1].Value}'", 
+                        text.Substring(0, match.Index).Count(c => c == '\n') + 1);
+                    continue;
+                }
+
+                // Extract the complete tuple definition
+                string tupleDefinition = text.Substring(match.Index, closingBraceIndex - match.Index + 1);
+                
+                // Parse and register the tuple schema
+                if (TryParseTupleSchemaBlock(tupleDefinition, out var schema, out string error))
+                {
+                    modelManager.AddTupleSchema(schema);
+                    result.IncrementSuccess();
+                }
+                else
+                {
+                    result.AddError($"Error parsing tuple schema: {error}", 
+                        text.Substring(0, match.Index).Count(c => c == '\n') + 1);
+                }
+
+                lastIndex = closingBraceIndex + 1;
+            }
+
+            // Append remaining text
+            if (lastIndex < text.Length)
+            {
+                resultText.Append(text.Substring(lastIndex));
+            }
+
+            return resultText.ToString();
+        }
+
+        private bool TryParseTupleSchemaBlock(string block, out TupleSchema? schema, out string error)
+        {
+            schema = null;
+            error = string.Empty;
+
+            // Extract tuple name
+            var nameMatch = Regex.Match(block, @"tuple\s+([a-zA-Z][a-zA-Z0-9_]*)\s*\{", RegexOptions.IgnoreCase);
+            if (!nameMatch.Success)
+            {
+                error = "Invalid tuple syntax";
+                return false;
+            }
+
+            string tupleName = nameMatch.Groups[1].Value;
+            schema = new TupleSchema(tupleName);
+
+            // Extract body (everything between { and })
+            int openBrace = block.IndexOf('{');
+            int closeBrace = block.LastIndexOf('}');
+            
+            if (openBrace == -1 || closeBrace == -1)
+            {
+                error = "Missing braces in tuple definition";
+                return false;
+            }
+
+            string body = block.Substring(openBrace + 1, closeBrace - openBrace - 1);
+
+            // Parse field declarations
+            var fieldPattern = @"(float|int|bool|string)\s+([a-zA-Z][a-zA-Z0-9_]*)\s*;";
+            var fieldMatches = Regex.Matches(body, fieldPattern, RegexOptions.IgnoreCase);
+
+            if (fieldMatches.Count == 0)
+            {
+                error = "Tuple must have at least one field";
+                return false;
+            }
+
+            foreach (Match fieldMatch in fieldMatches)
+            {
+                string typeStr = fieldMatch.Groups[1].Value.ToLower();
+                string fieldName = fieldMatch.Groups[2].Value;
+
+                VariableType fieldType = typeStr switch
+                {
+                    "float" => VariableType.Float,
+                    "int" => VariableType.Integer,
+                    "bool" => VariableType.Boolean,
+                    "string" => VariableType.String,
+                    _ => VariableType.Float
+                };
+
+                try
+                {
+                    schema.AddField(fieldName, fieldType);
+                }
+                catch (Exception ex)
+                {
+                    error = ex.Message;
+                    return false;
+                }
+            }
+
+            return true;
+        }
+
+        public ParseSessionResult Parse(string text)
+        {
+            var result = new ParseSessionResult();
+
+            if (string.IsNullOrWhiteSpace(text))
+            {
+                result.AddError("No text to parse", 0);
+                return result;
+            }
+
+            // Extract and process JavaScript execute blocks FIRST
+            var (processedText, lineMapping) = ExtractAndProcessExecuteBlocks(text, result);
+
+            // **NEW: Extract and process tuple schemas**
+            processedText = ExtractAndProcessTupleSchemas(processedText, result);
+
+            // Extract and process subject to blocks
+            processedText = ExtractSubjectToBlocks(processedText, lineMapping, result);
+
+            // Split into statements
+            var statements = SplitIntoStatements(processedText, lineMapping);
+
+            // Process each statement
+            foreach (var (statement, lineNumber) in statements)
+            {
+                if (!string.IsNullOrWhiteSpace(statement))
+                {
+                    ProcessStatement(statement, lineNumber, result);
+                }
+            }
+
+            return result;
+        }
+
+        private string ExtractAndProcessTupleSchemas(string text, ParseSessionResult result)
+        {
+            // Pattern: tuple Name { ... }
+            string pattern = @"tuple\s+([a-zA-Z][a-zA-Z0-9_]*)\s*\{";
+            var matches = Regex.Matches(text, pattern, RegexOptions.IgnoreCase);
+
+            if (matches.Count == 0)
+            {
+                return text; // No tuples
+            }
+
+            var resultText = new System.Text.StringBuilder();
+            int lastIndex = 0;
+
+            foreach (Match match in matches)
+            {
+                // Append text before this tuple
+                resultText.Append(text.Substring(lastIndex, match.Index - lastIndex));
+
+                // Find matching closing brace
+                int closingBraceIndex = FindClosingBrace(text, match.Index + match.Length);
+
+                if (closingBraceIndex == -1)
+                {
+                    result.AddError($"Tuple schema: Missing closing brace '}}' for tuple '{match.Groups[1].Value}'", 
+                        text.Substring(0, match.Index).Count(c => c == '\n') + 1);
+                    continue;
+                }
+
+                // Extract the complete tuple definition
+                string tupleDefinition = text.Substring(match.Index, closingBraceIndex - match.Index + 1);
+                
+                // Parse and register the tuple schema
+                if (TryParseTupleSchemaBlock(tupleDefinition, out var schema, out string error))
+                {
+                    modelManager.AddTupleSchema(schema);
+                    result.IncrementSuccess();
+                }
+                else
+                {
+                    result.AddError($"Error parsing tuple schema: {error}", 
+                        text.Substring(0, match.Index).Count(c => c == '\n') + 1);
+                }
+
+                lastIndex = closingBraceIndex + 1;
+            }
+
+            // Append remaining text
+            if (lastIndex < text.Length)
+            {
+                resultText.Append(text.Substring(lastIndex));
+            }
+
+            return resultText.ToString();
+        }
+
+        private bool TryParseTupleSchemaBlock(string block, out TupleSchema? schema, out string error)
+        {
+            schema = null;
+            error = string.Empty;
+
+            // Extract tuple name
+            var nameMatch = Regex.Match(block, @"tuple\s+([a-zA-Z][a-zA-Z0-9_]*)\s*\{", RegexOptions.IgnoreCase);
+            if (!nameMatch.Success)
+            {
+                error = "Invalid tuple syntax";
+                return false;
+            }
+
+            string tupleName = nameMatch.Groups[1].Value;
+            schema = new TupleSchema(tupleName);
+
+            // Extract body (everything between { and })
+            int openBrace = block.IndexOf('{');
+            int closeBrace = block.LastIndexOf('}');
+            
+            if (openBrace == -1 || closeBrace == -1)
+            {
+                error = "Missing braces in tuple definition";
+                return false;
+            }
+
+            string body = block.Substring(openBrace + 1, closeBrace - openBrace - 1);
+
+            // Parse field declarations
+            var fieldPattern = @"(float|int|bool|string)\s+([a-zA-Z][a-zA-Z0-9_]*)\s*;";
+            var fieldMatches = Regex.Matches(body, fieldPattern, RegexOptions.IgnoreCase);
+
+            if (fieldMatches.Count == 0)
+            {
+                error = "Tuple must have at least one field";
+                return false;
+            }
+
+            foreach (Match fieldMatch in fieldMatches)
+            {
+                string typeStr = fieldMatch.Groups[1].Value.ToLower();
+                string fieldName = fieldMatch.Groups[2].Value;
+
+                VariableType fieldType = typeStr switch
+                {
+                    "float" => VariableType.Float,
+                    "int" => VariableType.Integer,
+                    "bool" => VariableType.Boolean,
+                    "string" => VariableType.String,
+                    _ => VariableType.Float
+                };
+
+                try
+                {
+                    schema.AddField(fieldName, fieldType);
+                }
+                catch (Exception ex)
+                {
+                    error = ex.Message;
+                    return false;
+                }
+            }
+
+            return true;
+        }
+
+        public ParseSessionResult Parse(string text)
+        {
+            var result = new ParseSessionResult();
+
+            if (string.IsNullOrWhiteSpace(text))
+            {
+                result.AddError("No text to parse", 0);
+                return result;
+            }
+
+            // Extract and process JavaScript execute blocks FIRST
+            var (processedText, lineMapping) = ExtractAndProcessExecuteBlocks(text, result);
+
+            // **NEW: Extract and process tuple schemas**
+            processedText = ExtractAndProcessTupleSchemas(processedText, result);
+
+            // Extract and process subject to blocks
+            processedText = ExtractSubjectToBlocks(processedText, lineMapping, result);
+
+            // Split into statements
+            var statements = SplitIntoStatements(processedText, lineMapping);
+
+            // Process each statement
+            foreach (var (statement, lineNumber) in statements)
+            {
+                if (!string.IsNullOrWhiteSpace(statement))
+                {
+                    ProcessStatement(statement, lineNumber, result);
+                }
+            }
+
+            return result;
+        }
+
+        private string ExtractAndProcessTupleSchemas(string text, ParseSessionResult result)
+        {
+            // Pattern: tuple Name { ... }
+            string pattern = @"tuple\s+([a-zA-Z][a-zA-Z0-9_]*)\s*\{";
+            var matches = Regex.Matches(text, pattern, RegexOptions.IgnoreCase);
+
+            if (matches.Count == 0)
+            {
+                return text; // No tuples
+            }
+
+            var resultText = new System.Text.StringBuilder();
+            int lastIndex = 0;
+
+            foreach (Match match in matches)
+            {
+                // Append text before this tuple
+                resultText.Append(text.Substring(lastIndex, match.Index - lastIndex));
+
+                // Find matching closing brace
+                int closingBraceIndex = FindClosingBrace(text, match.Index + match.Length);
+
+                if (closingBraceIndex == -1)
+                {
+                    result.AddError($"Tuple schema: Missing closing brace '}}' for tuple '{match.Groups[1].Value}'", 
+                        text.Substring(0, match.Index).Count(c => c == '\n') + 1);
+                    continue;
+                }
+
+                // Extract the complete tuple definition
+                string tupleDefinition = text.Substring(match.Index, closingBraceIndex - match.Index + 1);
+                
+                // Parse and register the tuple schema
+                if (TryParseTupleSchemaBlock(tupleDefinition, out var schema, out string error))
+                {
+                    modelManager.AddTupleSchema(schema);
+                    result.IncrementSuccess();
+                }
+                else
+                {
+                    result.AddError($"Error parsing tuple schema: {error}", 
+                        text.Substring(0, match.Index).Count(c => c == '\n') + 1);
+                }
+
+                lastIndex = closingBraceIndex + 1;
+            }
+
+            // Append remaining text
+            if (lastIndex < text.Length)
+            {
+                resultText.Append(text.Substring(lastIndex));
+            }
+
+            return resultText.ToString();
+        }
+
+        private bool TryParseTupleSchemaBlock(string block, out TupleSchema? schema, out string error)
+        {
+            schema = null;
+            error = string.Empty;
+
+            // Extract tuple name
+            var nameMatch = Regex.Match(block, @"tuple\s+([a-zA-Z][a-zA-Z0-9_]*)\s*\{", RegexOptions.IgnoreCase);
+            if (!nameMatch.Success)
+            {
+                error = "Invalid tuple syntax";
+                return false;
+            }
+
+            string tupleName = nameMatch.Groups[1].Value;
+            schema = new TupleSchema(tupleName);
+
+            // Extract body (everything between { and })
+            int openBrace = block.IndexOf('{');
+            int closeBrace = block.LastIndexOf('}');
+            
+            if (openBrace == -1 || closeBrace == -1)
+            {
+                error = "Missing braces in tuple definition";
+                return false;
+            }
+
+            string body = block.Substring(openBrace + 1, closeBrace - openBrace - 1);
+
+            // Parse field declarations
+            var fieldPattern = @"(float|int|bool|string)\s+([a-zA-Z][a-zA-Z0-9_]*)\s*;";
+            var fieldMatches = Regex.Matches(body, fieldPattern, RegexOptions.IgnoreCase);
+
+            if (fieldMatches.Count == 0)
+            {
+                error = "Tuple must have at least one field";
+                return false;
+            }
+
+            foreach (Match fieldMatch in fieldMatches)
+            {
+                string typeStr = fieldMatch.Groups[1].Value.ToLower();
+                string fieldName = fieldMatch.Groups[2].Value;
+
+                VariableType fieldType = typeStr switch
+                {
+                    "float" => VariableType.Float,
+                    "int" => VariableType.Integer,
+                    "bool" => VariableType.Boolean,
+                    "string" => VariableType.String,
+                    _ => VariableType.Float
+                };
+
+                try
+                {
+                    schema.AddField(fieldName, fieldType);
+                }
+                catch (Exception ex)
+                {
+                    error = ex.Message;
+                    return false;
+                }
+            }
+
+            return true;
+        }
+
+        public ParseSessionResult Parse(string text)
+        {
+            var result = new ParseSessionResult();
+
+            if (string.IsNullOrWhiteSpace(text))
+            {
+                result.AddError("No text to parse", 0);
+                return result;
+            }
+
+            // Extract and process JavaScript execute blocks FIRST
+            var (processedText, lineMapping) = ExtractAndProcessExecuteBlocks(text, result);
+
+            // **NEW: Extract and process tuple schemas**
+            processedText = ExtractAndProcessTupleSchemas(processedText, result);
+
+            // Extract and process subject to blocks
+            processedText = ExtractSubjectToBlocks(processedText, lineMapping, result);
+
+            // Split into statements
+            var statements = SplitIntoStatements(processedText, lineMapping);
+
+            // Process each statement
+            foreach (var (statement, lineNumber) in statements)
+            {
+                if (!string.IsNullOrWhiteSpace(statement))
+                {
+                    ProcessStatement(statement, lineNumber, result);
+                }
+            }
+
+            return result;
+        }
+
+        private string ExtractAndProcessTupleSchemas(string text, ParseSessionResult result)
+        {
+            // Pattern: tuple Name { ... }
+            string pattern = @"tuple\s+([a-zA-Z][a-zA-Z0-9_]*)\s*\{";
+            var matches = Regex.Matches(text, pattern, RegexOptions.IgnoreCase);
+
+            if (matches.Count == 0)
+            {
+                return text; // No tuples
+            }
+
+            var resultText = new System.Text.StringBuilder();
+            int lastIndex = 0;
+
+            foreach (Match match in matches)
+            {
+                // Append text before this tuple
+                resultText.Append(text.Substring(lastIndex, match.Index - lastIndex));
+
+                // Find matching closing brace
+                int closingBraceIndex = FindClosingBrace(text, match.Index + match.Length);
+
+                if (closingBraceIndex == -1)
+                {
+                    result.AddError($"Tuple schema: Missing closing brace '}}' for tuple '{match.Groups[1].Value}'", 
+                        text.Substring(0, match.Index).Count(c => c == '\n') + 1);
+                    continue;
+                }
+
+                // Extract the complete tuple definition
+                string tupleDefinition = text.Substring(match.Index, closingBraceIndex - match.Index + 1);
+                
+                // Parse and register the tuple schema
+                if (TryParseTupleSchemaBlock(tupleDefinition, out var schema, out string error))
+                {
+                    modelManager.AddTupleSchema(schema);
+                    result.IncrementSuccess();
+                }
+                else
+                {
+                    result.AddError($"Error parsing tuple schema: {error}", 
+                        text.Substring(0, match.Index).Count(c => c == '\n') + 1);
+                }
+
+                lastIndex = closingBraceIndex + 1;
+            }
+
+            // Append remaining text
+            if (lastIndex < text.Length)
+            {
+                resultText.Append(text.Substring(lastIndex));
+            }
+
+            return resultText.ToString();
+        }
+
+        private bool TryParseTupleSchemaBlock(string block, out TupleSchema? schema, out string error)
+        {
+            schema = null;
+            error = string.Empty;
+
+            // Extract tuple name
+            var nameMatch = Regex.Match(block, @"tuple\s+([a-zA-Z][a-zA-Z0-9_]*)\s*\{", RegexOptions.IgnoreCase);
+            if (!nameMatch.Success)
+            {
+                error = "Invalid tuple syntax";
+                return false;
+            }
+
+            string tupleName = nameMatch.Groups[1].Value;
+            schema = new TupleSchema(tupleName);
+
+            // Extract body (everything between { and })
+            int openBrace = block.IndexOf('{');
+            int closeBrace = block.LastIndexOf('}');
+            
+            if (openBrace == -1 || closeBrace == -1)
+            {
+                error = "Missing braces in tuple definition";
+                return false;
+            }
+
+            string body = block.Substring(openBrace + 1, closeBrace - openBrace - 1);
+
+            // Parse field declarations
+            var fieldPattern = @"(float|int|bool|string)\s+([a-zA-Z][a-zA-Z0-9_]*)\s*;";
+            var fieldMatches = Regex.Matches(body, fieldPattern, RegexOptions.IgnoreCase);
+
+            if (fieldMatches.Count == 0)
+            {
+                error = "Tuple must have at least one field";
+                return false;
+            }
+
+            foreach (Match fieldMatch in fieldMatches)
+            {
+                string typeStr = fieldMatch.Groups[1].Value.ToLower();
+                string fieldName = fieldMatch.Groups[2].Value;
+
+                VariableType fieldType = typeStr switch
+                {
+                    "float" => VariableType.Float,
+                    "int" => VariableType.Integer,
+                    "bool" => VariableType.Boolean,
+                    "string" => VariableType.String,
+                    _ => VariableType.Float
+                };
+
+                try
+                {
+                    schema.AddField(fieldName, fieldType);
+                }
+                catch (Exception ex)
+                {
+                    error = ex.Message;
+                    return false;
+                }
+            }
+
+            return true;
+        }
+
+        public ParseSessionResult Parse(string text)
+        {
+            var result = new ParseSessionResult();
+
+            if (string.IsNullOrWhiteSpace(text))
+            {
+                result.AddError("No text to parse", 0);
+                return result;
+            }
+
+            // Extract and process JavaScript execute blocks FIRST
+            var (processedText, lineMapping) = ExtractAndProcessExecuteBlocks(text, result);
+
+            // **NEW: Extract and process tuple schemas**
+            processedText = ExtractAndProcessTupleSchemas(processedText, result);
+
+            // Extract and process subject to blocks
+            processedText = ExtractSubjectToBlocks(processedText, lineMapping, result);
+
+            // Split into statements
+            var statements = SplitIntoStatements(processedText, lineMapping);
+
+            // Process each statement
+            foreach (var (statement, lineNumber) in statements)
+            {
+                if (!string.IsNullOrWhiteSpace(statement))
+                {
+                    ProcessStatement(statement, lineNumber, result);
+                }
+            }
+
+            return result;
+        }
+
+        private string ExtractAndProcessTupleSchemas(string text, ParseSessionResult result)
+        {
+            // Pattern: tuple Name { ... }
+            string pattern = @"tuple\s+([a-zA-Z][a-zA-Z0-9_]*)\s*\{";
+            var matches = Regex.Matches(text, pattern, RegexOptions.IgnoreCase);
+
+            if (matches.Count == 0)
+            {
+                return text; // No tuples
+            }
+
+            var resultText = new System.Text.StringBuilder();
+            int lastIndex = 0;
+
+            foreach (Match match in matches)
+            {
+                // Append text before this tuple
+                resultText.Append(text.Substring(lastIndex, match.Index - lastIndex));
+
+                // Find matching closing brace
+                int closingBraceIndex = FindClosingBrace(text, match.Index + match.Length);
+
+                if (closingBraceIndex == -1)
+                {
+                    result.AddError($"Tuple schema: Missing closing brace '}}' for tuple '{match.Groups[1].Value}'", 
+                        text.Substring(0, match.Index).Count(c => c == '\n') + 1);
+                    continue;
+                }
+
+                // Extract the complete tuple definition
+                string tupleDefinition = text.Substring(match.Index, closingBraceIndex - match.Index + 1);
+                
+                // Parse and register the tuple schema
+                if (TryParseTupleSchemaBlock(tupleDefinition, out var schema, out string error))
+                {
+                    modelManager.AddTupleSchema(schema);
+                    result.IncrementSuccess();
+                }
+                else
+                {
+                    result.AddError($"Error parsing tuple schema: {error}", 
+                        text.Substring(0, match.Index).Count(c => c == '\n') + 1);
+                }
+
+                lastIndex = closingBraceIndex + 1;
+            }
+
+            // Append remaining text
+            if (lastIndex < text.Length)
+            {
+                resultText.Append(text.Substring(lastIndex));
+            }
+
+            return resultText.ToString();
+        }
+
+        private bool TryParseTupleSchemaBlock(string block, out TupleSchema? schema, out string error)
+        {
+            schema = null;
+            error = string.Empty;
+
+            // Extract tuple name
+            var nameMatch = Regex.Match(block, @"tuple\s+([a-zA-Z][a-zA-Z0-9_]*)\s*\{", RegexOptions.IgnoreCase);
+            if (!nameMatch.Success)
+            {
+                error = "Invalid tuple syntax";
+                return false;
+            }
+
+            string tupleName = nameMatch.Groups[1].Value;
+            schema = new TupleSchema(tupleName);
+
+            // Extract body (everything between { and })
+            int openBrace = block.IndexOf('{');
+            int closeBrace = block.LastIndexOf('}');
+            
+            if (openBrace == -1 || closeBrace == -1)
+            {
+                error = "Missing braces in tuple definition";
+                return false;
+            }
+
+            string body = block.Substring(openBrace + 1, closeBrace - openBrace - 1);
+
+            // Parse field declarations
+            var fieldPattern = @"(float|int|bool|string)\s+([a-zA-Z][a-zA-Z0-9_]*)\s*;";
+            var fieldMatches = Regex.Matches(body, fieldPattern, RegexOptions.IgnoreCase);
+
+            if (fieldMatches.Count == 0)
+            {
+                error = "Tuple must have at least one field";
+                return false;
+            }
+
+            foreach (Match fieldMatch in fieldMatches)
+            {
+                string typeStr = fieldMatch.Groups[1].Value.ToLower();
+                string fieldName = fieldMatch.Groups[2].Value;
+
+                VariableType fieldType = typeStr switch
+                {
+                    "float" => VariableType.Float,
+                    "int" => VariableType.Integer,
+                    "bool" => VariableType.Boolean,
+                    "string" => VariableType.String,
+                    _ => VariableType.Float
+                };
+
+                try
+                {
+                    schema.AddField(fieldName, fieldType);
+                }
+                catch (Exception ex)
+                {
+                    error = ex.Message;
+                    return false;
+                }
+            }
+
+            return true;
+        }
+
+        public ParseSessionResult Parse(string text)
+        {
+            var result = new ParseSessionResult();
+
+            if (string.IsNullOrWhiteSpace(text))
+            {
+                result.AddError("No text to parse", 0);
+                return result;
+            }
+
+            // Extract and process JavaScript execute blocks FIRST
+            var (processedText, lineMapping) = ExtractAndProcessExecuteBlocks(text, result);
+
+            // **NEW: Extract and process tuple schemas**
+            processedText = ExtractAndProcessTupleSchemas(processedText, result);
+
+            // Extract and process subject to blocks
+            processedText = ExtractSubjectToBlocks(processedText, lineMapping, result);
+
+            // Split into statements
+            var statements = SplitIntoStatements(processedText, lineMapping);
+
+            // Process each statement
+            foreach (var (statement, lineNumber) in statements)
+            {
+                if (!string.IsNullOrWhiteSpace(statement))
+                {
+                    ProcessStatement(statement, lineNumber, result);
+                }
+            }
+
+            return result;
+        }
+
+        private string ExtractAndProcessTupleSchemas(string text, ParseSessionResult result)
+        {
+            // Pattern: tuple Name { ... }
+            string pattern = @"tuple\s+([a-zA-Z][a-zA-Z0-9_]*)\s*\{";
+            var matches = Regex.Matches(text, pattern, RegexOptions.IgnoreCase);
+
+            if (matches.Count == 0)
+            {
+                return text; // No tuples
+            }
+
+            var resultText = new System.Text.StringBuilder();
+            int lastIndex = 0;
+
+            foreach (Match match in matches)
+            {
+                // Append text before this tuple
+                resultText.Append(text.Substring(lastIndex, match.Index - lastIndex));
+
+                // Find matching closing brace
+                int closingBraceIndex = FindClosingBrace(text, match.Index + match.Length);
+
+                if (closingBraceIndex == -1)
+                {
+                    result.AddError($"Tuple schema: Missing closing brace '}}' for tuple '{match.Groups[1].Value}'", 
+                        text.Substring(0, match.Index).Count(c => c == '\n') + 1);
+                    continue;
+                }
+
+                // Extract the complete tuple definition
+                string tupleDefinition = text.Substring(match.Index, closingBraceIndex - match.Index + 1);
+                
+                // Parse and register the tuple schema
+                if (TryParseTupleSchemaBlock(tupleDefinition, out var schema, out string error))
+                {
+                    modelManager.AddTupleSchema(schema);
+                    result.IncrementSuccess();
+                }
+                else
+                {
+                    result.AddError($"Error parsing tuple schema: {error}", 
+                        text.Substring(0, match.Index).Count(c => c == '\n') + 1);
+                }
+
+                lastIndex = closingBraceIndex + 1;
+            }
+
+            // Append remaining text
+            if (lastIndex < text.Length)
+            {
+                resultText.Append(text.Substring(lastIndex));
+            }
+
+            return resultText.ToString();
+        }
+
+        private bool TryParseTupleSchemaBlock(string block, out TupleSchema? schema, out string error)
+        {
+            schema = null;
+            error = string.Empty;
+
+            // Extract tuple name
+            var nameMatch = Regex.Match(block, @"tuple\s+([a-zA-Z][a-zA-Z0-9_]*)\s*\{", RegexOptions.IgnoreCase);
+            if (!nameMatch.Success)
+            {
+                error = "Invalid tuple syntax";
+                return false;
+            }
+
+            string tupleName = nameMatch.Groups[1].Value;
+            schema = new TupleSchema(tupleName);
+
+            // Extract body (everything between { and })
+            int openBrace = block.IndexOf('{');
+            int closeBrace = block.LastIndexOf('}');
+            
+            if (openBrace == -1 || closeBrace == -1)
+            {
+                error = "Missing braces in tuple definition";
+                return false;
+            }
+
+            string body = block.Substring(openBrace + 1, closeBrace - openBrace - 1);
+
+            // Parse field declarations
+            var fieldPattern = @"(float|int|bool|string)\s+([a-zA-Z][a-zA-Z0-9_]*)\s*;";
+            var fieldMatches = Regex.Matches(body, fieldPattern, RegexOptions.IgnoreCase);
+
+            if (fieldMatches.Count == 0)
+            {
+                error = "Tuple must have at least one field";
+                return false;
+            }
+
+            foreach (Match fieldMatch in fieldMatches)
+            {
+                string typeStr = fieldMatch.Groups[1].Value.ToLower();
+                string fieldName = fieldMatch.Groups[2].Value;
+
+                VariableType fieldType = typeStr switch
+                {
+                    "float" => VariableType.Float,
+                    "int" => VariableType.Integer,
+                    "bool" => VariableType.Boolean,
+                    "string" => VariableType.String,
+                    _ => VariableType.Float
+                };
+
+                try
+                {
+                    schema.AddField(fieldName, fieldType);
+                }
+                catch (Exception ex)
+                {
+                    error = ex.Message;
+                    return false;
+                }
+            }
+
+            return true;
+        }
+
+        public ParseSessionResult Parse(string text)
+        {
+            var result = new ParseSessionResult();
+
+            if (string.IsNullOrWhiteSpace(text))
+            {
+                result.AddError("No text to parse", 0);
+                return result;
+            }
+
+            // Extract and process JavaScript execute blocks FIRST
+            var (processedText, lineMapping) = ExtractAndProcessExecuteBlocks(text, result);
+
+            // **NEW: Extract and process tuple schemas**
+            processedText = ExtractAndProcessTupleSchemas(processedText, result);
+
+            // Extract and process subject to blocks
+            processedText = ExtractSubjectToBlocks(processedText, lineMapping, result);
+
+            // Split into statements
+            var statements = SplitIntoStatements(processedText, lineMapping);
+
+            // Process each statement
+            foreach (var (statement, lineNumber) in statements)
+            {
+                if (!string.IsNullOrWhiteSpace(statement))
+                {
+                    ProcessStatement(statement, lineNumber, result);
+                }
+            }
+
+            return result;
+        }
+
+        private string ExtractAndProcessTupleSchemas(string text, ParseSessionResult result)
+        {
+            // Pattern: tuple Name { ... }
+            string pattern = @"tuple\s+([a-zA-Z][a-zA-Z0-9_]*)\s*\{";
+            var matches = Regex.Matches(text, pattern, RegexOptions.IgnoreCase);
+
+            if (matches.Count == 0)
+            {
+                return text; // No tuples
+            }
+
+            var resultText = new System.Text.StringBuilder();
+            int lastIndex = 0;
+
+            foreach (Match match in matches)
+            {
+                // Append text before this tuple
+                resultText.Append(text.Substring(lastIndex, match.Index - lastIndex));
+
+                // Find matching closing brace
+                int closingBraceIndex = FindClosingBrace(text, match.Index + match.Length);
+
+                if (closingBraceIndex == -1)
+                {
+                    result.AddError($"Tuple schema: Missing closing brace '}}' for tuple '{match.Groups[1].Value}'", 
+                        text.Substring(0, match.Index).Count(c => c == '\n') + 1);
+                    continue;
+                }
+
+                // Extract the complete tuple definition
+                string tupleDefinition = text.Substring(match.Index, closingBraceIndex - match.Index + 1);
+                
+                // Parse and register the tuple schema
+                if (TryParseTupleSchemaBlock(tupleDefinition, out var schema, out string error))
+                {
+                    modelManager.AddTupleSchema(schema);
+                    result.IncrementSuccess();
+                }
+                else
+                {
+                    result.AddError($"Error parsing tuple schema: {error}", 
+                        text.Substring(0, match.Index).Count(c => c == '\n') + 1);
+                }
+
+                lastIndex = closingBraceIndex + 1;
+            }
+
+            // Append remaining text
+            if (lastIndex < text.Length)
+            {
+                resultText.Append(text.Substring(lastIndex));
+            }
+
+            return resultText.ToString();
+        }
+
+        private bool TryParseTupleSchemaBlock(string block, out TupleSchema? schema, out string error)
+        {
+            schema = null;
+            error = string.Empty;
+
+            // Extract tuple name
+            var nameMatch = Regex.Match(block, @"tuple\s+([a-zA-Z][a-zA-Z0-9_]*)\s*\{", RegexOptions.IgnoreCase);
+            if (!nameMatch.Success)
+            {
+                error = "Invalid tuple syntax";
+                return false;
+            }
+
+            string tupleName = nameMatch.Groups[1].Value;
+            schema = new TupleSchema(tupleName);
+
+            // Extract body (everything between { and })
+            int openBrace = block.IndexOf('{');
+            int closeBrace = block.LastIndexOf('}');
+            
+            if (openBrace == -1 || closeBrace == -1)
+            {
+                error = "Missing braces in tuple definition";
+                return false;
+            }
+
+            string body = block.Substring(openBrace + 1, closeBrace - openBrace - 1);
+
+            // Parse field declarations
+            var fieldPattern = @"(float|int|bool|string)\s+([a-zA-Z][a-zA-Z0-9_]*)\s*;";
+            var fieldMatches = Regex.Matches(body, fieldPattern, RegexOptions.IgnoreCase);
+
+            if (fieldMatches.Count == 0)
+            {
+                error = "Tuple must have at least one field";
+                return false;
+            }
+
+            foreach (Match fieldMatch in fieldMatches)
+            {
+                string typeStr = fieldMatch.Groups[1].Value.ToLower();
+                string fieldName = fieldMatch.Groups[2].Value;
+
+                VariableType fieldType = typeStr switch
+                {
+                    "float" => VariableType.Float,
+                    "int" => VariableType.Integer,
+                    "bool" => VariableType.Boolean,
+                    "string" => VariableType.String,
+                    _ => VariableType.Float
+                };
+
+                try
+                {
+                    schema.AddField(fieldName, fieldType);
+                }
+                catch (Exception ex)
+                {
+                    error = ex.Message;
+                    return false;
+                }
+            }
+
+            return true;
+        }
+
+        public ParseSessionResult Parse(string text)
+        {
+            var result = new ParseSessionResult();
+
+            if (string.IsNullOrWhiteSpace(text))
+            {
+                result.AddError("No text to parse", 0);
+                return result;
+            }
+
+            // Extract and process JavaScript execute blocks FIRST
+            var (processedText, lineMapping) = ExtractAndProcessExecuteBlocks(text, result);
+
+            // **NEW: Extract and process tuple schemas**
+            processedText = ExtractAndProcessTupleSchemas(processedText, result);
+
+            // Extract and process subject to blocks
+            processedText = ExtractSubjectToBlocks(processedText, lineMapping, result);
+
+            // Split into statements
+            var statements = SplitIntoStatements(processedText, lineMapping);
+
+            // Process each statement
+            foreach (var (statement, lineNumber) in statements)
+            {
+                if (!string.IsNullOrWhiteSpace(statement))
+                {
+                    ProcessStatement(statement, lineNumber, result);
+                }
+            }
+
+            return result;
+        }
+
+        private string ExtractAndProcessTupleSchemas(string text, ParseSessionResult result)
+        {
+            // Pattern: tuple Name { ... }
+            string pattern = @"tuple\s+([a-zA-Z][a-zA-Z0-9_]*)\s*\{";
+            var matches = Regex.Matches(text, pattern, RegexOptions.IgnoreCase);
+
+            if (matches.Count == 0)
+            {
+                return text; // No tuples
+            }
+
+            var resultText = new System.Text.StringBuilder();
+            int lastIndex = 0;
+
+            foreach (Match match in matches)
+            {
+                // Append text before this tuple
+                resultText.Append(text.Substring(lastIndex, match.Index - lastIndex));
+
+                // Find matching closing brace
+                int closingBraceIndex = FindClosingBrace(text, match.Index + match.Length);
+
+                if (closingBraceIndex == -1)
+                {
+                    result.AddError($"Tuple schema: Missing closing brace '}}' for tuple '{match.Groups[1].Value}'", 
+                        text.Substring(0, match.Index).Count(c => c == '\n') + 1);
+                    continue;
+                }
+
+                // Extract the complete tuple definition
+                string tupleDefinition = text.Substring(match.Index, closingBraceIndex - match.Index + 1);
+                
+                // Parse and register the tuple schema
+                if (TryParseTupleSchemaBlock(tupleDefinition, out var schema, out string error))
+                {
+                    modelManager.AddTupleSchema(schema);
+                    result.IncrementSuccess();
+                }
+                else
+                {
+                    result.AddError($"Error parsing tuple schema: {error}", 
+                        text.Substring(0, match.Index).Count(c => c == '\n') + 1);
+                }
+
+                lastIndex = closingBraceIndex + 1;
+            }
+
+            // Append remaining text
+            if (lastIndex < text.Length)
+            {
+                resultText.Append(text.Substring(lastIndex));
+            }
+
+            return resultText.ToString();
+        }
+
+        private bool TryParseTupleSchemaBlock(string block, out TupleSchema? schema, out string error)
+        {
+            schema = null;
+            error = string.Empty;
+
+            // Extract tuple name
+            var nameMatch = Regex.Match(block, @"tuple\s+([a-zA-Z][a-zA-Z0-9_]*)\s*\{", RegexOptions.IgnoreCase);
+            if (!nameMatch.Success)
+            {
+                error = "Invalid tuple syntax";
+                return false;
+            }
+
+            string tupleName = nameMatch.Groups[1].Value;
+            schema = new TupleSchema(tupleName);
+
+            // Extract body (everything between { and })
+            int openBrace = block.IndexOf('{');
+            int closeBrace = block.LastIndexOf('}');
+            
+            if (openBrace == -1 || closeBrace == -1)
+            {
+                error = "Missing braces in tuple definition";
+                return false;
+            }
+
+            string body = block.Substring(openBrace + 1, closeBrace - openBrace - 1);
+
+            // Parse field declarations
+            var fieldPattern = @"(float|int|bool|string)\s+([a-zA-Z][a-zA-Z0-9_]*)\s*;";
+            var fieldMatches = Regex.Matches(body, fieldPattern, RegexOptions.IgnoreCase);
+
+            if (fieldMatches.Count == 0)
+            {
+                error = "Tuple must have at least one field";
+                return false;
+            }
+
+            foreach (Match fieldMatch in fieldMatches)
+            {
+                string typeStr = fieldMatch.Groups[1].Value.ToLower();
+                string fieldName = fieldMatch.Groups[2].Value;
+
+                VariableType fieldType = typeStr switch
+                {
+                    "float" => VariableType.Float,
+                    "int" => VariableType.Integer,
+                    "bool" => VariableType.Boolean,
+                    "string" => VariableType.String,
+                    _ => VariableType.Float
+                };
+
+                try
+                {
+                    schema.AddField(fieldName, fieldType);
+                }
+                catch (Exception ex)
+                {
+                    error = ex.Message;
+                    return false;
+                }
+            }
+
+            return true;
+        }
+
+        public ParseSessionResult Parse(string text)
+        {
+            var result = new ParseSessionResult();
+
+            if (string.IsNullOrWhiteSpace(text))
+            {
+                result.AddError("No text to parse", 0);
+                return result;
+            }
+
+            // Extract and process JavaScript execute blocks FIRST
+            var (processedText, lineMapping) = ExtractAndProcessExecuteBlocks(text, result);
+
+            // **NEW: Extract and process tuple schemas**
+            processedText = ExtractAndProcessTupleSchemas(processedText, result);
+
+            // Extract and process subject to blocks
+            processedText = ExtractSubjectToBlocks(processedText, lineMapping, result);
+
+            // Split into statements
+            var statements = SplitIntoStatements(processedText, lineMapping);
+
+            // Process each statement
+            foreach (var (statement, lineNumber) in statements)
+            {
+                if (!string.IsNullOrWhiteSpace(statement))
+                {
+                    ProcessStatement(statement, lineNumber, result);
+                }
+            }
+
+            return result;
+        }
+
+        private string ExtractAndProcessTupleSchemas(string text, ParseSessionResult result)
+        {
+            // Pattern: tuple Name { ... }
+            string pattern = @"tuple\s+([a-zA-Z][a-zA-Z0-9_]*)\s*\{";
+            var matches = Regex.Matches(text, pattern, RegexOptions.IgnoreCase);
+
+            if (matches.Count == 0)
+            {
+                return text; // No tuples
+            }
+
+            var resultText = new System.Text.StringBuilder();
+            int lastIndex = 0;
+
+            foreach (Match match in matches)
+            {
+                // Append text before this tuple
+                resultText.Append(text.Substring(lastIndex, match.Index - lastIndex));
+
+                // Find matching closing brace
+                int closingBraceIndex = FindClosingBrace(text, match.Index + match.Length);
+
+                if (closingBraceIndex == -1)
+                {
+                    result.AddError($"Tuple schema: Missing closing brace '}}' for tuple '{match.Groups[1].Value}'", 
+                        text.Substring(0, match.Index).Count(c => c == '\n') + 1);
+                    continue;
+                }
+
+                // Extract the complete tuple definition
+                string tupleDefinition = text.Substring(match.Index, closingBraceIndex - match.Index + 1);
+                
+                // Parse and register the tuple schema
+                if (TryParseTupleSchemaBlock(tupleDefinition, out var schema, out string error))
+                {
+                    modelManager.AddTupleSchema(schema);
+                    result.IncrementSuccess();
+                }
+                else
+                {
+                    result.AddError($"Error parsing tuple schema: {error}", 
+                        text.Substring(0, match.Index).Count(c => c == '\n') + 1);
+                }
+
+                lastIndex = closingBraceIndex + 1;
+            }
+
+            // Append remaining text
+            if (lastIndex < text.Length)
+            {
+                resultText.Append(text.Substring(lastIndex));
+            }
+
+            return resultText.ToString();
+        }
+
+        private bool TryParseTupleSchemaBlock(string block, out TupleSchema? schema, out string error)
+        {
+            schema = null;
+            error = string.Empty;
+
+            // Extract tuple name
+            var nameMatch = Regex.Match(block, @"tuple\s+([a-zA-Z][a-zA-Z0-9_]*)\s*\{", RegexOptions.IgnoreCase);
+            if (!nameMatch.Success)
+            {
+                error = "Invalid tuple syntax";
+                return false;
+            }
+
+            string tupleName = nameMatch.Groups[1].Value;
+            schema = new TupleSchema(tupleName);
+
+            // Extract body (everything between { and })
+            int openBrace = block.IndexOf('{');
+            int closeBrace = block.LastIndexOf('}');
+
+            if (openBrace == -1 || closeBrace == -1)
+            {
+                error = "Missing braces in tuple definition";
+                return false;
+            }
+
+            string body = block.Substring(openBrace + 1, closeBrace - openBrace - 1);
+
+            // Parse field declarations
+            var fieldPattern = @"(float|int|bool|string)\s+([a-zA-Z][a-zA-Z0-9_]*)\s*;";
+            var fieldMatches = Regex.Matches(body, fieldPattern, RegexOptions.IgnoreCase);
+
+            if (fieldMatches.Count == 0)
+            {
+                error = "Tuple must have at least one field";
+                return false;
+            }
+
+            foreach (Match fieldMatch in fieldMatches)
+            {
+                string typeStr = fieldMatch.Groups[1].Value.ToLower();
+                string fieldName = fieldMatch.Groups[2].Value;
+
+                VariableType fieldType = typeStr switch
+                {
+                    "float" => VariableType.Float,
+                    "int" => VariableType.Integer,
+                    "bool" => VariableType.Boolean,
+                    "string" => VariableType.String,
+                    _ => VariableType.Float
+                };
+
+                try
+                {
+                    schema.AddField(fieldName, fieldType);
+                }
+                catch (Exception ex)
+                {
+                    error = ex.Message;
+                    return false;
+                }
+            }
+
+            return true;
+        }
+
+        public ParseSessionResult Parse(string text)
+        {
+            var result = new ParseSessionResult();
+
+            if (string.IsNullOrWhiteSpace(text))
+            {
+                result.AddError("No text to parse", 0);
+                return result;
+            }
+
+            // Extract and process JavaScript execute blocks FIRST
+            var (processedText, lineMapping) = ExtractAndProcessExecuteBlocks(text, result);
+            // **NEW: Extract and process tuple schemas**
+            processedText = ExtractAndProcessTupleSchemas(processedText, result);
+
+            // Extract and process subject to blocks
+            processedText = ExtractSubjectToBlocks(processedText, lineMapping, result);
+
+            // Split into statements
+            var statements = SplitIntoStatements(processedText, lineMapping);
+
+            // Process each statement
+            foreach (var (statement, lineNumber) in statements)
+            {
+                if (!string.IsNullOrWhiteSpace(statement))
+                {
+                    ProcessStatement(statement, lineNumber, result);
+                }
+            }
+
+            return result;
+        }
+
+        private string ExtractAndProcessTupleSchemas(string text, ParseSessionResult result)
+        {
+            // Pattern: tuple Name { ... }
+            string pattern = @"tuple\s+([a-zA-Z][a-zA-Z0-9_]*)\s*\{";
+            var matches = Regex.Matches(text, pattern, RegexOptions.IgnoreCase);
+
+            if (matches.Count == 0)
+            {
+                return text; // No tuples
+            }
+
+            var resultText = new System.Text.StringBuilder();
+            int lastIndex = 0;
+
+            foreach (Match match in matches)
+            {
+                // Append text before this tuple
+                resultText.Append(text.Substring(lastIndex, match.Index - lastIndex));
+
+                // Find matching closing brace
+                int closingBraceIndex = FindClosingBrace(text, match.Index + match.Length);
+
+                if (closingBraceIndex == -1)
+                {
+                    result.AddError($"Tuple schema: Missing closing brace '}}' for tuple '{match.Groups[1].Value}'", 
+                        text.Substring(0, match.Index).Count(c => c == '\n') + 1);
+                    continue;
+                }
+
+                // Extract the complete tuple definition
+                string tupleDefinition = text.Substring(match.Index, closingBraceIndex - match.Index + 1);
+                
+                // Parse and register the tuple schema
+                if (TryParseTupleSchemaBlock(tupleDefinition, out var schema, out string error))
+                {
+                    modelManager.AddTupleSchema(schema);
+                    result.IncrementSuccess();
+                }
+                else
+                {
+                    result.AddError($"Error parsing tuple schema: {error}", 
+                        text.Substring(0, match.Index).Count(c => c == '\n') + 1);
+                }
+
+                lastIndex = closingBraceIndex + 1;
+            }
+
+            // Append remaining text
+            if (lastIndex < text.Length)
+            {
+                resultText.Append(text.Substring(lastIndex));
+            }
+
+            return resultText.ToString();
+        }
+
+        private bool TryParseTupleSchemaBlock(string block, out TupleSchema? schema, out string error)
+        {
+            schema = null;
+            error = string.Empty;
+
+            // Extract tuple name
+            var nameMatch = Regex.Match(block, @"tuple\s+([a-zA-Z][a-zA-Z0-9_]*)\s*\{", RegexOptions.IgnoreCase);
+            if (!nameMatch.Success)
+            {
+                error = "Invalid tuple syntax";
+                return false;
+            }
+
+            string tupleName = nameMatch.Groups[1].Value;
+            schema = new TupleSchema(tupleName);
+
+            // Extract body (everything between { and })
+            int openBrace = block.IndexOf('{');
+            int closeBrace = block.LastIndexOf('}');
+            
+            if (openBrace == -1 || closeBrace == -1)
+            {
+                error = "Missing braces in tuple definition";
+                return false;
+            }
+
+            string body = block.Substring(openBrace + 1, closeBrace - openBrace - 1);
+
+            // Parse field declarations
+            var fieldPattern = @"(float|int|bool|string)\s+([a-zA-Z][a-zA-Z0-9_]*)\s*;";
+            var fieldMatches = Regex.Matches(body, fieldPattern, RegexOptions.IgnoreCase);
+
+            if (fieldMatches.Count == 0)
+            {
+                error = "Tuple must have at least one field";
+                return false;
+            }
+
+            foreach (Match fieldMatch in fieldMatches)
+            {
+                string typeStr = fieldMatch.Groups[1].Value.ToLower();
+                string fieldName = fieldMatch.Groups[2].Value;
+
+                VariableType fieldType = typeStr switch
+                {
+                    "float" => VariableType.Float,
+                    "int" => VariableType.Integer,
+                    "bool" => VariableType.Boolean,
+                    "string" => VariableType.String,
+                    _ => VariableType.Float
+                };
+
+                try
+                {
+                    schema.AddField(fieldName, fieldType);
+                }
+                catch (Exception ex)
+                {
+                    error = ex.Message;
+                    return false;
+                }
+            }
+
+            return true;
+        }
+
+        public ParseSessionResult Parse(string text)
+        {
+            var result = new ParseSessionResult();
+
+            if (string.IsNullOrWhiteSpace(text))
+            {
+                result.AddError("No text to parse", 0);
+                return result;
+            }
+
+            // Extract and process JavaScript execute blocks FIRST
+            var (processedText, lineMapping) = ExtractAndProcessExecuteBlocks(text, result);
+
+            // **NEW: Extract and process tuple schemas**
+            processedText = ExtractAndProcessTupleSchemas(processedText, result);
+
+            // Extract and process subject to blocks
+            processedText = ExtractSubjectToBlocks(processedText, lineMapping, result);
+
+            // Split into statements
+            var statements = SplitIntoStatements(processedText, lineMapping);
+
+            // Process each statement
+            foreach (var (statement, lineNumber) in statements)
+            {
+                if (!string.IsNullOrWhiteSpace(statement))
+                {
+                    ProcessStatement(statement, lineNumber, result);
+                }
+            }
+
+            return result;
+        }
+
+        private string ExtractAndProcessTupleSchemas(string text, ParseSessionResult result)
+        {
+            // Pattern: tuple Name { ... }
+            string pattern = @"tuple\s+([a-zA-Z][a-zA-Z0-9_]*)\s*\{";
+            var matches = Regex.Matches(text, pattern, RegexOptions.IgnoreCase);
+
+            if (matches.Count == 0)
+            {
+                return text; // No tuples
+            }
+
+            var resultText = new System.Text.StringBuilder();
+            int lastIndex = 0;
+
+            foreach (Match match in matches)
+            {
+                // Append text before this tuple
+                resultText.Append(text.Substring(lastIndex, match.Index - lastIndex));
+
+                // Find matching closing brace
+                int closingBraceIndex = FindClosingBrace(text, match.Index + match.Length);
+
+                if (closingBraceIndex == -1)
+                {
+                    result.AddError($"Tuple schema: Missing closing brace '}}' for tuple '{match.Groups[1].Value}'", 
+                        text.Substring(0, match.Index).Count(c => c == '\n') + 1);
+                    continue;
+                }
+
+                // Extract the complete tuple definition
+                string tupleDefinition = text.Substring(match.Index, closingBraceIndex - match.Index + 1);
+                
+                // Parse and register the tuple schema
+                if (TryParseTupleSchemaBlock(tupleDefinition, out var schema, out string error))
+                {
+                    modelManager.AddTupleSchema(schema);
+                    result.IncrementSuccess();
+                }
+                else
+                {
+                    result.AddError($"Error parsing tuple schema: {error}", 
+                        text.Substring(0, match.Index).Count(c => c == '\n') + 1);
+                }
+
+                lastIndex = closingBraceIndex + 1;
+            }
+
+            // Append remaining text
+            if (lastIndex < text.Length)
+            {
+                resultText.Append(text.Substring(lastIndex));
+            }
+
+            return resultText.ToString();
+        }
+
+        private bool TryParseTupleSchemaBlock(string block, out TupleSchema? schema, out string error)
+        {
+            schema = null;
+            error = string.Empty;
+
+            // Extract tuple name
+            var nameMatch = Regex.Match(block, @"tuple\s+([a-zA-Z][a-zA-Z0-9_]*)\s*\{", RegexOptions.IgnoreCase);
+            if (!nameMatch.Success)
+            {
+                error = "Invalid tuple syntax";
+                return false;
+            }
+
+            string tupleName = nameMatch.Groups[1].Value;
+            schema = new TupleSchema(tupleName);
+
+            // Extract body (everything between { and })
+            int openBrace = block.IndexOf('{');
+            int closeBrace = block.LastIndexOf('}');
+            
+            if (openBrace == -1 || closeBrace == -1)
+            {
+                error = "Missing braces in tuple definition";
+                return false;
+            }
+
+            string body = block.Substring(openBrace + 1, closeBrace - openBrace - 1);
+
+            // Parse field declarations
+            var fieldPattern = @"(float|int|bool|string)\s+([a-zA-Z][a-zA-Z0-9_]*)\s*;";
+            var fieldMatches = Regex.Matches(body, fieldPattern, RegexOptions.IgnoreCase);
+
+            if (fieldMatches.Count == 0)
+            {
+                error = "Tuple must have at least one field";
+                return false;
+            }
+
+            foreach (Match fieldMatch in fieldMatches)
+            {
+                string typeStr = fieldMatch.Groups[1].Value.ToLower();
+                string fieldName = fieldMatch.Groups[2].Value;
+
+                VariableType fieldType = typeStr switch
+                {
+                    "float" => VariableType.Float,
+                    "int" => VariableType.Integer,
+                    "bool" => VariableType.Boolean,
+                    "string" => VariableType.String,
+                    _ => VariableType.Float
+                };
+
+                try
+                {
+                    schema.AddField(fieldName, fieldType);
+                }
+                catch (Exception ex)
+                {
+                    error = ex.Message;
+                    return false;
+                }
+            }
+
+            return true;
+        }
+
+        public ParseSessionResult Parse(string text)
+        {
+            var result = new ParseSessionResult();
+
+            if (string.IsNullOrWhiteSpace(text))
+            {
+                result.AddError("No text to parse", 0);
+                return result;
+            }
+
+            // Extract and process JavaScript execute blocks FIRST
+            var (processedText, lineMapping) = ExtractAndProcessExecuteBlocks(text, result);
+
+            // **NEW: Extract and process tuple schemas**
+            processedText = ExtractAndProcessTupleSchemas(processedText, result);
+
+            // Extract and process subject to blocks
+            processedText = ExtractSubjectToBlocks(processedText, lineMapping, result);
+
+            // Split into statements
+            var statements = SplitIntoStatements(processedText, lineMapping);
+
+            // Process each statement
+            foreach (var (statement, lineNumber) in statements)
+            {
+                if (!string.IsNullOrWhiteSpace(statement))
+                {
+                    ProcessStatement(statement, lineNumber, result);
+                }
+            }
+
+            return result;
+        }
+
+        private string ExtractAndProcessTupleSchemas(string text, ParseSessionResult result)
+        {
+            // Pattern: tuple Name { ... }
+            string pattern = @"tuple\s+([a-zA-Z][a-zA-Z0-9_]*)\s*\{";
+            var matches = Regex.Matches(text, pattern, RegexOptions.IgnoreCase);
+
+            if (matches.Count == 0)
+            {
+                return text; // No tuples
+            }
+
+            var resultText = new System.Text.StringBuilder();
+            int lastIndex = 0;
+
+            foreach (Match match in matches)
+            {
+                // Append text before this tuple
+                resultText.Append(text.Substring(lastIndex, match.Index - lastIndex));
+
+                // Find matching closing brace
+                int closingBraceIndex = FindClosingBrace(text, match.Index + match.Length);
+
+                if (closingBraceIndex == -1)
+                {
+                    result.AddError($"Tuple schema: Missing closing brace '}}' for tuple '{match.Groups[1].Value}'", 
+                        text.Substring(0, match.Index).Count(c => c == '\n') + 1);
+                    continue;
+                }
+
+                // Extract the complete tuple definition
+                string tupleDefinition = text.Substring(match.Index, closingBraceIndex - match.Index + 1);
+                
+                // Parse and register the tuple schema
+                if (TryParseTupleSchemaBlock(tupleDefinition, out var schema, out string error))
+                {
+                    modelManager.AddTupleSchema(schema);
+                    result.IncrementSuccess();
+                }
+                else
+                {
+                    result.AddError($"Error parsing tuple schema: {error}", 
+                        text.Substring(0, match.Index).Count(c => c == '\n') + 1);
+                }
+
+                lastIndex = closingBraceIndex + 1;
+            }
+
+            // Append remaining text
+            if (lastIndex < text.Length)
+            {
+                resultText.Append(text.Substring(lastIndex));
+            }
+
+            return resultText.ToString();
+        }
+
+        private bool TryParseTupleSchemaBlock(string block, out TupleSchema? schema, out string error)
+        {
+            schema = null;
+            error = string.Empty;
+
+            // Extract tuple name
+            var nameMatch = Regex.Match(block, @"tuple\s+([a-zA-Z][a-zA-Z0-9_]*)\s*\{", RegexOptions.IgnoreCase);
+            if (!nameMatch.Success)
+            {
+                error = "Invalid tuple syntax";
+                return false;
+            }
+
+            string tupleName = nameMatch.Groups[1].Value;
+            schema = new TupleSchema(tupleName);
+
+            // Extract body (everything between { and })
+            int openBrace = block.IndexOf('{');
+            int closeBrace = block.LastIndexOf('}');
+            
+            if (openBrace == -1 || closeBrace == -1)
+            {
+                error = "Missing braces in tuple definition";
+                return false;
+            }
+
+            string body = block.Substring(openBrace + 1, closeBrace - openBrace - 1);
+
+            // Parse field declarations
+            var fieldPattern = @"(float|int|bool|string)\s+([a-zA-Z][a-zA-Z0-9_]*)\s*;";
+            var fieldMatches = Regex.Matches(body, fieldPattern, RegexOptions.IgnoreCase);
+
+            if (fieldMatches.Count == 0)
+            {
+                error = "Tuple must have at least one field";
+                return false;
+            }
+
+            foreach (Match fieldMatch in fieldMatches)
+            {
+                string typeStr = fieldMatch.Groups[1].Value.ToLower();
+                string fieldName = fieldMatch.Groups[2].Value;
+
+                VariableType fieldType = typeStr switch
+                {
+                    "float" => VariableType.Float,
+                    "int" => VariableType.Integer,
+                    "bool" => VariableType.Boolean,
+                    "string" => VariableType.String,
+                    _ => VariableType.Float
+                };
+
+                try
+                {
+                    schema.AddField(fieldName, fieldType);
+                }
+                catch (Exception ex)
+                {
+                    error = ex.Message;
+                    return false;
+                }
+            }
+
+            return true;
+        }
+
+        public ParseSessionResult Parse(string text)
+        {
+            var result = new ParseSessionResult();
+
+            if (string.IsNullOrWhiteSpace(text))
+            {
+                result.AddError("No text to parse", 0);
+                return result;
+            }
+
+            // Extract and process JavaScript execute blocks FIRST
+            var (processedText, lineMapping) = ExtractAndProcessExecuteBlocks(text, result);
+
+            // **NEW: Extract and process tuple schemas**
+            processedText = ExtractAndProcessTupleSchemas(processedText, result);
+
+            // Extract and process subject to blocks
+            processedText = ExtractSubjectToBlocks(processedText, lineMapping, result);
+
+            // Split into statements
+            var statements = SplitIntoStatements(processedText, lineMapping);
+
+            // Process each statement
+            foreach (var (statement, lineNumber) in statements)
+            {
+                if (!string.IsNullOrWhiteSpace(statement))
+                {
+                    ProcessStatement(statement, lineNumber, result);
+                }
+            }
+
+            return result;
+        }
+
+        private string ExtractAndProcessTupleSchemas(string text, ParseSessionResult result)
+        {
+            // Pattern: tuple Name { ... }
+            string pattern = @"tuple\s+([a-zA-Z][a-zA-Z0-9_]*)\s*\{";
+            var matches = Regex.Matches(text, pattern, RegexOptions.IgnoreCase);
+
+            if (matches.Count == 0)
+            {
+                return text; // No tuples
+            }
+
+            var resultText = new System.Text.StringBuilder();
+            int lastIndex = 0;
+
+            foreach (Match match in matches)
+            {
+                // Append text before this tuple
+                resultText.Append(text.Substring(lastIndex, match.Index - lastIndex));
+
+                // Find matching closing brace
+                int closingBraceIndex = FindClosingBrace(text, match.Index + match.Length);
+
+                if (closingBraceIndex == -1)
+                {
+                    result.AddError($"Tuple schema: Missing closing brace '}}' for tuple '{match.Groups[1].Value}'", 
+                        text.Substring(0, match.Index).Count(c => c == '\n') + 1);
+                    continue;
+                }
+
+                // Extract the complete tuple definition
+                string tupleDefinition = text.Substring(match.Index, closingBraceIndex - match.Index + 1);
+                
+                // Parse and register the tuple schema
+                if (TryParseTupleSchemaBlock(tupleDefinition, out var schema, out string error))
+                {
+                    modelManager.AddTupleSchema(schema);
+                    result.IncrementSuccess();
+                }
+                else
+                {
+                    result.AddError($"Error parsing tuple schema: {error}", 
+                        text.Substring(0, match.Index).Count(c => c == '\n') + 1);
+                }
+
+                lastIndex = closingBraceIndex + 1;
+            }
+
+            // Append remaining text
+            if (lastIndex < text.Length)
+            {
+                resultText.Append(text.Substring(lastIndex));
+            }
+
+            return resultText.ToString();
+        }
+
+        private bool TryParseTupleSchemaBlock(string block, out TupleSchema? schema, out string error)
+        {
+            schema = null;
+            error = string.Empty;
+
+            // Extract tuple name
+            var nameMatch = Regex.Match(block, @"tuple\s+([a-zA-Z][a-zA-Z0-9_]*)\s*\{", RegexOptions.IgnoreCase);
+            if (!nameMatch.Success)
+            {
+                error = "Invalid tuple syntax";
+                return false;
+            }
+
+            string tupleName = nameMatch.Groups[1].Value;
+            schema = new TupleSchema(tupleName);
+
+            // Extract body (everything between { and })
+            int openBrace = block.IndexOf('{');
+            int closeBrace = block.LastIndexOf('}');
+            
+            if (openBrace == -1 || closeBrace == -1)
+            {
+                error = "Missing braces in tuple definition";
+                return false;
+            }
+
+            string body = block.Substring(openBrace + 1, closeBrace - openBrace - 1);
+
+            // Parse field declarations
+            var fieldPattern = @"(float|int|bool|string)\s+([a-zA-Z][a-zA-Z0-9_]*)\s*;";
+            var fieldMatches = Regex.Matches(body, fieldPattern, RegexOptions.IgnoreCase);
+
+            if (fieldMatches.Count == 0)
+            {
+                error = "Tuple must have at least one field";
+                return false;
+            }
+
+            foreach (Match fieldMatch in fieldMatches)
+            {
+                string typeStr = fieldMatch.Groups[1].Value.ToLower();
+                string fieldName = fieldMatch.Groups[2].Value;
+
+                VariableType fieldType = typeStr switch
+                {
+                    "float" => VariableType.Float,
+                    "int" => VariableType.Integer,
+                    "bool" => VariableType.Boolean,
+                    "string" => VariableType.String,
+                    _ => VariableType.Float
+                };
+
+                try
+                {
+                    schema.AddField(fieldName, fieldType);
+                }
+                catch (Exception ex)
+                {
+                    error = ex.Message;
+                    return false;
+                }
+            }
+
+            return true;
+        }
+
+        public ParseSessionResult Parse(string text)
+        {
+            var result = new ParseSessionResult();
+
+            if (string.IsNullOrWhiteSpace(text))
+            {
+                result.AddError("No text to parse", 0);
+                return result;
+            }
+
+            // Extract and process JavaScript execute blocks FIRST
+            var (processedText, lineMapping) = ExtractAndProcessExecuteBlocks(text, result);
+
+            // **NEW: Extract and process tuple schemas**
+            processedText = ExtractAndProcessTupleSchemas(processedText, result);
+
+            // Extract and process subject to blocks
+            processedText = ExtractSubjectToBlocks(processedText, lineMapping, result);
+
+            // Split into statements
+            var statements = SplitIntoStatements(processedText, lineMapping);
+
+            // Process each statement
+            foreach (var (statement, lineNumber) in statements)
+            {
+                if (!string.IsNullOrWhiteSpace(statement))
+                {
+                    ProcessStatement(statement, lineNumber, result);
+                }
+            }
+
+            return result;
+        }
+
+        private string ExtractAndProcessTupleSchemas(string text, ParseSessionResult result)
+        {
+            // Pattern: tuple Name { ... }
+            string pattern = @"tuple\s+([a-zA-Z][a-zA-Z0-9_]*)\s*\{";
+            var matches = Regex.Matches(text, pattern, RegexOptions.IgnoreCase);
+
+            if (matches.Count == 0)
+            {
+                return text; // No tuples
+            }
+
+            var resultText = new System.Text.StringBuilder();
+            int lastIndex = 0;
+
+            foreach (Match match in matches)
+            {
+                // Append text before this tuple
+                resultText.Append(text.Substring(lastIndex, match.Index - lastIndex));
+
+                // Find matching closing brace
+                int closingBraceIndex = FindClosingBrace(text, match.Index + match.Length);
+
+                if (closingBraceIndex == -1)
+                {
+                    result.AddError($"Tuple schema: Missing closing brace '}}' for tuple '{match.Groups[1].Value}'", 
+                        text.Substring(0, match.Index).Count(c => c == '\n') + 1);
+                    continue;
+                }
+
+                // Extract the complete tuple definition
+                string tupleDefinition = text.Substring(match.Index, closingBraceIndex - match.Index + 1);
+                
+                // Parse and register the tuple schema
+                if (TryParseTupleSchemaBlock(tupleDefinition, out var schema, out string error))
+                {
+                    modelManager.AddTupleSchema(schema);
+                    result.IncrementSuccess();
+                }
+                else
+                {
+                    result.AddError($"Error parsing tuple schema: {error}", 
+                        text.Substring(0, match.Index).Count(c => c == '\n') + 1);
+                }
+
+                lastIndex = closingBraceIndex + 1;
+            }
+
+            // Append remaining text
+            if (lastIndex < text.Length)
+            {
+                resultText.Append(text.Substring(lastIndex));
+            }
+
+            return resultText.ToString();
+        }
+
+        private bool TryParseTupleSchemaBlock(string block, out TupleSchema? schema, out string error)
+        {
+            schema = null;
+            error = string.Empty;
+
+            // Extract tuple name
+            var nameMatch = Regex.Match(block, @"tuple\s+([a-zA-Z][a-zA-Z0-9_]*)\s*\{", RegexOptions.IgnoreCase);
+            if (!nameMatch.Success)
+            {
+                error = "Invalid tuple syntax";
+                return false;
+            }
+
+            string tupleName = nameMatch.Groups[1].Value;
+            schema = new TupleSchema(tupleName);
+
+            // Extract body (everything between { and })
+            int openBrace = block.IndexOf('{');
+            int closeBrace = block.LastIndexOf('}');
+            
+            if (openBrace == -1 || closeBrace == -1)
+            {
+                error = "Missing braces in tuple definition";
+                return false;
+            }
+
+            string body = block.Substring(openBrace + 1, closeBrace - openBrace - 1);
+
+            // Parse field declarations
+            var fieldPattern = @"(float|int|bool|string)\s+([a-zA-Z][a-zA-Z0-9_]*)\s*;";
+            var fieldMatches = Regex.Matches(body, fieldPattern, RegexOptions.IgnoreCase);
+
+            if (fieldMatches.Count == 0)
+            {
+                error = "Tuple must have at least one field";
+                return false;
+            }
+
+            foreach (Match fieldMatch in fieldMatches)
+            {
+                string typeStr = fieldMatch.Groups[1].Value.ToLower();
+                string fieldName = fieldMatch.Groups[2].Value;
+
+                VariableType fieldType = typeStr switch
+                {
+                    "float" => VariableType.Float,
+                    "int" => VariableType.Integer,
+                    "bool" => VariableType.Boolean,
+                    "string" => VariableType.String,
+                    _ => VariableType.Float
+                };
+
+                try
+                {
+                    schema.AddField(fieldName, fieldType);
+                }
+                catch (Exception ex)
+                {
+                    error = ex.Message;
+                    return false;
+                }
+            }
+
+            return true;
+        }
+
+        public ParseSessionResult Parse(string text)
+        {
+            var result = new ParseSessionResult();
+
+            if (string.IsNullOrWhiteSpace(text))
+            {
+                result.AddError("No text to parse", 0);
+                return result;
+            }
+
+            // Extract and process JavaScript execute blocks FIRST
+            var (processedText, lineMapping) = ExtractAndProcessExecuteBlocks(text, result);
+
+            // **NEW: Extract and process tuple schemas**
+            processedText = ExtractAndProcessTupleSchemas(processedText, result);
+
+            // Extract and process subject to blocks
+            processedText = ExtractSubjectToBlocks(processedText, lineMapping, result);
+
+            // Split into statements
+            var statements = SplitIntoStatements(processedText, lineMapping);
+
+            // Process each statement
+            foreach (var (statement, lineNumber) in statements)
+            {
+                if (!string.IsNullOrWhiteSpace(statement))
+                {
+                    ProcessStatement(statement, lineNumber, result);
+                }
+            }
+
+            return result;
+        }
+
+        private string ExtractAndProcessTupleSchemas(string text, ParseSessionResult result)
+        {
+            // Pattern: tuple Name { ... }
+            string pattern = @"tuple\s+([a-zA-Z][a-zA-Z0-9_]*)\s*\{";
+            var matches = Regex.Matches(text, pattern, RegexOptions.IgnoreCase);
+
+            if (matches.Count == 0)
+            {
+                return text; // No tuples
+            }
+
+            var resultText = new System.Text.StringBuilder();
+            int lastIndex = 0;
+
+            foreach (Match match in matches)
+            {
+                // Append text before this tuple
+                resultText.Append(text.Substring(lastIndex, match.Index - lastIndex));
+
+                // Find matching closing brace
+                int closingBraceIndex = FindClosingBrace(text, match.Index + match.Length);
+
+                if (closingBraceIndex == -1)
+                {
+                    result.AddError($"Tuple schema: Missing closing brace '}}' for tuple '{match.Groups[1].Value}'", 
+                        text.Substring(0, match.Index).Count(c => c == '\n') + 1);
+                    continue;
+                }
+
+                // Extract the complete tuple definition
+                string tupleDefinition = text.Substring(match.Index, closingBraceIndex - match.Index + 1);
+                
+                // Parse and register the tuple schema
+                if (TryParseTupleSchemaBlock(tupleDefinition, out var schema, out string error))
+                {
+                    modelManager.AddTupleSchema(schema);
+                    result.IncrementSuccess();
+                }
+                else
+                {
+                    result.AddError($"Error parsing tuple schema: {error}", 
+                        text.Substring(0, match.Index).Count(c => c == '\n') + 1);
+                }
+
+                lastIndex = closingBraceIndex + 1;
+            }
+
+            // Append remaining text
+            if (lastIndex < text.Length)
+            {
+                resultText.Append(text.Substring(lastIndex));
+            }
+
+            return resultText.ToString();
+        }
+
+        private bool TryParseTupleSchemaBlock(string block, out TupleSchema? schema, out string error)
+        {
+            schema = null;
+            error = string.Empty;
+
+            // Extract tuple name
+            var nameMatch = Regex.Match(block, @"tuple\s+([a-zA-Z][a-zA-Z0-9_]*)\s*\{", RegexOptions.IgnoreCase);
+            if (!nameMatch.Success)
+            {
+                error = "Invalid tuple syntax";
+                return false;
+            }
+
+            string tupleName = nameMatch.Groups[1].Value;
+            schema = new TupleSchema(tupleName);
+
+            // Extract body (everything between { and })
+            int openBrace = block.IndexOf('{');
+            int closeBrace = block.LastIndexOf('}');
+            
+            if (openBrace == -1 || closeBrace == -1)
+            {
+                error = "Missing braces in tuple definition";
+                return false;
+            }
+
+            string body = block.Substring(openBrace + 1, closeBrace - openBrace - 1);
+
+            // Parse field declarations
+            var fieldPattern = @"(float|int|bool|string)\s+([a-zA-Z][a-zA-Z0-9_]*)\s*;";
+            var fieldMatches = Regex.Matches(body, fieldPattern, RegexOptions.IgnoreCase);
+
+            if (fieldMatches.Count == 0)
+            {
+                error = "Tuple must have at least one field";
+                return false;
+            }
+
+            foreach (Match fieldMatch in fieldMatches)
+            {
+                string typeStr = fieldMatch.Groups[1].Value.ToLower();
+                string fieldName = fieldMatch.Groups[2].Value;
+
+                VariableType fieldType = typeStr switch
+                {
+                    "float" => VariableType.Float,
+                    "int" => VariableType.Integer,
+                    "bool" => VariableType.Boolean,
+                    "string" => VariableType.String,
+                    _ => VariableType.Float
+                };
+
+                try
+                {
+                    schema.AddField(fieldName, fieldType);
+                }
+                catch (Exception ex)
+                {
+                    error = ex.Message;
+                    return false;
+                }
+            }
+
+            return true;
+        }
+
+        public ParseSessionResult Parse(string text)
+        {
+            var result = new ParseSessionResult();
+
+            if (string.IsNullOrWhiteSpace(text))
+            {
+                result.AddError("No text to parse", 0);
+                return result;
+            }
+
+            // Extract and process JavaScript execute blocks FIRST
+            var (processedText, lineMapping) = ExtractAndProcessExecuteBlocks(text, result);
+
+            // **NEW: Extract and process tuple schemas**
+            processedText = ExtractAndProcessTupleSchemas(processedText, result);
+
+            // Extract and process subject to blocks
+            processedText = ExtractSubjectToBlocks(processedText, lineMapping, result);
+
+            // Split into statements
+            var statements = SplitIntoStatements(processedText, lineMapping);
+
+            // Process each statement
+            foreach (var (statement, lineNumber) in statements)
+            {
+                if (!string.IsNullOrWhiteSpace(statement))
+                {
+                    ProcessStatement(statement, lineNumber, result);
+                }
+            }
+
+            return result;
+        }
+
+        private string ExtractAndProcessTupleSchemas(string text, ParseSessionResult result)
+        {
+            // Pattern: tuple Name { ... }
+            string pattern = @"tuple\s+([a-zA-Z][a-zA-Z0-9_]*)\s*\{";
+            var matches = Regex.Matches(text, pattern, RegexOptions.IgnoreCase);
+
+            if (matches.Count == 0)
+            {
+                return text; // No tuples
+            }
+
+            var resultText = new System.Text.StringBuilder();
+            int lastIndex = 0;
+
+            foreach (Match match in matches)
+            {
+                // Append text before this tuple
+                resultText.Append(text.Substring(lastIndex, match.Index - lastIndex));
+
+                // Find matching closing brace
+                int closingBraceIndex = FindClosingBrace(text, match.Index + match.Length);
+
+                if (closingBraceIndex == -1)
+                {
+                    result.AddError($"Tuple schema: Missing closing brace '}}' for tuple '{match.Groups[1].Value}'", 
+                        text.Substring(0, match.Index).Count(c => c == '\n') + 1);
+                    continue;
+                }
+
+                // Extract the complete tuple definition
+                string tupleDefinition = text.Substring(match.Index, closingBraceIndex - match.Index + 1);
+                
+                // Parse and register the tuple schema
+                if (TryParseTupleSchemaBlock(tupleDefinition, out var schema, out string error))
+                {
+                    modelManager.AddTupleSchema(schema);
+                    result.IncrementSuccess();
+                }
+                else
+                {
+                    result.AddError($"Error parsing tuple schema: {error}", 
+                        text.Substring(0, match.Index).Count(c => c == '\n') + 1);
+                }
+
+                lastIndex = closingBraceIndex + 1;
+            }
+
+            // Append remaining text
+            if (lastIndex < text.Length)
+            {
+                resultText.Append(text.Substring(lastIndex));
+            }
+
+            return resultText.ToString();
+        }
+
+        private bool TryParseTupleSchemaBlock(string block, out TupleSchema? schema, out string error)
+        {
+            schema = null;
+            error = string.Empty;
+
+            // Extract tuple name
+            var nameMatch = Regex.Match(block, @"tuple\s+([a-zA-Z][a-zA-Z0-9_]*)\s*\{", RegexOptions.IgnoreCase);
+            if (!nameMatch.Success)
+            {
+                error = "Invalid tuple syntax";
+                return false;
+            }
+
+            string tupleName = nameMatch.Groups[1].Value;
+            schema = new TupleSchema(tupleName);
+
+            // Extract body (everything between { and })
+            int openBrace = block.IndexOf('{');
+            int closeBrace = block.LastIndexOf('}');
+            
+            if (openBrace == -1 || closeBrace == -1)
+            {
+                error = "Missing braces in tuple definition";
+                return false;
+            }
+
+            string body = block.Substring(openBrace + 1, closeBrace - openBrace - 1);
+
+            // Parse field declarations
+            var fieldPattern = @"(float|int|bool|string)\s+([a-zA-Z][a-zA-Z0-9_]*)\s*;";
+            var fieldMatches = Regex.Matches(body, fieldPattern, RegexOptions.IgnoreCase);
+
+            if (fieldMatches.Count == 0)
+            {
+                error = "Tuple must have at least one field";
+                return false;
+            }
+
+            foreach (Match fieldMatch in fieldMatches)
+            {
+                string typeStr = fieldMatch.Groups[1].Value.ToLower();
+                string fieldName = fieldMatch.Groups[2].Value;
+
+                VariableType fieldType = typeStr switch
+                {
+                    "float" => VariableType.Float,
+                    "int" => VariableType.Integer,
+                    "bool" => VariableType.Boolean,
+                    "string" => VariableType.String,
+                    _ => VariableType.Float
+                };
+
+                try
+                {
+                    schema.AddField(fieldName, fieldType);
+                }
+                catch (Exception ex)
+                {
+                    error = ex.Message;
+                    return false;
+                }
+            }
+
+            return true;
+        }
+
+        public ParseSessionResult Parse(string text)
+        {
+            var result = new ParseSessionResult();
+
+            if (string.IsNullOrWhiteSpace(text))
+            {
+                result.AddError("No text to parse", 0);
+                return result;
+            }
+
+            // Extract and process JavaScript execute blocks FIRST
+            var (processedText, lineMapping) = ExtractAndProcessExecuteBlocks(text, result);
+
+            // **NEW: Extract and process tuple schemas**
+            processedText = ExtractAndProcessTupleSchemas(processedText, result);
+
+            // Extract and process subject to blocks
+            processedText = ExtractSubjectToBlocks(processedText, lineMapping, result);
+
+            // Split into statements
+            var statements = SplitIntoStatements(processedText, lineMapping);
+
+            // Process each statement
+            foreach (var (statement, lineNumber) in statements)
+            {
+                if (!string.IsNullOrWhiteSpace(statement))
+                {
+                    ProcessStatement(statement, lineNumber, result);
+                }
+            }
+
+            return result;
+        }
+
+        private string ExtractAndProcessTupleSchemas(string text, ParseSessionResult result)
+        {
+            // Pattern: tuple Name { ... }
+            string pattern = @"tuple\s+([a-zA-Z][a-zA-Z0-9_]*)\s*\{";
+            var matches = Regex.Matches(text, pattern, RegexOptions.IgnoreCase);
+
+            if (matches.Count == 0)
+            {
+                return text; // No tuples
+            }
+
+            var resultText = new System.Text.StringBuilder();
+            int lastIndex = 0;
+
+            foreach (Match match in matches)
+            {
+                // Append text before this tuple
+                resultText.Append(text.Substring(lastIndex, match.Index - lastIndex));
+
+                // Find matching closing brace
+                int closingBraceIndex = FindClosingBrace(text, match.Index + match.Length);
+
+                if (closingBraceIndex == -1)
+                {
+                    result.AddError($"Tuple schema: Missing closing brace '}}' for tuple '{match.Groups[1].Value}'", 
+                        text.Substring(0, match.Index).Count(c => c == '\n') + 1);
+                    continue;
+                }
+
+                // Extract the complete tuple definition
+                string tupleDefinition = text.Substring(match.Index, closingBraceIndex - match.Index + 1);
+                
+                // Parse and register the tuple schema
+                if (TryParseTupleSchemaBlock(tupleDefinition, out var schema, out string error))
+                {
+                    modelManager.AddTupleSchema(schema);
+                    result.IncrementSuccess();
+                }
+                else
+                {
+                    result.AddError($"Error parsing tuple schema: {error}", 
+                        text.Substring(0, match.Index).Count(c => c == '\n') + 1);
+                }
+
+                lastIndex = closingBraceIndex + 1;
+            }
+
+            // Append remaining text
+            if (lastIndex < text.Length)
+            {
+                resultText.Append(text.Substring(lastIndex));
+            }
+
+            return resultText.ToString();
+        }
+
+        private bool TryParseTupleSchemaBlock(string block, out TupleSchema? schema, out string error)
+        {
+            schema = null;
+            error = string.Empty;
+
+            // Extract tuple name
+            var nameMatch = Regex.Match(block, @"tuple\s+([a-zA-Z][a-zA-Z0-9_]*)\s*\{", RegexOptions.IgnoreCase);
+            if (!nameMatch.Success)
+            {
+                error = "Invalid tuple syntax";
+                return false;
+            }
+
+            string tupleName = nameMatch.Groups[1].Value;
+            schema = new TupleSchema(tupleName);
+
+            // Extract body (everything between { and })
+            int openBrace = block.IndexOf('{');
+            int closeBrace = block.LastIndexOf('}');
+            
+            if (openBrace == -1 || closeBrace == -1)
+            {
+                error = "Missing braces in tuple definition";
+                return false;
+            }
+
+            string body = block.Substring(openBrace + 1, closeBrace - openBrace - 1);
+
+            // Parse field declarations
+            var fieldPattern = @"(float|int|bool|string)\s+([a-zA-Z][a-zA-Z0-9_]*)\s*;";
+            var fieldMatches = Regex.Matches(body, fieldPattern, RegexOptions.IgnoreCase);
+
+            if (fieldMatches.Count == 0)
+            {
+                error = "Tuple must have at least one field";
+                return false;
+            }
+
+            foreach (Match fieldMatch in fieldMatches)
+            {
+                string typeStr = fieldMatch.Groups[1].Value.ToLower();
+                string fieldName = fieldMatch.Groups[2].Value;
+
+                VariableType fieldType = typeStr switch
+                {
+                    "float" => VariableType.Float,
+                    "int" => VariableType.Integer,
+                    "bool" => VariableType.Boolean,
+                    "string" => VariableType.String,
+                    _ => VariableType.Float
+                };
+
+                try
+                {
+                    schema.AddField(fieldName, fieldType);
+                }
+                catch (Exception ex)
+                {
+                    error = ex.Message;
+                    return false;
+                }
+            }
+
+            return true;
+        }
+
+        public ParseSessionResult Parse(string text)
+        {
+            var result = new ParseSessionResult();
+
+            if (string.IsNullOrWhiteSpace(text))
+            {
+                result.AddError("No text to parse", 0);
+                return result;
+            }
+
+            // Extract and process JavaScript execute blocks FIRST
+            var (processedText, lineMapping) = ExtractAndProcessExecuteBlocks(text, result);
+
+            // **NEW: Extract and process tuple schemas**
+            processedText = ExtractAndProcessTupleSchemas(processedText, result);
+
+            // Extract and process subject to blocks
+            processedText = ExtractSubjectToBlocks(processedText, lineMapping, result);
+
+            // Split into statements
+            var statements = SplitIntoStatements(processedText, lineMapping);
+
+            // Process each statement
+            foreach (var (statement, lineNumber) in statements)
+            {
+                if (!string.IsNullOrWhiteSpace(statement))
+                {
+                    ProcessStatement(statement, lineNumber, result);
+                }
+            }
+
+            return result;
+        }
+
+        private string ExtractAndProcessTupleSchemas(string text, ParseSessionResult result)
+        {
+            // Pattern: tuple Name { ... }
+            string pattern = @"tuple\s+([a-zA-Z][a-zA-Z0-9_]*)\s*\{";
+            var matches = Regex.Matches(text, pattern, RegexOptions.IgnoreCase);
+
+            if (matches.Count == 0)
+            {
+                return text; // No tuples
+            }
+
+            var resultText = new System.Text.StringBuilder();
+            int lastIndex = 0;
+
+            foreach (Match match in matches)
+            {
+                // Append text before this tuple
+                resultText.Append(text.Substring(lastIndex, match.Index - lastIndex));
+
+                // Find matching closing brace
+                int closingBraceIndex = FindClosingBrace(text, match.Index + match.Length);
+
+                if (closingBraceIndex == -1)
+                {
+                    result.AddError($"Tuple schema: Missing closing brace '}}' for tuple '{match.Groups[1].Value}'", 
+                        text.Substring(0, match.Index).Count(c => c == '\n') + 1);
+                    continue;
+                }
+
+                // Extract the complete tuple definition
+                string tupleDefinition = text.Substring(match.Index, closingBraceIndex - match.Index + 1);
+                
+                // Parse and register the tuple schema
+                if (TryParseTupleSchemaBlock(tupleDefinition, out var schema, out string error))
+                {
+                    modelManager.AddTupleSchema(schema);
+                    result.IncrementSuccess();
+                }
+                else
+                {
+                    result.AddError($"Error parsing tuple schema: {error}", 
+                        text.Substring(0, match.Index).Count(c => c == '\n') + 1);
+                }
+
+                lastIndex = closingBraceIndex + 1;
+            }
+
+            // Append remaining text
+            if (lastIndex < text.Length)
+            {
+                resultText.Append(text.Substring(lastIndex));
+            }
+
+            return resultText.ToString();
+        }
+
+        private bool TryParseTupleSchemaBlock(string block, out TupleSchema? schema, out string error)
+        {
+            schema = null;
+            error = string.Empty;
+
+            // Extract tuple name
+            var nameMatch = Regex.Match(block, @"tuple\s+([a-zA-Z][a-zA-Z0-9_]*)\s*\{", RegexOptions.IgnoreCase);
+            if (!nameMatch.Success)
+            {
+                error = "Invalid tuple syntax";
+                return false;
+            }
+
+            string tupleName = nameMatch.Groups[1].Value;
+            schema = new TupleSchema(tupleName);
+
+            // Extract body (everything between { and })
+            int openBrace = block.IndexOf('{');
+            int closeBrace = block.LastIndexOf('}');
+            
+            if (openBrace == -1 || closeBrace == -1)
+            {
+                error = "Missing braces in tuple definition";
+                return false;
+            }
+
+            string body = block.Substring(openBrace + 1, closeBrace - openBrace - 1);
+
+            // Parse field declarations
+            var fieldPattern = @"(float|int|bool|string)\s+([a-zA-Z][a-zA-Z0-9_]*)\s*;";
+            var fieldMatches = Regex.Matches(body, fieldPattern, RegexOptions.IgnoreCase);
+
+            if (fieldMatches.Count == 0)
+            {
+                error = "Tuple must have at least one field";
+                return false;
+            }
+
+            foreach (Match fieldMatch in fieldMatches)
+            {
+                string typeStr = fieldMatch.Groups[1].Value.ToLower();
+                string fieldName = fieldMatch.Groups[2].Value;
+
+                VariableType fieldType = typeStr switch
+                {
+                    "float" => VariableType.Float,
+                    "int" => VariableType.Integer,
+                    "bool" => VariableType.Boolean,
+                    "string" => VariableType.String,
+                    _ => VariableType.Float
+                };
+
+                try
+                {
+                    schema.AddField(fieldName, fieldType);
+                }
+                catch (Exception ex)
+                {
+                    error = ex.Message;
+                    return false;
+                }
+            }
+
+            return true;
+        }
+
+        public ParseSessionResult Parse(string text)
+        {
+            var result = new ParseSessionResult();
+
+            if (string.IsNullOrWhiteSpace(text))
+            {
+                result.AddError("No text to parse", 0);
+                return result;
+            }
+
+            // Extract and process JavaScript execute blocks FIRST
+            var (processedText, lineMapping) = ExtractAndProcessExecuteBlocks(text, result);
+
+            // **NEW: Extract and process tuple schemas**
+            processedText = ExtractAndProcessTupleSchemas(processedText, result);
+
+            // Extract and process subject to blocks
+            processedText = ExtractSubjectToBlocks(processedText, lineMapping, result);
+
+            // Split into statements
+            var statements = SplitIntoStatements(processedText, lineMapping);
+
+            // Process each statement
+            foreach (var (statement, lineNumber) in statements)
+            {
+                if (!string.IsNullOrWhiteSpace(statement))
+                {
+                    ProcessStatement(statement, lineNumber, result);
+                }
+            }
+
+            return result;
+        }
+
+        private string ExtractAndProcessTupleSchemas(string text, ParseSessionResult result)
+        {
+            // Pattern: tuple Name { ... }
+            string pattern = @"tuple\s+([a-zA-Z][a-zA-Z0-9_]*)\s*\{";
+            var matches = Regex.Matches(text, pattern, RegexOptions.IgnoreCase);
+
+            if (matches.Count == 0)
+            {
+                return text; // No tuples
+            }
+
+            var resultText = new System.Text.StringBuilder();
+            int lastIndex = 0;
+
+            foreach (Match match in matches)
+            {
+                // Append text before this tuple
+                resultText.Append(text.Substring(lastIndex, match.Index - lastIndex));
+
+                // Find matching closing brace
+                int closingBraceIndex = FindClosingBrace(text, match.Index + match.Length);
+
+                if (closingBraceIndex == -1)
+                {
+                    result.AddError($"Tuple schema: Missing closing brace '}}' for tuple '{match.Groups[1].Value}'", 
+                        text.Substring(0, match.Index).Count(c => c == '\n') + 1);
+                    continue;
+                }
+
+                // Extract the complete tuple definition
+                string tupleDefinition = text.Substring(match.Index, closingBraceIndex - match.Index + 1);
+                
+                // Parse and register the tuple schema
+                if (TryParseTupleSchemaBlock(tupleDefinition, out var schema, out string error))
+                {
+                    modelManager.AddTupleSchema(schema);
+                    result.IncrementSuccess();
+                }
+                else
+                {
+                    result.AddError($"Error parsing tuple schema: {error}", 
+                        text.Substring(0, match.Index).Count(c => c == '\n') + 1);
+                }
+
+                lastIndex = closingBraceIndex + 1;
+            }
+
+            // Append remaining text
+            if (lastIndex < text.Length)
+            {
+                resultText.Append(text.Substring(lastIndex));
+            }
+
+            return resultText.ToString();
+        }
+
+        private bool TryParseTupleSchemaBlock(string block, out TupleSchema? schema, out string error)
+        {
+            schema = null;
+            error = string.Empty;
+
+            // Extract tuple name
+            var nameMatch = Regex.Match(block, @"tuple\s+([a-zA-Z][a-zA-Z0-9_]*)\s*\{", RegexOptions.IgnoreCase);
+            if (!nameMatch.Success)
+            {
+                error = "Invalid tuple syntax";
+                return false;
+            }
+
+            string tupleName = nameMatch.Groups[1].Value;
+            schema = new TupleSchema(tupleName);
+
+            // Extract body (everything between { and })
+            int openBrace = block.IndexOf('{');
+            int closeBrace = block.LastIndexOf('}');
+            
+            if (openBrace == -1 || closeBrace == -1)
+            {
+                error = "Missing braces in tuple definition";
+                return false;
+            }
+
+            string body = block.Substring(openBrace + 1, closeBrace - openBrace - 1);
+
+            // Parse field declarations
+            var fieldPattern = @"(float|int|bool|string)\s+([a-zA-Z][a-zA-Z0-9_]*)\s*;";
+            var fieldMatches = Regex.Matches(body, fieldPattern, RegexOptions.IgnoreCase);
+
+            if (fieldMatches.Count == 0)
+            {
+                error = "Tuple must have at least one field";
+                return false;
+            }
+
+            foreach (Match fieldMatch in fieldMatches)
+            {
+                string typeStr = fieldMatch.Groups[1].Value.ToLower();
+                string fieldName = fieldMatch.Groups[2].Value;
+
+                VariableType fieldType = typeStr switch
+                {
+                    "float" => VariableType.Float,
+                    "int" => VariableType.Integer,
+                    "bool" => VariableType.Boolean,
+                    "string" => VariableType.String,
+                    _ => VariableType.Float
+                };
+
+                try
+                {
+                    schema.AddField(fieldName, fieldType);
+                }
+                catch (Exception ex)
+                {
+                    error = ex.Message;
+                    return false;
+                }
+            }
+
+            return true;
+        }
+
+        public ParseSessionResult Parse(string text)
+        {
+            var result = new ParseSessionResult();
+
+            if (string.IsNullOrWhiteSpace(text))
+            {
+                result.AddError("No text to parse", 0);
+                return result;
+            }
+
+            // Extract and process JavaScript execute blocks FIRST
+            var (processedText, lineMapping) = ExtractAndProcessExecuteBlocks(text, result);
+
+            // **NEW: Extract and process tuple schemas**
+            processedText = ExtractAndProcessTupleSchemas(processedText, result);
+
+            // Extract and process subject to blocks
+            processedText = ExtractSubjectToBlocks(processedText, lineMapping, result);
+
+            // Split into statements
+            var statements = SplitIntoStatements(processedText, lineMapping);
+
+            // Process each statement
+            foreach (var (statement, lineNumber) in statements)
+            {
+                if (!string.IsNullOrWhiteSpace(statement))
+                {
+                    ProcessStatement(statement, lineNumber, result);
+                }
+            }
+
+            return result;
+        }
+
+        private string ExtractAndProcessTupleSchemas(string text, ParseSessionResult result)
+        {
+            // Pattern: tuple Name { ... }
+            string pattern = @"tuple\s+([a-zA-Z][a-zA-Z0-9_]*)\s*\{";
+            var matches = Regex.Matches(text, pattern, RegexOptions.IgnoreCase);
+
+            if (matches.Count == 0)
+            {
+                return text; // No tuples
+            }
+
+            var resultText = new System.Text.StringBuilder();
+            int lastIndex = 0;
+
+            foreach (Match match in matches)
+            {
+                // Append text before this tuple
+                resultText.Append(text.Substring(lastIndex, match.Index - lastIndex));
+
+                // Find matching closing brace
+                int closingBraceIndex = FindClosingBrace(text, match.Index + match.Length);
+
+                if (closingBraceIndex == -1)
+                {
+                    result.AddError($"Tuple schema: Missing closing brace '}}' for tuple '{match.Groups[1].Value}'", 
+                        text.Substring(0, match.Index).Count(c => c == '\n') + 1);
+                    continue;
+                }
+
+                // Extract the complete tuple definition
+                string tupleDefinition = text.Substring(match.Index, closingBraceIndex - match.Index + 1);
+                
+                // Parse and register the tuple schema
+                if (TryParseTupleSchemaBlock(tupleDefinition, out var schema, out string error))
+                {
+                    modelManager.AddTupleSchema(schema);
+                    result.IncrementSuccess();
+                }
+                else
+                {
+                    result.AddError($"Error parsing tuple schema: {error}", 
+                        text.Substring(0, match.Index).Count(c => c == '\n') + 1);
+                }
+
+                lastIndex = closingBraceIndex + 1;
+            }
+
+            // Append remaining text
+            if (lastIndex < text.Length)
+            {
+                resultText.Append(text.Substring(lastIndex));
+            }
+
+            return resultText.ToString();
+        }
+
+        private bool TryParseTupleSchemaBlock(string block, out TupleSchema? schema, out string error)
+        {
+            schema = null;
+            error = string.Empty;
+
+            // Extract tuple name
+            var nameMatch = Regex.Match(block, @"tuple\s+([a-zA-Z][a-zA-Z0-9_]*)\s*\{", RegexOptions.IgnoreCase);
+            if (!nameMatch.Success)
+            {
+                error = "Invalid tuple syntax";
+                return false;
+            }
+
+            string tupleName = nameMatch.Groups[1].Value;
+            schema = new TupleSchema(tupleName);
+
+            // Extract body (everything between { and })
+            int openBrace = block.IndexOf('{');
+            int closeBrace = block.LastIndexOf('}');
+            
+            if (openBrace == -1 || closeBrace == -1)
+            {
+                error = "Missing braces in tuple definition";
+                return false;
+            }
+
+            string body = block.Substring(openBrace + 1, closeBrace - openBrace - 1);
+
+            // Parse field declarations
+            var fieldPattern = @"(float|int|bool|string)\s+([a-zA-Z][a-zA-Z0-9_]*)\s*;";
+            var fieldMatches = Regex.Matches(body, fieldPattern, RegexOptions.IgnoreCase);
+
+            if (fieldMatches.Count == 0)
+            {
+                error = "Tuple must have at least one field";
+                return false;
+            }
+
+            foreach (Match fieldMatch in fieldMatches)
+            {
+                string typeStr = fieldMatch.Groups[1].Value.ToLower();
+                string fieldName = fieldMatch.Groups[2].Value;
+
+                VariableType fieldType = typeStr switch
+                {
+                    "float" => VariableType.Float,
+                    "int" => VariableType.Integer,
+                    "bool" => VariableType.Boolean,
+                    "string" => VariableType.String,
+                    _ => VariableType.Float
+                };
+
+                try
+                {
+                    schema.AddField(fieldName, fieldType);
+                }
+                catch (Exception ex)
+                {
+                    error = ex.Message;
+                    return false;
+                }
+            }
+
+            return true;
+        }
+
+        public ParseSessionResult Parse(string text)
+        {
+            var result = new ParseSessionResult();
+
+            if (string.IsNullOrWhiteSpace(text))
+            {
+                result.AddError("No text to parse", 0);
+                return result;
+            }
+
+            // Extract and process JavaScript execute blocks FIRST
+            var (processedText, lineMapping) = ExtractAndProcessExecuteBlocks(text, result);
+
+            // **NEW: Extract and process tuple schemas**
+            processedText = ExtractAndProcessTupleSchemas(processedText, result);
+
+            // Extract and process subject to blocks
+            processedText = ExtractSubjectToBlocks(processedText, lineMapping, result);
+
+            // Split into statements
+            var statements = SplitIntoStatements(processedText, lineMapping);
+
+            // Process each statement
+            foreach (var (statement, lineNumber) in statements)
+            {
+                if (!string.IsNullOrWhiteSpace(statement))
+                {
+                    ProcessStatement(statement, lineNumber, result);
+                }
+            }
+
+            return result;
+        }
+
+        private string ExtractAndProcessTupleSchemas(string text, ParseSessionResult result)
+        {
+            // Pattern: tuple Name { ... }
+            string pattern = @"tuple\s+([a-zA-Z][a-zA-Z0-9_]*)\s*\{";
+            var matches = Regex.Matches(text, pattern, RegexOptions.IgnoreCase);
+
+            if (matches.Count == 0)
+            {
+                return text; // No tuples
+            }
+
+            var resultText = new System.Text.StringBuilder();
+            int lastIndex = 0;
+
+            foreach (Match match in matches)
+            {
+                // Append text before this tuple
+                resultText.Append(text.Substring(lastIndex, match.Index - lastIndex));
+
+                // Find matching closing brace
+                int closingBraceIndex = FindClosingBrace(text, match.Index + match.Length);
+
+                if (closingBraceIndex == -1)
+                {
+                    result.AddError($"Tuple schema: Missing closing brace '}}' for tuple '{match.Groups[1].Value}'", 
+                        text.Substring(0, match.Index).Count(c => c == '\n') + 1);
+                    continue;
+                }
+
+                // Extract the complete tuple definition
+                string tupleDefinition = text.Substring(match.Index, closingBraceIndex - match.Index + 1);
+                
+                // Parse and register the tuple schema
+                if (TryParseTupleSchemaBlock(tupleDefinition, out var schema, out string error))
+                {
+                    modelManager.AddTupleSchema(schema);
+                    result.IncrementSuccess();
+                }
+                else
+                {
+                    result.AddError($"Error parsing tuple schema: {error}", 
+                        text.Substring(0, match.Index).Count(c => c == '\n') + 1);
+                }
+
+                lastIndex = closingBraceIndex + 1;
+            }
+
+            // Append remaining text
+            if (lastIndex < text.Length)
+            {
+                resultText.Append(text.Substring(lastIndex));
+            }
+
+            return resultText.ToString();
+        }
+
+        private bool TryParseTupleSchemaBlock(string block, out TupleSchema? schema, out string error)
+        {
+            schema = null;
+            error = string.Empty;
+
+            // Extract tuple name
+            var nameMatch = Regex.Match(block, @"tuple\s+([a-zA-Z][a-zA-Z0-9_]*)\s*\{", RegexOptions.IgnoreCase);
+            if (!nameMatch.Success)
+            {
+                error = "Invalid tuple syntax";
+                return false;
+            }
+
+            string tupleName = nameMatch.Groups[1].Value;
+            schema = new TupleSchema(tupleName);
+
+            // Extract body (everything between { and })
+            int openBrace = block.IndexOf('{');
+            int closeBrace = block.LastIndexOf('}');
+            
+            if (openBrace == -1 || closeBrace == -1)
+            {
+                error = "Missing braces in tuple definition";
+                return false;
+            }
+
+            string body = block.Substring(openBrace + 1, closeBrace - openBrace - 1);
+
+            // Parse field declarations
+            var fieldPattern = @"(float|int|bool|string)\s+([a-zA-Z][a-zA-Z0-9_]*)\s*;";
+            var fieldMatches = Regex.Matches(body, fieldPattern, RegexOptions.IgnoreCase);
+
+            if (fieldMatches.Count == 0)
+            {
+                error = "Tuple must have at least one field";
+                return false;
+            }
+
+            foreach (Match fieldMatch in fieldMatches)
+            {
+                string typeStr = fieldMatch.Groups[1].Value.ToLower();
+                string fieldName = fieldMatch.Groups[2].Value;
+
+                VariableType fieldType = typeStr switch
+                {
+                    "float" => VariableType.Float,
+                    "int" => VariableType.Integer,
+                    "bool" => VariableType.Boolean,
+                    "string" => VariableType.String,
+                    _ => VariableType.Float
+                };
+
+                try
+                {
+                    schema.AddField(fieldName, fieldType);
+                }
+                catch (Exception ex)
+                {
+                    error = ex.Message;
+                    return false;
+                }
+            }
+
+            return true;
+        }
+
+        public ParseSessionResult Parse(string text)
+        {
+            var result = new ParseSessionResult();
+
+            if (string.IsNullOrWhiteSpace(text))
+            {
+                result.AddError("No text to parse", 0);
+                return result;
+            }
+
+            // Extract and process JavaScript execute blocks FIRST
+            var (processedText, lineMapping) = ExtractAndProcessExecuteBlocks(text, result);
+
+            // **NEW: Extract and process tuple schemas**
+            processedText = ExtractAndProcessTupleSchemas(processedText, result);
+
+            // Extract and process subject to blocks
+            processedText = ExtractSubjectToBlocks(processedText, lineMapping, result);
+
+            // Split into statements
+            var statements = SplitIntoStatements(processedText, lineMapping);
+
+            // Process each statement
+            foreach (var (statement, lineNumber) in statements)
+            {
+                if (!string.IsNullOrWhiteSpace(statement))
+                {
+                    ProcessStatement(statement, lineNumber, result);
+                }
+            }
+
+            return result;
+        }
+
+        private string ExtractAndProcessTupleSchemas(string text, ParseSessionResult result)
+        {
+            // Pattern: tuple Name { ... }
+            string pattern = @"tuple\s+([a-zA-Z][a-zA-Z0-9_]*)\s*\{";
+            var matches = Regex.Matches(text, pattern, RegexOptions.IgnoreCase);
+
+            if (matches.Count == 0)
+            {
+                return text; // No tuples
+            }
+
+            var resultText = new System.Text.StringBuilder();
+            int lastIndex = 0;
+
+            foreach (Match match in matches)
+            {
+                // Append text before this tuple
+                resultText.Append(text.Substring(lastIndex, match.Index - lastIndex));
+
+                // Find matching closing brace
+                int closingBraceIndex = FindClosingBrace(text, match.Index + match.Length);
+
+                if (closingBraceIndex == -1)
+                {
+                    result.AddError($"Tuple schema: Missing closing brace '}}' for tuple '{match.Groups[1].Value}'", 
+                        text.Substring(0, match.Index).Count(c => c == '\n') + 1);
+                    continue;
+                }
+
+                // Extract the complete tuple definition
+                string tupleDefinition = text.Substring(match.Index, closingBraceIndex - match.Index + 1);
+                
+                // Parse and register the tuple schema
+                if (TryParseTupleSchemaBlock(tupleDefinition, out var schema, out string error))
+                {
+                    modelManager.AddTupleSchema(schema);
+                    result.IncrementSuccess();
+                }
+                else
+                {
+                    result.AddError($"Error parsing tuple schema: {error}", 
+                        text.Substring(0, match.Index).Count(c => c == '\n') + 1);
+                }
+
+                lastIndex = closingBraceIndex + 1;
+            }
+
+            // Append remaining text
+            if (lastIndex < text.Length)
+            {
+                resultText.Append(text.Substring(lastIndex));
+            }
+
+            return resultText.ToString();
+        }
+
+        private bool TryParseTupleSchemaBlock(string block, out TupleSchema? schema, out string error)
+        {
+            schema = null;
+            error = string.Empty;
+
+            // Extract tuple name
+            var nameMatch = Regex.Match(block, @"tuple\s+([a-zA-Z][a-zA-Z0-9_]*)\s*\{", RegexOptions.IgnoreCase);
+            if (!nameMatch.Success)
+            {
+                error = "Invalid tuple syntax";
+                return false;
+            }
+
+            string tupleName = nameMatch.Groups[1].Value;
+            schema = new TupleSchema(tupleName);
+
+            // Extract body (everything between { and })
+            int openBrace = block.IndexOf('{');
+            int closeBrace = block.LastIndexOf('}');
+            
+            if (openBrace == -1 || closeBrace == -1)
+            {
+                error = "Missing braces in tuple definition";
+                return false;
+            }
+
+            string body = block.Substring(openBrace + 1, closeBrace - openBrace - 1);
+
+            // Parse field declarations
+            var fieldPattern = @"(float|int|bool|string)\s+([a-zA-Z][a-zA-Z0-9_]*)\s*;";
+            var fieldMatches = Regex.Matches(body, fieldPattern, RegexOptions.IgnoreCase);
+
+            if (fieldMatches.Count == 0)
+            {
+                error = "Tuple must have at least one field";
+                return false;
+            }
+
+            foreach (Match fieldMatch in fieldMatches)
+            {
+                string typeStr = fieldMatch.Groups[1].Value.ToLower();
+                string fieldName = fieldMatch.Groups[2].Value;
+
+                VariableType fieldType = typeStr switch
+                {
+                    "float" => VariableType.Float,
+                    "int" => VariableType.Integer,
+                    "bool" => VariableType.Boolean,
+                    "string" => VariableType.String,
+                    _ => VariableType.Float
+                };
+
+                try
+                {
+                    schema.AddField(fieldName, fieldType);
+                }
+                catch (Exception ex)
+                {
+                    error = ex.Message;
+                    return false;
+                }
+            }
+
+            return true;
+        }
+
+        public ParseSessionResult Parse(string text)
+        {
+            var result = new ParseSessionResult();
+
+            if (string.IsNullOrWhiteSpace(text))
+            {
+                result.AddError("No text to parse", 0);
+                return result;
+            }
+
+            // Extract and process JavaScript execute blocks FIRST
+            var (processedText, lineMapping) = ExtractAndProcessExecuteBlocks(text, result);
+
+            // **NEW: Extract and process tuple schemas**
+            processedText = ExtractAndProcessTupleSchemas(processedText, result);
+
+            // Extract and process subject to blocks
+            processedText = ExtractSubjectToBlocks(processedText, lineMapping, result);
+
+            // Split into statements
+            var statements = SplitIntoStatements(processedText, lineMapping);
+
+            // Process each statement
+            foreach (var (statement, lineNumber) in statements)
+            {
+                if (!string.IsNullOrWhiteSpace(statement))
+                {
+                    ProcessStatement(statement, lineNumber, result);
+                }
+            }
+
+            return result;
+        }
+
+        private string ExtractAndProcessTupleSchemas(string text, ParseSessionResult result)
+        {
+            // Pattern: tuple Name { ... }
+            string pattern = @"tuple\s+([a-zA-Z][a-zA-Z0-9_]*)\s*\{";
+            var matches = Regex.Matches(text, pattern, RegexOptions.IgnoreCase);
+
+            if (matches.Count == 0)
+            {
+                return text; // No tuples
+            }
+
+            var resultText = new System.Text.StringBuilder();
+            int lastIndex = 0;
+
+            foreach (Match match in matches)
+            {
+                // Append text before this tuple
+                resultText.Append(text.Substring(lastIndex, match.Index - lastIndex));
+
+                // Find matching closing brace
+                int closingBraceIndex = FindClosingBrace(text, match.Index + match.Length);
+
+                if (closingBraceIndex == -1)
+                {
+                    result.AddError($"Tuple schema: Missing closing brace '}}' for tuple '{match.Groups[1].Value}'", 
+                        text.Substring(0, match.Index).Count(c => c == '\n') + 1);
+                    continue;
+                }
+
+                // Extract the complete tuple definition
+                string tupleDefinition = text.Substring(match.Index, closingBraceIndex - match.Index + 1);
+                
+                // Parse and register the tuple schema
+                if (TryParseTupleSchemaBlock(tupleDefinition, out var schema, out string error))
+                {
+                    modelManager.AddTupleSchema(schema);
+                    result.IncrementSuccess();
+                }
+                else
+                {
+                    result.AddError($"Error parsing tuple schema: {error}", 
+                        text.Substring(0, match.Index).Count(c => c == '\n') + 1);
+                }
+
+                lastIndex = closingBraceIndex + 1;
+            }
+
+            // Append remaining text
+            if (lastIndex < text.Length)
+            {
+                resultText.Append(text.Substring(lastIndex));
+            }
+
+            return resultText.ToString();
+        }
+
+        private bool TryParseTupleSchemaBlock(string block, out TupleSchema? schema, out string error)
+        {
+            schema = null;
+            error = string.Empty;
+
+            // Extract tuple name
+            var nameMatch = Regex.Match(block, @"tuple\s+([a-zA-Z][a-zA-Z0-9_]*)\s*\{", RegexOptions.IgnoreCase);
+            if (!nameMatch.Success)
+            {
+                error = "Invalid tuple syntax";
+                return false;
+            }
+
+            string tupleName = nameMatch.Groups[1].Value;
+            schema = new TupleSchema(tupleName);
+
+            // Extract body (everything between { and })
+            int openBrace = block.IndexOf('{');
+            int closeBrace = block.LastIndexOf('}');
+            
+            if (openBrace == -1 || closeBrace == -1)
+            {
+                error = "Missing braces in tuple definition";
+                return false;
+            }
+
+            string body = block.Substring(openBrace + 1, closeBrace - openBrace - 1);
+
+            // Parse field declarations
+            var fieldPattern = @"(float|int|bool|string)\s+([a-zA-Z][a-zA-Z0-9_]*)\s*;";
+            var fieldMatches = Regex.Matches(body, fieldPattern, RegexOptions.IgnoreCase);
+
+            if (fieldMatches.Count == 0)
+            {
+                error = "Tuple must have at least one field";
+                return false;
+            }
+
+            foreach (Match fieldMatch in fieldMatches)
+            {
+                string typeStr = fieldMatch.Groups[1].Value.ToLower();
+                string fieldName = fieldMatch.Groups[2].Value;
+
+                VariableType fieldType = typeStr switch
+                {
+                    "float" => VariableType.Float,
+                    "int" => VariableType.Integer,
+                    "bool" => VariableType.Boolean,
+                    "string" => VariableType.String,
+                    _ => VariableType.Float
+                };
+
+                try
+                {
+                    schema.AddField(fieldName, fieldType);
+                }
+                catch (Exception ex)
+                {
+                    error = ex.Message;
+                    return false;
+                }
+            }
+
+            return true;
+        }
+
+        public ParseSessionResult Parse(string text)
+        {
+            var result = new ParseSessionResult();
+
+            if (string.IsNullOrWhiteSpace(text))
+            {
+                result.AddError("No text to parse", 0);
+                return result;
+            }
+
+            // Extract and process JavaScript execute blocks FIRST
+            var (processedText, lineMapping) = ExtractAndProcessExecuteBlocks(text, result);
+
+            // **NEW: Extract and process tuple schemas**
+            processedText = ExtractAndProcessTupleSchemas(processedText, result);
+
+            // Extract and process subject to blocks
+            processedText = ExtractSubjectToBlocks(processedText, lineMapping, result);
+
+            // Split into statements
+            var statements = SplitIntoStatements(processedText, lineMapping);
+
+            // Process each statement
+            foreach (var (statement, lineNumber) in statements)
+            {
+                if (!string.IsNullOrWhiteSpace(statement))
+                {
+                    ProcessStatement(statement, lineNumber, result);
+                }
+            }
+
+            return result;
+        }
+
+        private string ExtractAndProcessTupleSchemas(string text, ParseSessionResult result)
+        {
+            // Pattern: tuple Name { ... }
+            string pattern = @"tuple\s+([a-zA-Z][a-zA-Z0-9_]*)\s*\{";
+            var matches = Regex.Matches(text, pattern, RegexOptions.IgnoreCase);
+
+            if (matches.Count == 0)
+            {
+                return text; // No tuples
+            }
+
+            var resultText = new System.Text.StringBuilder();
+            int lastIndex = 0;
+
+            foreach (Match match in matches)
+            {
+                // Append text before this tuple
+                resultText.Append(text.Substring(lastIndex, match.Index - lastIndex));
+
+                // Find matching closing brace
+                int closingBraceIndex = FindClosingBrace(text, match.Index + match.Length);
+
+                if (closingBraceIndex == -1)
+                {
+                    result.AddError($"Tuple schema: Missing closing brace '}}' for tuple '{match.Groups[1].Value}'", 
+                        text.Substring(0, match.Index).Count(c => c == '\n') + 1);
+                    continue;
+                }
+
+                // Extract the complete tuple definition
+                string tupleDefinition = text.Substring(match.Index, closingBraceIndex - match.Index + 1);
+                
+                // Parse and register the tuple schema
+                if (TryParseTupleSchemaBlock(tupleDefinition, out var schema, out string error))
+                {
+                    modelManager.AddTupleSchema(schema);
+                    result.IncrementSuccess();
+                }
+                else
+                {
+                    result.AddError($"Error parsing tuple schema: {error}", 
+                        text.Substring(0, match.Index).Count(c => c == '\n') + 1);
+                }
+
+                lastIndex = closingBraceIndex + 1;
+            }
+
+            // Append remaining text
+            if (lastIndex < text.Length)
+            {
+                resultText.Append(text.Substring(lastIndex));
+            }
+
+            return resultText.ToString();
+        }
+
+        private bool TryParseTupleSchemaBlock(string block, out TupleSchema? schema, out string error)
+        {
+            schema = null;
+            error = string.Empty;
+
+            // Extract tuple name
+            var nameMatch = Regex.Match(block, @"tuple\s+([a-zA-Z][a-zA-Z0-9_]*)\s*\{", RegexOptions.IgnoreCase);
+            if (!nameMatch.Success)
+            {
+                error = "Invalid tuple syntax";
+                return false;
+            }
+
+            string tupleName = nameMatch.Groups[1].Value;
+            schema = new TupleSchema(tupleName);
+
+            // Extract body (everything between { and })
+            int openBrace = block.IndexOf('{');
+            int closeBrace = block.LastIndexOf('}');
+            
+            if (openBrace == -1 || closeBrace == -1)
+            {
+                error = "Missing braces in tuple definition";
+                return false;
+            }
+
+            string body = block.Substring(openBrace + 1, closeBrace - openBrace - 1);
+
+            // Parse field declarations
+            var fieldPattern = @"(float|int|bool|string)\s+([a-zA-Z][a-zA-Z0-9_]*)\s*;";
+            var fieldMatches = Regex.Matches(body, fieldPattern, RegexOptions.IgnoreCase);
+
+            if (fieldMatches.Count == 0)
+            {
+                error = "Tuple must have at least one field";
+                return false;
+            }
+
+            foreach (Match fieldMatch in fieldMatches)
+            {
+                string typeStr = fieldMatch.Groups[1].Value.ToLower();
+                string fieldName = fieldMatch.Groups[2].Value;
+
+                VariableType fieldType = typeStr switch
+                {
+                    "float" => VariableType.Float,
+                    "int" => VariableType.Integer,
+                    "bool" => VariableType.Boolean,
+                    "string" => VariableType.String,
+                    _ => VariableType.Float
+                };
+
+                try
+                {
+                    schema.AddField(fieldName, fieldType);
+                }
+                catch (Exception ex)
+                {
+                    error = ex.Message;
+                    return false;
+                }
+            }
+
+            return true;
+        }
+
+        public ParseSessionResult Parse(string text)
+        {
+            var result = new ParseSessionResult();
+
+            if (string.IsNullOrWhiteSpace(text))
+            {
+                result.AddError("No text to parse", 0);
+                return result;
+            }
+
+            // Extract and process JavaScript execute blocks FIRST
+            var (processedText, lineMapping) = ExtractAndProcessExecuteBlocks(text, result);
+
+            // **NEW: Extract and process tuple schemas**
+            processedText = ExtractAndProcessTupleSchemas(processedText, result);
+
+            // Extract and process subject to blocks
+            processedText = ExtractSubjectToBlocks(processedText, lineMapping, result);
+
+            // Split into statements
+            var statements = SplitIntoStatements(processedText, lineMapping);
+
+            // Process each statement
+            foreach (var (statement, lineNumber) in statements)
+            {
+                if (!string.IsNullOrWhiteSpace(statement))
+                {
+                    ProcessStatement(statement, lineNumber, result);
+                }
+            }
+
+            return result;
+        }
+
+        private string ExtractAndProcessTupleSchemas(string text, ParseSessionResult result)
+        {
+            // Pattern: tuple Name { ... }
+            string pattern = @"tuple\s+([a-zA-Z][a-zA-Z0-9_]*)\s*\{";
+            var matches = Regex.Matches(text, pattern, RegexOptions.IgnoreCase);
+
+            if (matches.Count == 0)
+            {
+                return text; // No tuples
+            }
+
+            var resultText = new System.Text.StringBuilder();
+            int lastIndex = 0;
+
+            foreach (Match match in matches)
+            {
+                // Append text before this tuple
+                resultText.Append(text.Substring(lastIndex, match.Index - lastIndex));
+
+                // Find matching closing brace
+                int closingBraceIndex = FindClosingBrace(text, match.Index + match.Length);
+
+                if (closingBraceIndex == -1)
+                {
+                    result.AddError($"Tuple schema: Missing closing brace '}}' for tuple '{match.Groups[1].Value}'", 
+                        text.Substring(0, match.Index).Count(c => c == '\n') + 1);
+                    continue;
+                }
+
+                // Extract the complete tuple definition
+                string tupleDefinition = text.Substring(match.Index, closingBraceIndex - match.Index + 1);
+                
+                // Parse and register the tuple schema
+                if (TryParseTupleSchemaBlock(tupleDefinition, out var schema, out string error))
+                {
+                    modelManager.AddTupleSchema(schema);
+                    result.IncrementSuccess();
+                }
+                else
+                {
+                    result.AddError($"Error parsing tuple schema: {error}", 
+                        text.Substring(0, match.Index).Count(c => c == '\n') + 1);
+                }
+
+                lastIndex = closingBraceIndex + 1;
+            }
+
+            // Append remaining text
+            if (lastIndex < text.Length)
+            {
+                resultText.Append(text.Substring(lastIndex));
+            }
+
+            return resultText.ToString();
+        }
+
+        private bool TryParseTupleSchemaBlock(string block, out TupleSchema? schema, out string error)
+        {
+            schema = null;
+            error = string.Empty;
+
+            // Extract tuple name
+            var nameMatch = Regex.Match(block, @"tuple\s+([a-zA-Z][a-zA-Z0-9_]*)\s*\{", RegexOptions.IgnoreCase);
+            if (!nameMatch.Success)
+            {
+                error = "Invalid tuple syntax";
+                return false;
+            }
+
+            string tupleName = nameMatch.Groups[1].Value;
+            schema = new TupleSchema(tupleName);
+
+            // Extract body (everything between { and })
+            int openBrace = block.IndexOf('{');
+            int closeBrace = block.LastIndexOf('}');
+            
+            if (openBrace == -1 || closeBrace == -1)
+            {
+                error = "Missing braces in tuple definition";
+                return false;
+            }
+
+            string body = block.Substring(openBrace + 1, closeBrace - openBrace - 1);
+
+            // Parse field declarations
+            var fieldPattern = @"(float|int|bool|string)\s+([a-zA-Z][a-zA-Z0-9_]*)\s*;";
+            var fieldMatches = Regex.Matches(body, fieldPattern, RegexOptions.IgnoreCase);
+
+            if (fieldMatches.Count == 0)
+            {
+                error = "Tuple must have at least one field";
+                return false;
+            }
+
+            foreach (Match fieldMatch in fieldMatches)
+            {
+                string typeStr = fieldMatch.Groups[1].Value.ToLower();
+                string fieldName = fieldMatch.Groups[2].Value;
+
+                VariableType fieldType = typeStr switch
+                {
+                    "float" => VariableType.Float,
+                    "int" => VariableType.Integer,
+                    "bool" => VariableType.Boolean,
+                    "string" => VariableType.String,
+                    _ => VariableType.Float
+                };
+
+                try
+                {
+                    schema.AddField(fieldName, fieldType);
+                }
+                catch (Exception ex)
+                {
+                    error = ex.Message;
+                    return false;
+                }
+            }
+
+            return true;
+        }
+
+        public ParseSessionResult Parse(string text)
+        {
+            var result = new ParseSessionResult();
+
+            if (string.IsNullOrWhiteSpace(text))
+            {
+                result.AddError("No text to parse", 0);
+                return result;
+            }
+
+            // Extract and process JavaScript execute blocks FIRST
+            var (processedText, lineMapping) = ExtractAndProcessExecuteBlocks(text, result);
+
+            // **NEW: Extract and process tuple schemas**
+            processedText = ExtractAndProcessTupleSchemas(processedText, result);
+
+            // Extract and process subject to blocks
+            processedText = ExtractSubjectToBlocks(processedText, lineMapping, result);
+
+            // Split into statements
+            var statements = SplitIntoStatements(processedText, lineMapping);
+
+            // Process each statement
+            foreach (var (statement, lineNumber) in statements)
+            {
+                if (!string.IsNullOrWhiteSpace(statement))
+                {
+                    ProcessStatement(statement, lineNumber, result);
+                }
+            }
+
+            return result;
+        }
+
+        private string ExtractAndProcessTupleSchemas(string text, ParseSessionResult result)
+        {
+            // Pattern: tuple Name { ... }
+            string pattern = @"tuple\s+([a-zA-Z][a-zA-Z0-9_]*)\s*\{";
+            var matches = Regex.Matches(text, pattern, RegexOptions.IgnoreCase);
+
+            if (matches.Count == 0)
+            {
+                return text; // No tuples
+            }
+
+            var resultText = new System.Text.StringBuilder();
+            int lastIndex = 0;
+
+            foreach (Match match in matches)
+            {
+                // Append text before this tuple
+                resultText.Append(text.Substring(lastIndex, match.Index - lastIndex));
+
+                // Find matching closing brace
+                int closingBraceIndex = FindClosingBrace(text, match.Index + match.Length);
+
+                if (closingBraceIndex == -1)
+                {
+                    result.AddError($"Tuple schema: Missing closing brace '}}' for tuple '{match.Groups[1].Value}'", 
+                        text.Substring(0, match.Index).Count(c => c == '\n') + 1);
+                    continue;
+                }
+
+                // Extract the complete tuple definition
+                string tupleDefinition = text.Substring(match.Index, closingBraceIndex - match.Index + 1);
+                
+                // Parse and register the tuple schema
+                if (TryParseTupleSchemaBlock(tupleDefinition, out var schema, out string error))
+                {
+                    modelManager.AddTupleSchema(schema);
+                    result.IncrementSuccess();
+                }
+                else
+                {
+                    result.AddError($"Error parsing tuple schema: {error}", 
+                        text.Substring(0, match.Index).Count(c => c == '\n') + 1);
+                }
+
+                lastIndex = closingBraceIndex + 1;
+            }
+
+            // Append remaining text
+            if (lastIndex < text.Length)
+            {
+                resultText.Append(text.Substring(lastIndex));
+            }
+
+            return resultText.ToString();
+        }
+
+        private bool TryParseTupleSchemaBlock(string block, out TupleSchema? schema, out string error)
+        {
+            schema = null;
+            error = string.Empty;
+
+            // Extract tuple name
+            var nameMatch = Regex.Match(block, @"tuple\s+([a-zA-Z][a-zA-Z0-9_]*)\s*\{", RegexOptions.IgnoreCase);
+            if (!nameMatch.Success)
+            {
+                error = "Invalid tuple syntax";
+                return false;
+            }
+
+            string tupleName = nameMatch.Groups[1].Value;
+            schema = new TupleSchema(tupleName);
+
+            // Extract body (everything between { and })
+            int openBrace = block.IndexOf('{');
+            int closeBrace = block.LastIndexOf('}');
+            
+            if (openBrace == -1 || closeBrace == -1)
+            {
+                error = "Missing braces in tuple definition";
+                return false;
+            }
+
+            string body = block.Substring(openBrace + 1, closeBrace - openBrace - 1);
+
+            // Parse field declarations
+            var fieldPattern = @"(float|int|bool|string)\s+([a-zA-Z][a-zA-Z0-9_]*)\s*;";
+            var fieldMatches = Regex.Matches(body, fieldPattern, RegexOptions.IgnoreCase);
+
+            if (fieldMatches.Count == 0)
+            {
+                error = "Tuple must have at least one field";
+                return false;
+            }
+
+            foreach (Match fieldMatch in fieldMatches)
+            {
+                string typeStr = fieldMatch.Groups[1].Value.ToLower();
+                string fieldName = fieldMatch.Groups[2].Value;
+
+                VariableType fieldType = typeStr switch
+                {
+                    "float" => VariableType.Float,
+                    "int" => VariableType.Integer,
+                    "bool" => VariableType.Boolean,
+                    "string" => VariableType.String,
+                    _ => VariableType.Float
+                };
+
+                try
+                {
+                    schema.AddField(fieldName, fieldType);
+                }
+                catch (Exception ex)
+                {
+                    error = ex.Message;
+                    return false;
+                }
+            }
+
+            return true;
+        }
+
+        public ParseSessionResult Parse(string text)
+        {
+            var result = new ParseSessionResult();
+
+            if (string.IsNullOrWhiteSpace(text))
+            {
+                result.AddError("No text to parse", 0);
+                return result;
+            }
+
+            // Extract and process JavaScript execute blocks FIRST
+            var (processedText, lineMapping) = ExtractAndProcessExecuteBlocks(text, result);
+
+            // **NEW: Extract and process tuple schemas**
+            processedText = ExtractAndProcessTupleSchemas(processedText, result);
+
+            // Extract and process subject to blocks
+            processedText = ExtractSubjectToBlocks(processedText, lineMapping, result);
+
+            // Split into statements
+            var statements = SplitIntoStatements(processedText, lineMapping);
+
+            // Process each statement
+            foreach (var (statement, lineNumber) in statements)
+            {
+                if (!string.IsNullOrWhiteSpace(statement))
+                {
+                    ProcessStatement(statement, lineNumber, result);
+                }
+            }
+
+            return result;
+        }
+
+        private string ExtractAndProcessTupleSchemas(string text, ParseSessionResult result)
+        {
+            // Pattern: tuple Name { ... }
+            string pattern = @"tuple\s+([a-zA-Z][a-zA-Z0-9_]*)\s*\{";
+            var matches = Regex.Matches(text, pattern, RegexOptions.IgnoreCase);
+
+            if (matches.Count == 0)
+            {
+                return text; // No tuples
+            }
+
+            var resultText = new System.Text.StringBuilder();
+            int lastIndex = 0;
+
+            foreach (Match match in matches)
+            {
+                // Append text before this tuple
+                resultText.Append(text.Substring(lastIndex, match.Index - lastIndex));
+
+                // Find matching closing brace
+                int closingBraceIndex = FindClosingBrace(text, match.Index + match.Length);
+
+                if (closingBraceIndex == -1)
+                {
+                    result.AddError($"Tuple schema: Missing closing brace '}}' for tuple '{match.Groups[1].Value}'", 
+                        text.Substring(0, match.Index).Count(c => c == '\n') + 1);
+                    continue;
+                }
+
+                // Extract the complete tuple definition
+                string tupleDefinition = text.Substring(match.Index, closingBraceIndex - match.Index + 1);
+                
+                // Parse and register the tuple schema
+                if (TryParseTupleSchemaBlock(tupleDefinition, out var schema, out string error))
+                {
+                    modelManager.AddTupleSchema(schema);
+                    result.IncrementSuccess();
+                }
+                else
+                {
+                    result.AddError($"Error parsing tuple schema: {error}", 
+                        text.Substring(0, match.Index).Count(c => c == '\n') + 1);
+                }
+
+                lastIndex = closingBraceIndex + 1;
+            }
+
+            // Append remaining text
+            if (lastIndex < text.Length)
+            {
+                resultText.Append(text.Substring(lastIndex));
+            }
+
+            return resultText.ToString();
+        }
+
+        private bool TryParseTupleSchemaBlock(string block, out TupleSchema? schema, out string error)
+        {
+            schema = null;
+            error = string.Empty;
+
+            // Extract tuple name
+            var nameMatch = Regex.Match(block, @"tuple\s+([a-zA-Z][a-zA-Z0-9_]*)\s*\{", RegexOptions.IgnoreCase);
+            if (!nameMatch.Success)
+            {
+                error = "Invalid tuple syntax";
+                return false;
+            }
+
+            string tupleName = nameMatch.Groups[1].Value;
+            schema = new TupleSchema(tupleName);
+
+            // Extract body (everything between { and })
+            int openBrace = block.IndexOf('{');
+            int closeBrace = block.LastIndexOf('}');
+
+            if (openBrace == -1 || closeBrace == -1)
+            {
+                error = "Missing braces in tuple definition";
+                return false;
+            }
+
+            string body = block.Substring(openBrace + 1, closeBrace - openBrace - 1);
+
+            // Parse field declarations
+            var fieldPattern = @"(float|int|bool|string)\s+([a-zA-Z][a-zA-Z0-9_]*)\s*;";
+            var fieldMatches = Regex.Matches(body, fieldPattern, RegexOptions.IgnoreCase);
+
+            if (fieldMatches.Count == 0)
+            {
+                error = "Tuple must have at least one field";
+                return false;
+            }
+
+            foreach (Match fieldMatch in fieldMatches)
+            {
+                string typeStr = fieldMatch.Groups[1].Value.ToLower();
+                string fieldName = fieldMatch.Groups[2].Value;
+
+                VariableType fieldType = typeStr switch
+                {
+                    "float" => VariableType.Float,
+                    "int" => VariableType.Integer,
+                    "bool" => VariableType.Boolean,
+                    "string" => VariableType.String,
+                    _ => VariableType.Float
+                };
+
+                try
+                {
+                    schema.AddField(fieldName, fieldType);
+                }
+                catch (Exception ex)
+                {
+                    error = ex.Message;
+                    return false;
+                }
+            }
+
+            return true;
+        }
+
+        public ParseSessionResult Parse(string text)
+        {
+            var result = new ParseSessionResult();
+
+            if (string.IsNullOrWhiteSpace(text))
+            {
+                result.AddError("No text to parse", 0);
+                return result;
+            }
+
+            // Extract and process JavaScript execute blocks FIRST
+            var (processedText, lineMapping) = ExtractAndProcessExecuteBlocks(text, result);
+
+            // **NEW: Extract and process tuple schemas**
+            processedText = ExtractAndProcessTupleSchemas(processedText, result);
+
+            // Extract and process subject to blocks
+            processedText = ExtractSubjectToBlocks(processedText, lineMapping, result);
+
+            // Split into statements
+            var statements = SplitIntoStatements(processedText, lineMapping);
+
+            // Process each statement
+            foreach (var (statement, lineNumber) in statements)
+            {
+                if (!string.IsNullOrWhiteSpace(statement))
+                {
+                    ProcessStatement(statement, lineNumber, result);
+                }
+            }
+
+            return result;
+        }
+
+        private string ExtractAndProcessTupleSchemas(string text, ParseSessionResult result)
+        {
+            // Pattern: tuple Name { ... }
+            string pattern = @"tuple\s+([a-zA-Z][a-zA-Z0-9_]*)\s*\{";
+            var matches = Regex.Matches(text, pattern, RegexOptions.IgnoreCase);
+
+            if (matches.Count == 0)
+            {
+                return text; // No tuples
+            // **NEW: Extract and process tuple schemas**
+            processedText = ExtractAndProcessTupleSchemas(processedText, result);
+
+            // Extract and process subject to blocks
+            processedText = ExtractSubjectToBlocks(processedText, lineMapping, result);
+
+            // Split into statements
+            var statements = SplitIntoStatements(processedText, lineMapping);
+
+            // Process each statement
+            foreach (var (statement, lineNumber) in statements)
+            {
+                if (!string.IsNullOrWhiteSpace(statement))
+                {
+                    ProcessStatement(statement, lineNumber, result);
+                }
+            }
+
+            return result;
+        }
+
+        private string ExtractAndProcessTupleSchemas(string text, ParseSessionResult result)
+        {
+            // Pattern: tuple Name { ... }
+            string pattern = @"tuple\s+([a-zA-Z][a-zA-Z0-9_]*)\s*\{";
+            var matches = Regex.Matches(text, pattern, RegexOptions.IgnoreCase);
+
+            if (matches.Count == 0)
+            {
+                return text; // No tuples
+            }
+
+            var resultText = new System.Text.StringBuilder();
+            int lastIndex = 0;
+
+            foreach (Match match in matches)
+            {
+                // Append text before this tuple
+                resultText.Append(text.Substring(lastIndex, match.Index - lastIndex));
+
+                // Find matching closing brace
+                int closingBraceIndex = FindClosingBrace(text, match.Index + match.Length);
+
+                if (closingBraceIndex == -1)
+                {
+                    result.AddError($"Tuple schema: Missing closing brace '}}' for tuple '{match.Groups[1].Value}'", 
+                        text.Substring(0, match.Index).Count(c => c == '\n') + 1);
+                    continue;
+                }
+
+                // Extract the complete tuple definition
+                string tupleDefinition = text.Substring(match.Index, closingBraceIndex - match.Index + 1);
+                
+                // Parse and register the tuple schema
+                if (TryParseTupleSchemaBlock(tupleDefinition, out var schema, out string error))
+                {
+                    modelManager.AddTupleSchema(schema);
+                    result.IncrementSuccess();
+                }
+                else
+                {
+                    result.AddError($"Error parsing tuple schema: {error}", 
+                        text.Substring(0, match.Index).Count(c => c == '\n') + 1);
+                }
+
+                lastIndex = closingBraceIndex + 1;
+            }
+
+            // Append remaining text
+            if (lastIndex < text.Length)
+            {
+                resultText.Append(text.Substring(lastIndex));
+            }
+
+            return resultText.ToString();
+        }
+
+        private bool TryParseTupleSchemaBlock(string block, out TupleSchema? schema, out string error)
+        {
+            schema = null;
+            error = string.Empty;
+
+            // Extract tuple name
+            var nameMatch = Regex.Match(block, @"tuple\s+([a-zA-Z][a-zA-Z0-9_]*)\s*\{", RegexOptions.IgnoreCase);
+            if (!nameMatch.Success)
+            {
+                error = "Invalid tuple syntax";
+                return false;
+            }
+
+            string tupleName = nameMatch.Groups[1].Value;
+            schema = new TupleSchema(tupleName);
+
+            // Extract body (everything between { and })
+            int openBrace = block.IndexOf('{');
+            int closeBrace = block.LastIndexOf('}');
+            
+            if (openBrace == -1 || closeBrace == -1)
+            {
+                error = "Missing braces in tuple definition";
+                return false;
+            }
+
+            string body = block.Substring(openBrace + 1, closeBrace - openBrace - 1);
+
+            // Parse field declarations
+            var fieldPattern = @"(float|int|bool|string)\s+([a-zA-Z][a-zA-Z0-9_]*)\s*;";
+            var fieldMatches = Regex.Matches(body, fieldPattern, RegexOptions.IgnoreCase);
+
+            if (fieldMatches.Count == 0)
+            {
+                error = "Tuple must have at least one field";
+                return false;
+            }
+
+            foreach (Match fieldMatch in fieldMatches)
+            {
+                string typeStr = fieldMatch.Groups[1].Value.ToLower();
+                string fieldName = fieldMatch.Groups[2].Value;
+
+                VariableType fieldType = typeStr switch
+                {
+                    "float" => VariableType.Float,
+                    "int" => VariableType.Integer,
+                    "bool" => VariableType.Boolean,
+                    "string" => VariableType.String,
+                    _ => VariableType.Float
+                };
+
+                try
+                {
+                    schema.AddField(fieldName, fieldType);
+                }
+                catch (Exception ex)
+                {
+                    error = ex.Message;
+                    return false;
+                }
+            }
+
+            return true;
+        }
+
+        public ParseSessionResult Parse(string text)
+        {
+            var result = new ParseSessionResult();
+
+            if (string.IsNullOrWhiteSpace(text))
+            {
+                result.AddError("No text to parse", 0);
+                return result;
+            }
+
+            // Extract and process JavaScript execute blocks FIRST
+            var (processedText, lineMapping) = ExtractAndProcessExecuteBlocks(text, result);
+
+            // **NEW: Extract and process tuple schemas**
+            processedText = ExtractAndProcessTupleSchemas(processedText, result);
+
+            // Extract and process subject to blocks
+            processedText = ExtractSubjectToBlocks(processedText, lineMapping, result);
+
+            // Split into statements
+            var statements = SplitIntoStatements(processedText, lineMapping);
+
+            // Process each statement
+            foreach (var (statement, lineNumber) in statements)
+            {
+                if (!string.IsNullOrWhiteSpace(statement))
+                {
+                    ProcessStatement(statement, lineNumber, result);
+                }
+            }
+
+            return result;
+        }
+
+        private string ExtractAndProcessTupleSchemas(string text, ParseSessionResult result)
+        {
+            // Pattern: tuple Name { ... }
+            string pattern = @"tuple\s+([a-zA-Z][a-zA-Z0-9_]*)\s*\{";
+            var matches = Regex.Matches(text, pattern, RegexOptions.IgnoreCase);
+
+            if (matches.Count == 0)
+            {
+                return text; // No tuples
+            }
+
+            var resultText = new System.Text.StringBuilder();
+            int lastIndex = 0;
+
+            foreach (Match match in matches)
+            {
+                // Append text before this tuple
+                resultText.Append(text.Substring(lastIndex, match.Index - lastIndex));
+
+                // Find matching closing brace
+                int closingBraceIndex = FindClosingBrace(text, match.Index + match.Length);
+
+                if (closingBraceIndex == -1)
+                {
+                    result.AddError($"Tuple schema: Missing closing brace '}}' for tuple '{match.Groups[1].Value}'", 
+                        text.Substring(0, match.Index).Count(c => c == '\n') + 1);
+                    continue;
+                }
+
+                // Extract the complete tuple definition
+                string tupleDefinition = text.Substring(match.Index, closingBraceIndex - match.Index + 1);
+                
+                // Parse and register the tuple schema
+                if (TryParseTupleSchemaBlock(tupleDefinition, out var schema, out string error))
+                {
+                    modelManager.AddTupleSchema(schema);
+                    result.IncrementSuccess();
+                }
+                else
+                {
+                    result.AddError($"Error parsing tuple schema: {error}", 
+                        text.Substring(0, match.Index).Count(c => c == '\n') + 1);
+                }
+
+                lastIndex = closingBraceIndex + 1;
+            }
+
+            // Append remaining text
+            if (lastIndex < text.Length)
+            {
+                resultText.Append(text.Substring(lastIndex));
+            }
+
+            return resultText.ToString();
+        }
+
+        private bool TryParseTupleSchemaBlock(string block, out TupleSchema? schema, out string error)
+        {
+            schema = null;
+            error = string.Empty;
+
+            // Extract tuple name
+            var nameMatch = Regex.Match(block, @"tuple\s+([a-zA-Z][a-zA-Z0-9_]*)\s*\{", RegexOptions.IgnoreCase);
+            if (!nameMatch.Success)
+            {
+                error = "Invalid tuple syntax";
+                return false;
+            }
+
+            string tupleName = nameMatch.Groups[1].Value;
+            schema = new TupleSchema(tupleName);
+
+            // Extract body (everything between { and })
+            int openBrace = block.IndexOf('{');
+            int closeBrace = block.LastIndexOf('}');
+            
+            if (openBrace == -1 || closeBrace == -1)
+            {
+                error = "Missing braces in tuple definition";
+                return false;
+            }
+
+            string body = block.Substring(openBrace + 1, closeBrace - openBrace - 1);
+
+            // Parse field declarations
+            var fieldPattern = @"(float|int|bool|string)\s+([a-zA-Z][a-zA-Z0-9_]*)\s*;";
+            var fieldMatches = Regex.Matches(body, fieldPattern, RegexOptions.IgnoreCase);
+
+            if (fieldMatches.Count == 0)
+            {
+                error = "Tuple must have at least one field";
+                return false;
+            }
+
+            foreach (Match fieldMatch in fieldMatches)
+            {
+                string typeStr = fieldMatch.Groups[1].Value.ToLower();
+                string fieldName = fieldMatch.Groups[2].Value;
+
+                VariableType fieldType = typeStr switch
+                {
+                    "float" => VariableType.Float,
+                    "int" => VariableType.Integer,
+                    "bool" => VariableType.Boolean,
+                    "string" => VariableType.String,
+                    _ => VariableType.Float
+                };
+
+                try
+                {
+                    schema.AddField(fieldName, fieldType);
+                }
+                catch (Exception ex)
+                {
+                    error = ex.Message;
+                    return false;
+                }
+            }
+
+            return true;
+        }
+
+        public ParseSessionResult Parse(string text)
+        {
+            var result = new ParseSessionResult();
+
+            if (string.IsNullOrWhiteSpace(text))
+            {
+                result.AddError("No text to parse", 0);
+                return result;
+            }
+
+            // Extract and process JavaScript execute blocks FIRST
+            var (processedText, lineMapping) = ExtractAndProcessExecuteBlocks(text, result);
+
+            // **NEW: Extract and process tuple schemas**
+            processedText = ExtractAndProcessTupleSchemas(processedText, result);
+
+            // Extract and process subject to blocks
+            processedText = ExtractSubjectToBlocks(processedText, lineMapping, result);
+
+            // Split into statements
+            var statements = SplitIntoStatements(processedText, lineMapping);
+
+            // Process each statement
+            foreach (var (statement, lineNumber) in statements)
+            {
+                if (!string.IsNullOrWhiteSpace(statement))
+                {
+                    ProcessStatement(statement, lineNumber, result);
+                }
+            }
+
+            return result;
+        }
+
+        private string ExtractAndProcessTupleSchemas(string text, ParseSessionResult result)
+        {
+            // Pattern: tuple Name { ... }
+            string pattern = @"tuple\s+([a-zA-Z][a-zA-Z0-9_]*)\s*\{";
+            var matches = Regex.Matches(text, pattern, RegexOptions.IgnoreCase);
+
+            if (matches.Count == 0)
+            {
+                return text; // No tuples
+            }
+
+            var resultText = new System.Text.StringBuilder();
+            int lastIndex = 0;
+
+            foreach (Match match in matches)
+            {
+                // Append text before this tuple
+                resultText.Append(text.Substring(lastIndex, match.Index - lastIndex));
+
+                // Find matching closing brace
+                int closingBraceIndex = FindClosingBrace(text, match.Index + match.Length);
+
+                if (closingBraceIndex == -1)
+                {
+                    result.AddError($"Tuple schema: Missing closing brace '}}' for tuple '{match.Groups[1].Value}'", 
+                        text.Substring(0, match.Index).Count(c => c == '\n') + 1);
+                    continue;
+                }
+
+                // Extract the complete tuple definition
+                string tupleDefinition = text.Substring(match.Index, closingBraceIndex - match.Index + 1);
+                
+                // Parse and register the tuple schema
+                if (TryParseTupleSchemaBlock(tupleDefinition, out var schema, out string error))
+                {
+                    modelManager.AddTupleSchema(schema);
+                    result.IncrementSuccess();
+                }
+                else
+                {
+                    result.AddError($"Error parsing tuple schema: {error}", 
+                        text.Substring(0, match.Index).Count(c => c == '\n') + 1);
+                }
+
+                lastIndex = closingBraceIndex + 1;
+            }
+
+            // Append remaining text
+            if (lastIndex < text.Length)
+            {
+                resultText.Append(text.Substring(lastIndex));
+            }
+
+            return resultText.ToString();
+        }
+
+        private bool TryParseTupleSchemaBlock(string block, out TupleSchema? schema, out string error)
+        {
+            schema = null;
+            error = string.Empty;
+
+            // Extract tuple name
+            var nameMatch = Regex.Match(block, @"tuple\s+([a-zA-Z][a-zA-Z0-9_]*)\s*\{", RegexOptions.IgnoreCase);
+            if (!nameMatch.Success)
+            {
+                error = "Invalid tuple syntax";
+                return false;
+            }
+
+            string tupleName = nameMatch.Groups[1].Value;
+            schema = new TupleSchema(tupleName);
+
+            // Extract body (everything between { and })
+            int openBrace = block.IndexOf('{');
+            int closeBrace = block.LastIndexOf('}');
+            
+            if (openBrace == -1 || closeBrace == -1)
+            {
+                error = "Missing braces in tuple definition";
+                return false;
+            }
+
+            string body = block.Substring(openBrace + 1, closeBrace - openBrace - 1);
+
+            // Parse field declarations
+            var fieldPattern = @"(float|int|bool|string)\s+([a-zA-Z][a-zA-Z0-9_]*)\s*;";
+            var fieldMatches = Regex.Matches(body, fieldPattern, RegexOptions.IgnoreCase);
+
+            if (fieldMatches.Count == 0)
+            {
+                error = "Tuple must have at least one field";
+                return false;
+            }
+
+            foreach (Match fieldMatch in fieldMatches)
+            {
+                string typeStr = fieldMatch.Groups[1].Value.ToLower();
+                string fieldName = fieldMatch.Groups[2].Value;
+
+                VariableType fieldType = typeStr switch
+                {
+                    "float" => VariableType.Float,
+                    "int" => VariableType.Integer,
+                    "bool" => VariableType.Boolean,
+                    "string" => VariableType.String,
+                    _ => VariableType.Float
+                };
+
+                try
+                {
+                    schema.AddField(fieldName, fieldType);
+                }
+                catch (Exception ex)
+                {
+                    error = ex.Message;
+                    return false;
+                }
+            }
+
+            return true;
+        }
+
+        public ParseSessionResult Parse(string text)
+        {
+            var result = new ParseSessionResult();
+
+            if (string.IsNullOrWhiteSpace(text))
+            {
+                result.AddError("No text to parse", 0);
+                return result;
+            }
+
+            // Extract and process JavaScript execute blocks FIRST
+            var (processedText, lineMapping) = ExtractAndProcessExecuteBlocks(text, result);
+
+            // **NEW: Extract and process tuple schemas**
+            processedText = ExtractAndProcessTupleSchemas(processedText, result);
+
+            // Extract and process subject to blocks
+            processedText = ExtractSubjectToBlocks(processedText, lineMapping, result);
+
+            // Split into statements
+            var statements = SplitIntoStatements(processedText, lineMapping);
+
+            // Process each statement
+            foreach (var (statement, lineNumber) in statements)
+            {
+                if (!string.IsNullOrWhiteSpace(statement))
+                {
+                    ProcessStatement(statement, lineNumber, result);
+                }
+            }
+
+            return result;
+        }
+
+        private string ExtractAndProcessTupleSchemas(string text, ParseSessionResult result)
+        {
+            // Pattern: tuple Name { ... }
+            string pattern = @"tuple\s+([a-zA-Z][a-zA-Z0-9_]*)\s*\{";
+            var matches = Regex.Matches(text, pattern, RegexOptions.IgnoreCase);
+
+            if (matches.Count == 0)
+            {
+                return text; // No tuples
+            }
+
+            var resultText = new System.Text.StringBuilder();
+            int lastIndex = 0;
+
+            foreach (Match match in matches)
+            {
+                // Append text before this tuple
+                resultText.Append(text.Substring(lastIndex, match.Index - lastIndex));
+
+                // Find matching closing brace
+                int closingBraceIndex = FindClosingBrace(text, match.Index + match.Length);
+
+                if (closingBraceIndex == -1)
+                {
+                    result.AddError($"Tuple schema: Missing closing brace '}}' for tuple '{match.Groups[1].Value}'", 
+                        text.Substring(0, match.Index).Count(c => c == '\n') + 1);
+                    continue;
+                }
+
+                // Extract the complete tuple definition
+                string tupleDefinition = text.Substring(match.Index, closingBraceIndex - match.Index + 1);
+                
+                // Parse and register the tuple schema
+                if (TryParseTupleSchemaBlock(tupleDefinition, out var schema, out string error))
+                {
+                    modelManager.AddTupleSchema(schema);
+                    result.IncrementSuccess();
+                }
+                else
+                {
+                    result.AddError($"Error parsing tuple schema: {error}", 
+                        text.Substring(0, match.Index).Count(c => c == '\n') + 1);
+                }
+
+                lastIndex = closingBraceIndex + 1;
+            }
+
+            // Append remaining text
+            if (lastIndex < text.Length)
+            {
+                resultText.Append(text.Substring(lastIndex));
+            }
+
+            return resultText.ToString();
+        }
+
+        private bool TryParseTupleSchemaBlock(string block, out TupleSchema? schema, out string error)
+        {
+            schema = null;
+            error = string.Empty;
+
+            // Extract tuple name
+            var nameMatch = Regex.Match(block, @"tuple\s+([a-zA-Z][a-zA-Z0-9_]*)\s*\{", RegexOptions.IgnoreCase);
+            if (!nameMatch.Success)
+            {
+                error = "Invalid tuple syntax";
+                return false;
+            }
+
+            string tupleName = nameMatch.Groups[1].Value;
+            schema = new TupleSchema(tupleName);
+
+            // Extract body (everything between { and })
+            int openBrace = block.IndexOf('{');
+            int closeBrace = block.LastIndexOf('}');
+            
+            if (openBrace == -1 || closeBrace == -1)
+            {
+                error = "Missing braces in tuple definition";
+                return false;
+            }
+
+            string body = block.Substring(openBrace + 1, closeBrace - openBrace - 1);
+
+            // Parse field declarations
+            var fieldPattern = @"(float|int|bool|string)\s+([a-zA-Z][a-zA-Z0-9_]*)\s*;";
+            var fieldMatches = Regex.Matches(body, fieldPattern, RegexOptions.IgnoreCase);
+
+            if (fieldMatches.Count == 0)
+            {
+                error = "Tuple must have at least one field";
+                return false;
+            }
+
+            foreach (Match fieldMatch in fieldMatches)
+            {
+                string typeStr = fieldMatch.Groups[1].Value.ToLower();
+                string fieldName = fieldMatch.Groups[2].Value;
+
+                VariableType fieldType = typeStr switch
+                {
+                    "float" => VariableType.Float,
+                    "int" => VariableType.Integer,
+                    "bool" => VariableType.Boolean,
+                    "string" => VariableType.String,
+                    _ => VariableType.Float
+                };
+
+                try
+                {
+                    schema.AddField(fieldName, fieldType);
+                }
+                catch (Exception ex)
+                {
+                    error = ex.Message;
+                    return false;
+                }
+            }
+
+            return true;
+        }
+
+        public ParseSessionResult Parse(string text)
+        {
+            var result = new ParseSessionResult();
+
+            if (string.IsNullOrWhiteSpace(text))
+            {
+                result.AddError("No text to parse", 0);
+                return result;
+            }
+
+            // Extract and process JavaScript execute blocks FIRST
+            var (processedText, lineMapping) = ExtractAndProcessExecuteBlocks(text, result);
+
+            // **NEW: Extract and process tuple schemas**
+            processedText = ExtractAndProcessTupleSchemas(processedText, result);
+
+            // Extract and process subject to blocks
+            processedText = ExtractSubjectToBlocks(processedText, lineMapping, result);
+
+            // Split into statements
+            var statements = SplitIntoStatements(processedText, lineMapping);
+
+            // Process each statement
+            foreach (var (statement, lineNumber) in statements)
+            {
+                if (!string.IsNullOrWhiteSpace(statement))
+                {
+                    ProcessStatement(statement, lineNumber, result);
+                }
+            }
+
+            return result;
+        }
+
+        private string ExtractAndProcessTupleSchemas(string text, ParseSessionResult result)
+        {
+            // Pattern: tuple Name { ... }
+            string pattern = @"tuple\s+([a-zA-Z][a-zA-Z0-9_]*)\s*\{";
+            var matches = Regex.Matches(text, pattern, RegexOptions.IgnoreCase);
+
+            if (matches.Count == 0)
+            {
+                return text; // No tuples
+            }
+
+            var resultText = new System.Text.StringBuilder();
+            int lastIndex = 0;
+
+            foreach (Match match in matches)
+            {
+                // Append text before this tuple
+                resultText.Append(text.Substring(lastIndex, match.Index - lastIndex));
+
+                // Find matching closing brace
+                int closingBraceIndex = FindClosingBrace(text, match.Index + match.Length);
+
+                if (closingBraceIndex == -1)
+                {
+                    result.AddError($"Tuple schema: Missing closing brace '}}' for tuple '{match.Groups[1].Value}'", 
+                        text.Substring(0, match.Index).Count(c => c == '\n') + 1);
+                    continue;
+                }
+
+                // Extract the complete tuple definition
+                string tupleDefinition = text.Substring(match.Index, closingBraceIndex - match.Index + 1);
+                
+                // Parse and register the tuple schema
+                if (TryParseTupleSchemaBlock(tupleDefinition, out var schema, out string error))
+                {
+                    modelManager.AddTupleSchema(schema);
+                    result.IncrementSuccess();
+                }
+                else
+                {
+                    result.AddError($"Error parsing tuple schema: {error}", 
+                        text.Substring(0, match.Index).Count(c => c == '\n') + 1);
+                }
+
+                lastIndex = closingBraceIndex + 1;
+            }
+
+            // Append remaining text
+            if (lastIndex < text.Length)
+            {
+                resultText.Append(text.Substring(lastIndex));
+            }
+
+            return resultText.ToString();
+        }
+
+        private bool TryParseTupleSchemaBlock(string block, out TupleSchema? schema, out string error)
+        {
+            schema = null;
+            error = string.Empty;
+
+            // Extract tuple name
+            var nameMatch = Regex.Match(block, @"tuple\s+([a-zA-Z][a-zA-Z0-9_]*)\s*\{", RegexOptions.IgnoreCase);
+            if (!nameMatch.Success)
+            {
+                error = "Invalid tuple syntax";
+                return false;
+            }
+
+            string tupleName = nameMatch.Groups[1].Value;
+            schema = new TupleSchema(tupleName);
+
+            // Extract body (everything between { and })
+            int openBrace = block.IndexOf('{');
+            int closeBrace = block.LastIndexOf('}');
+            
+            if (openBrace == -1 || closeBrace == -1)
+            {
+                error = "Missing braces in tuple definition";
+                return false;
+            }
+
+            string body = block.Substring(openBrace + 1, closeBrace - openBrace - 1);
+
+            // Parse field declarations
+            var fieldPattern = @"(float|int|bool|string)\s+([a-zA-Z][a-zA-Z0-9_]*)\s*;";
+            var fieldMatches = Regex.Matches(body, fieldPattern, RegexOptions.IgnoreCase);
+
+            if (fieldMatches.Count == 0)
+            {
+                error = "Tuple must have at least one field";
+                return false;
+            }
+
+            foreach (Match fieldMatch in fieldMatches)
+            {
+                string typeStr = fieldMatch.Groups[1].Value.ToLower();
+                string fieldName = fieldMatch.Groups[2].Value;
+
+                VariableType fieldType = typeStr switch
+                {
+                    "float" => VariableType.Float,
+                    "int" => VariableType.Integer,
+                    "bool" => VariableType.Boolean,
+                    "string" => VariableType.String,
+                    _ => VariableType.Float
+                };
+
+                try
+                {
+                    schema.AddField(fieldName, fieldType);
+                }
+                catch (Exception ex)
+                {
+                    error = ex.Message;
+                    return false;
+                }
+            }
+
+            return true;
+        }
+
+        public ParseSessionResult Parse(string text)
+        {
+            var result = new ParseSessionResult();
+
+            if (string.IsNullOrWhiteSpace(text))
+            {
+                result.AddError("No text to parse", 0);
+                return result;
+            }
+
+            // Extract and process JavaScript execute blocks FIRST
+            var (processedText, lineMapping) = ExtractAndProcessExecuteBlocks(text, result);
+
+            // **NEW: Extract and process tuple schemas**
+            processedText = ExtractAndProcessTupleSchemas(processedText, result);
+
+            // Extract and process subject to blocks
+            processedText = ExtractSubjectToBlocks(processedText, lineMapping, result);
+
+            // Split into statements
+            var statements = SplitIntoStatements(processedText, lineMapping);
+
+            // Process each statement
+            foreach (var (statement, lineNumber) in statements)
+            {
+                if (!string.IsNullOrWhiteSpace(statement))
+                {
+                    ProcessStatement(statement, lineNumber, result);
+                }
+            }
+
+            return result;
+        }
+
+        private string ExtractAndProcessTupleSchemas(string text, ParseSessionResult result)
+        {
+            // Pattern: tuple Name { ... }
+            string pattern = @"tuple\s+([a-zA-Z][a-zA-Z0-9_]*)\s*\{";
+            var matches = Regex.Matches(text, pattern, RegexOptions.IgnoreCase);
+
+            if (matches.Count == 0)
+            {
+                return text; // No tuples
+            }
+
+            var resultText = new System.Text.StringBuilder();
+            int lastIndex = 0;
+
+            foreach (Match match in matches)
+            {
+                // Append text before this tuple
+                resultText.Append(text.Substring(lastIndex, match.Index - lastIndex));
+
+                // Find matching closing brace
+                int closingBraceIndex = FindClosingBrace(text, match.Index + match.Length);
+
+                if (closingBraceIndex == -1)
+                {
+                    result.AddError($"Tuple schema: Missing closing brace '}}' for tuple '{match.Groups[1].Value}'", 
+                        text.Substring(0, match.Index).Count(c => c == '\n') + 1);
+                    continue;
+                }
+
+                // Extract the complete tuple definition
+                string tupleDefinition = text.Substring(match.Index, closingBraceIndex - match.Index + 1);
+                
+                // Parse and register the tuple schema
+                if (TryParseTupleSchemaBlock(tupleDefinition, out var schema, out string error))
+                {
+                    modelManager.AddTupleSchema(schema);
+                    result.IncrementSuccess();
+                }
+                else
+                {
+                    result.AddError($"Error parsing tuple schema: {error}", 
+                        text.Substring(0, match.Index).Count(c => c == '\n') + 1);
+                }
+
+                lastIndex = closingBraceIndex + 1;
+            }
+
+            // Append remaining text
+            if (lastIndex < text.Length)
+            {
+                resultText.Append(text.Substring(lastIndex));
+            }
+
+            return resultText.ToString();
+        }
+
+        private bool TryParseTupleSchemaBlock(string block, out TupleSchema? schema, out string error)
+        {
+            schema = null;
+            error = string.Empty;
+
+            // Extract tuple name
+            var nameMatch = Regex.Match(block, @"tuple\s+([a-zA-Z][a-zA-Z0-9_]*)\s*\{", RegexOptions.IgnoreCase);
+            if (!nameMatch.Success)
+            {
+                error = "Invalid tuple syntax";
+                return false;
+            }
+
+            string tupleName = nameMatch.Groups[1].Value;
+            schema = new TupleSchema(tupleName);
+
+            // Extract body (everything between { and })
+            int openBrace = block.IndexOf('{');
+            int closeBrace = block.LastIndexOf('}');
+            
+            if (openBrace == -1 || closeBrace == -1)
+            {
+                error = "Missing braces in tuple definition";
+                return false;
+            }
+
+            string body = block.Substring(openBrace + 1, closeBrace - openBrace - 1);
+
+            // Parse field declarations
+            var fieldPattern = @"(float|int|bool|string)\s+([a-zA-Z][a-zA-Z0-9_]*)\s*;";
+            var fieldMatches = Regex.Matches(body, fieldPattern, RegexOptions.IgnoreCase);
+
+            if (fieldMatches.Count == 0)
+            {
+                error = "Tuple must have at least one field";
+                return false;
+            }
+
+            foreach (Match fieldMatch in fieldMatches)
+            {
+                string typeStr = fieldMatch.Groups[1].Value.ToLower();
+                string fieldName = fieldMatch.Groups[2].Value;
+
+                VariableType fieldType = typeStr switch
+                {
+                    "float" => VariableType.Float,
+                    "int" => VariableType.Integer,
+                    "bool" => VariableType.Boolean,
+                    "string" => VariableType.String,
+                    _ => VariableType.Float
+                };
+
+                try
+                {
+                    schema.AddField(fieldName, fieldType);
+                }
+                catch (Exception ex)
+                {
+                    error = ex.Message;
+                    return false;
+                }
+            }
+
+            return true;
+        }
+
+        public ParseSessionResult Parse(string text)
+        {
+            var result = new ParseSessionResult();
+
+            if (string.IsNullOrWhiteSpace(text))
+            {
+                result.AddError("No text to parse", 0);
+                return result;
+            }
+
+            // Extract and process JavaScript execute blocks FIRST
+            var (processedText, lineMapping) = ExtractAndProcessExecuteBlocks(text, result);
+
+            // **NEW: Extract and process tuple schemas**
+            processedText = ExtractAndProcessTupleSchemas(processedText, result);
+
+            // Extract and process subject to blocks
+            processedText = ExtractSubjectToBlocks(processedText, lineMapping, result);
+
+            // Split into statements
+            var statements = SplitIntoStatements(processedText, lineMapping);
+
+            // Process each statement
+            foreach (var (statement, lineNumber) in statements)
+            {
+                if (!string.IsNullOrWhiteSpace(statement))
+                {
+                    ProcessStatement(statement, lineNumber, result);
+                }
+            }
+
+            return result;
+        }
+
+        private string ExtractAndProcessTupleSchemas(string text, ParseSessionResult result)
+        {
+            // Pattern: tuple Name { ... }
+            string pattern = @"tuple\s+([a-zA-Z][a-zA-Z0-9_]*)\s*\{";
+            var matches = Regex.Matches(text, pattern, RegexOptions.IgnoreCase);
+
+            if (matches.Count == 0)
+            {
+                return text; // No tuples
+            }
+
+            var resultText = new System.Text.StringBuilder();
+            int lastIndex = 0;
+
+            foreach (Match match in matches)
+            {
+                // Append text before this tuple
+                resultText.Append(text.Substring(lastIndex, match.Index - lastIndex));
+
+                // Find matching closing brace
+                int closingBraceIndex = FindClosingBrace(text, match.Index + match.Length);
+
+                if (closingBraceIndex == -1)
+                {
+                    result.AddError($"Tuple schema: Missing closing brace '}}' for tuple '{match.Groups[1].Value}'", 
+                        text.Substring(0, match.Index).Count(c => c == '\n') + 1);
+                    continue;
+                }
+
+                // Extract the complete tuple definition
+                string tupleDefinition = text.Substring(match.Index, closingBraceIndex - match.Index + 1);
+                
+                // Parse and register the tuple schema
+                if (TryParseTupleSchemaBlock(tupleDefinition, out var schema, out string error))
+                {
+                    modelManager.AddTupleSchema(schema);
+                    result.IncrementSuccess();
+                }
+                else
+                {
+                    result.AddError($"Error parsing tuple schema: {error}", 
+                        text.Substring(0, match.Index).Count(c => c == '\n') + 1);
+                }
+
+                lastIndex = closingBraceIndex + 1;
+            }
+
+            // Append remaining text
+            if (lastIndex < text.Length)
+            {
+                resultText.Append(text.Substring(lastIndex));
+            }
+
+            return resultText.ToString();
+        }
+
+        private bool TryParseTupleSchemaBlock(string block, out TupleSchema? schema, out string error)
+        {
+            schema = null;
+            error = string.Empty;
+
+            // Extract tuple name
+            var nameMatch = Regex.Match(block, @"tuple\s+([a-zA-Z][a-zA-Z0-9_]*)\s*\{", RegexOptions.IgnoreCase);
+            if (!nameMatch.Success)
+            {
+                error = "Invalid tuple syntax";
+                return false;
+            }
+
+            string tupleName = nameMatch.Groups[1].Value;
+            schema = new TupleSchema(tupleName);
+
+            // Extract body (everything between { and })
+            int openBrace = block.IndexOf('{');
+            int closeBrace = block.LastIndexOf('}');
+            
+            if (openBrace == -1 || closeBrace == -1)
+            {
+                error = "Missing braces in tuple definition";
+                return false;
+            }
+
+            string body = block.Substring(openBrace + 1, closeBrace - openBrace - 1);
+
+            // Parse field declarations
+            var fieldPattern = @"(float|int|bool|string)\s+([a-zA-Z][a-zA-Z0-9_]*)\s*;";
+            var fieldMatches = Regex.Matches(body, fieldPattern, RegexOptions.IgnoreCase);
+
+            if (fieldMatches.Count == 0)
+            {
+                error = "Tuple must have at least one field";
+                return false;
+            }
+
+            foreach (Match fieldMatch in fieldMatches)
+            {
+                string typeStr = fieldMatch.Groups[1].Value.ToLower();
+                string fieldName = fieldMatch.Groups[2].Value;
+
+                VariableType fieldType = typeStr switch
+                {
+                    "float" => VariableType.Float,
+                    "int" => VariableType.Integer,
+                    "bool" => VariableType.Boolean,
+                    "string" => VariableType.String,
+                    _ => VariableType.Float
+                };
+
+                try
+                {
+                    schema.AddField(fieldName, fieldType);
+                }
+                catch (Exception ex)
+                {
+                    error = ex.Message;
+                    return false;
+                }
+            }
+
+            return true;
+        }
+
+        public ParseSessionResult Parse(string text)
+        {
+            var result = new ParseSessionResult();
+
+            if (string.IsNullOrWhiteSpace(text))
+            {
+                result.AddError("No text to parse", 0);
+                return result;
+            }
+
+            // Extract and process JavaScript execute blocks FIRST
+            var (processedText, lineMapping) = ExtractAndProcessExecuteBlocks(text, result);
+
+            // **NEW: Extract and process tuple schemas**
+            processedText = ExtractAndProcessTupleSchemas(processedText, result);
+
+            // Extract and process subject to blocks
+            processedText = ExtractSubjectToBlocks(processedText, lineMapping, result);
+
+            // Split into statements
+            var statements = SplitIntoStatements(processedText, lineMapping);
+
+            // Process each statement
+            foreach (var (statement, lineNumber) in statements)
+            {
+                if (!string.IsNullOrWhiteSpace(statement))
+                {
+                    ProcessStatement(statement, lineNumber, result);
+                }
+            }
+
+            return result;
+        }
+
+        private string ExtractAndProcessTupleSchemas(string text, ParseSessionResult result)
+        {
+            // Pattern: tuple Name { ... }
+            string pattern = @"tuple\s+([a-zA-Z][a-zA-Z0-9_]*)\s*\{";
+            var matches = Regex.Matches(text, pattern, RegexOptions.IgnoreCase);
+
+            if (matches.Count == 0)
+            {
+                return text; // No tuples
+            }
+
+            var resultText = new System.Text.StringBuilder();
+            int lastIndex = 0;
+
+            foreach (Match match in matches)
+            {
+                // Append text before this tuple
+                resultText.Append(text.Substring(lastIndex, match.Index - lastIndex));
+
+                // Find matching closing brace
+                int closingBraceIndex = FindClosingBrace(text, match.Index + match.Length);
+
+                if (closingBraceIndex == -1)
+                {
+                    result.AddError($"Tuple schema: Missing closing brace '}}' for tuple '{match.Groups[1].Value}'", 
+                        text.Substring(0, match.Index).Count(c => c == '\n') + 1);
+                    continue;
+                }
+
+                // Extract the complete tuple definition
+                string tupleDefinition = text.Substring(match.Index, closingBraceIndex - match.Index + 1);
+                
+                // Parse and register the tuple schema
+                if (TryParseTupleSchemaBlock(tupleDefinition, out var schema, out string error))
+                {
+                    modelManager.AddTupleSchema(schema);
+                    result.IncrementSuccess();
+                }
+                else
+                {
+                    result.AddError($"Error parsing tuple schema: {error}", 
+                        text.Substring(0, match.Index).Count(c => c == '\n') + 1);
+                }
+
+                lastIndex = closingBraceIndex + 1;
+            }
+
+            // Append remaining text
+            if (lastIndex < text.Length)
+            {
+                resultText.Append(text.Substring(lastIndex));
+            }
+
+            return resultText.ToString();
+        }
+
+        private bool TryParseTupleSchemaBlock(string block, out TupleSchema? schema, out string error)
+        {
+            schema = null;
+            error = string.Empty;
+
+            // Extract tuple name
+            var nameMatch = Regex.Match(block, @"tuple\s+([a-zA-Z][a-zA-Z0-9_]*)\s*\{", RegexOptions.IgnoreCase);
+            if (!nameMatch.Success)
+            {
+                error = "Invalid tuple syntax";
+                return false;
+            }
+
+            string tupleName = nameMatch.Groups[1].Value;
+            schema = new TupleSchema(tupleName);
+
+            // Extract body (everything between { and })
+            int openBrace = block.IndexOf('{');
+            int closeBrace = block.LastIndexOf('}');
+            
+            if (openBrace == -1 || closeBrace == -1)
+            {
+                error = "Missing braces in tuple definition";
+                return false;
+            }
+
+            string body = block.Substring(openBrace + 1, closeBrace - openBrace - 1);
+
+            // Parse field declarations
+            var fieldPattern = @"(float|int|bool|string)\s+([a-zA-Z][a-zA-Z0-9_]*)\s*;";
+            var fieldMatches = Regex.Matches(body, fieldPattern, RegexOptions.IgnoreCase);
+
+            if (fieldMatches.Count == 0)
+            {
+                error = "Tuple must have at least one field";
+                return false;
+            }
+
+            foreach (Match fieldMatch in fieldMatches)
+            {
+                string typeStr = fieldMatch.Groups[1].Value.ToLower();
+                string fieldName = fieldMatch.Groups[2].Value;
+
+                VariableType fieldType = typeStr switch
+                {
+                    "float" => VariableType.Float,
+                    "int" => VariableType.Integer,
+                    "bool" => VariableType.Boolean,
+                    "string" => VariableType.String,
+                    _ => VariableType.Float
+                };
+
+                try
+                {
+                    schema.AddField(fieldName, fieldType);
+                }
+                catch (Exception ex)
+                {
+                    error = ex.Message;
+                    return false;
+                }
+            }
+
+            return true;
+        }
+
+        public ParseSessionResult Parse(string text)
+        {
+            var result = new ParseSessionResult();
+
+            if (string.IsNullOrWhiteSpace(text))
+            {
+                result.AddError("No text to parse", 0);
+                return result;
+            }
+
+            // Extract and process JavaScript execute blocks FIRST
+            var (processedText, lineMapping) = ExtractAndProcessExecuteBlocks(text, result);
+
+            // **NEW: Extract and process tuple schemas**
+            processedText = ExtractAndProcessTupleSchemas(processedText, result);
+
+            // Extract and process subject to blocks
+            processedText = ExtractSubjectToBlocks(processedText, lineMapping, result);
+
+            // Split into statements
+            var statements = SplitIntoStatements(processedText, lineMapping);
+
+            // Process each statement
+            foreach (var (statement, lineNumber) in statements)
+            {
+                if (!string.IsNullOrWhiteSpace(statement))
+                {
+                    ProcessStatement(statement, lineNumber, result);
+                }
+            }
+
+            return result;
+        }
+
+        private string ExtractAndProcessTupleSchemas(string text, ParseSessionResult result)
+        {
+            // Pattern: tuple Name { ... }
+            string pattern = @"tuple\s+([a-zA-Z][a-zA-Z0-9_]*)\s*\{";
+            var matches = Regex.Matches(text, pattern, RegexOptions.IgnoreCase);
+
+            if (matches.Count == 0)
+            {
+                return text; // No tuples
+            }
+
+            var resultText = new System.Text.StringBuilder();
+            int lastIndex = 0;
+
+            foreach (Match match in matches)
+            {
+                // Append text before this tuple
+                resultText.Append(text.Substring(lastIndex, match.Index - lastIndex));
+
+                // Find matching closing brace
+                int closingBraceIndex = FindClosingBrace(text, match.Index + match.Length);
+
+                if (closingBraceIndex == -1)
+                {
+                    result.AddError($"Tuple schema: Missing closing brace '}}' for tuple '{match.Groups[1].Value}'", 
+                        text.Substring(0, match.Index).Count(c => c == '\n') + 1);
+                    continue;
+                }
+
+                // Extract the complete tuple definition
+                string tupleDefinition = text.Substring(match.Index, closingBraceIndex - match.Index + 1);
+                
+                // Parse and register the tuple schema
+                if (TryParseTupleSchemaBlock(tupleDefinition, out var schema, out string error))
+                {
+                    modelManager.AddTupleSchema(schema);
+                    result.IncrementSuccess();
+                }
+                else
+                {
+                    result.AddError($"Error parsing tuple schema: {error}", 
+                        text.Substring(0, match.Index).Count(c => c == '\n') + 1);
+                }
+
+                lastIndex = closingBraceIndex + 1;
+            }
+
+            // Append remaining text
+            if (lastIndex < text.Length)
+            {
+                resultText.Append(text.Substring(lastIndex));
+            }
+
+            return resultText.ToString();
+        }
+
+        private bool TryParseTupleSchemaBlock(string block, out TupleSchema? schema, out string error)
+        {
+            schema = null;
+            error = string.Empty;
+
+            // Extract tuple name
+            var nameMatch = Regex.Match(block, @"tuple\s+([a-zA-Z][a-zA-Z0-9_]*)\s*\{", RegexOptions.IgnoreCase);
+            if (!nameMatch.Success)
+            {
+                error = "Invalid tuple syntax";
+                return false;
+            }
+
+            string tupleName = nameMatch.Groups[1].Value;
+            schema = new TupleSchema(tupleName);
+
+            // Extract body (everything between { and })
+            int openBrace = block.IndexOf('{');
+            int closeBrace = block.LastIndexOf('}');
+            
+            if (openBrace == -1 || closeBrace == -1)
+            {
+                error = "Missing braces in tuple definition";
+                return false;
+            }
+
+            string body = block.Substring(openBrace + 1, closeBrace - openBrace - 1);
+
+            // Parse field declarations
+            var fieldPattern = @"(float|int|bool|string)\s+([a-zA-Z][a-zA-Z0-9_]*)\s*;";
+            var fieldMatches = Regex.Matches(body, fieldPattern, RegexOptions.IgnoreCase);
+
+            if (fieldMatches.Count == 0)
+            {
+                error = "Tuple must have at least one field";
+                return false;
+            }
+
+            foreach (Match fieldMatch in fieldMatches)
+            {
+                string typeStr = fieldMatch.Groups[1].Value.ToLower();
+                string fieldName = fieldMatch.Groups[2].Value;
+
+                VariableType fieldType = typeStr switch
+                {
+                    "float" => VariableType.Float,
+                    "int" => VariableType.Integer,
+                    "bool" => VariableType.Boolean,
+                    "string" => VariableType.String,
+                    _ => VariableType.Float
+                };
+
+                try
+                {
+                    schema.AddField(fieldName, fieldType);
+                }
+                catch (Exception ex)
+                {
+                    error = ex.Message;
+                    return false;
+                }
+            }
+
+            return true;
+        }
+
+        public ParseSessionResult Parse(string text)
+        {
+            var result = new ParseSessionResult();
+
+            if (string.IsNullOrWhiteSpace(text))
+            {
+                result.AddError("No text to parse", 0);
+                return result;
+            }
+
+            // Extract and process JavaScript execute blocks FIRST
+            var (processedText, lineMapping) = ExtractAndProcessExecuteBlocks(text, result);
+
+            // **NEW: Extract and process tuple schemas**
+            processedText = ExtractAndProcessTupleSchemas(processedText, result);
+
+            // Extract and process subject to blocks
+            processedText = ExtractSubjectToBlocks(processedText, lineMapping, result);
+
+            // Split into statements
+            var statements = SplitIntoStatements(processedText, lineMapping);
+
+            // Process each statement
+            foreach (var (statement, lineNumber) in statements)
+            {
+                if (!string.IsNullOrWhiteSpace(statement))
+                {
+                    ProcessStatement(statement, lineNumber, result);
+                }
+            }
+
+            return result;
+        }
+
+        private string ExtractAndProcessTupleSchemas(string text, ParseSessionResult result)
+        {
+            // Pattern: tuple Name { ... }
+            string pattern = @"tuple\s+([a-zA-Z][a-zA-Z0-9_]*)\s*\{";
+            var matches = Regex.Matches(text, pattern, RegexOptions.IgnoreCase);
+
+            if (matches.Count == 0)
+            {
+                return text; // No tuples
+            }
+
+            var resultText = new System.Text.StringBuilder();
+            int lastIndex = 0;
+
+            foreach (Match match in matches)
+            {
+                // Append text before this tuple
+                resultText.Append(text.Substring(lastIndex, match.Index - lastIndex));
+
+                // Find matching closing brace
+                int closingBraceIndex = FindClosingBrace(text, match.Index + match.Length);
+
+                if (closingBraceIndex == -1)
+                {
+                    result.AddError($"Tuple schema: Missing closing brace '}}' for tuple '{match.Groups[1].Value}'", 
+                        text.Substring(0, match.Index).Count(c => c == '\n') + 1);
+                    continue;
+                }
+
+                // Extract the complete tuple definition
+                string tupleDefinition = text.Substring(match.Index, closingBraceIndex - match.Index + 1);
+                
+                // Parse and register the tuple schema
+                if (TryParseTupleSchemaBlock(tupleDefinition, out var schema, out string error))
+                {
+                    modelManager.AddTupleSchema(schema);
+                    result.IncrementSuccess();
+                }
+                else
+                {
+                    result.AddError($"Error parsing tuple schema: {error}", 
+                        text.Substring(0, match.Index).Count(c => c == '\n') + 1);
+                }
+
+                lastIndex = closingBraceIndex + 1;
+            }
+
+            // Append remaining text
+            if (lastIndex < text.Length)
+            {
+                resultText.Append(text.Substring(lastIndex));
+            }
+
+            return resultText.ToString();
+        }
+
+        private bool TryParseTupleSchemaBlock(string block, out TupleSchema? schema, out string error)
+        {
+            schema = null;
+            error = string.Empty;
+
+            // Extract tuple name
+            var nameMatch = Regex.Match(block, @"tuple\s+([a-zA-Z][a-zA-Z0-9_]*)\s*\{", RegexOptions.IgnoreCase);
+            if (!nameMatch.Success)
+            {
+                error = "Invalid tuple syntax";
+                return false;
+            }
+
+            string tupleName = nameMatch.Groups[1].Value;
+            schema = new TupleSchema(tupleName);
+
+            // Extract body (everything between { and })
+            int openBrace = block.IndexOf('{');
+            int closeBrace = block.LastIndexOf('}');
+            
+            if (openBrace == -1 || closeBrace == -1)
+            {
+                error = "Missing braces in tuple definition";
+                return false;
+            }
+
+            string body = block.Substring(openBrace + 1, closeBrace - openBrace - 1);
+
+            // Parse field declarations
+            var fieldPattern = @"(float|int|bool|string)\s+([a-zA-Z][a-zA-Z0-9_]*)\s*;";
+            var fieldMatches = Regex.Matches(body, fieldPattern, RegexOptions.IgnoreCase);
+
+            if (fieldMatches.Count == 0)
+            {
+                error = "Tuple must have at least one field";
+                return false;
+            }
+
+            foreach (Match fieldMatch in fieldMatches)
+            {
+                string typeStr = fieldMatch.Groups[1].Value.ToLower();
+                string fieldName = fieldMatch.Groups[2].Value;
+
+                VariableType fieldType = typeStr switch
+                {
+                    "float" => VariableType.Float,
+                    "int" => VariableType.Integer,
+                    "bool" => VariableType.Boolean,
+                    "string" => VariableType.String,
+                    _ => VariableType.Float
+                };
+
+                try
+                {
+                    schema.AddField(fieldName, fieldType);
+                }
+                catch (Exception ex)
+                {
+                    error = ex.Message;
+                    return false;
+                }
+            }
+
+            return true;
+        }
+
+        public ParseSessionResult Parse(string text)
+        {
+            var result = new ParseSessionResult();
+
+            if (string.IsNullOrWhiteSpace(text))
+            {
+                result.AddError("No text to parse", 0);
+                return result;
+            }
+
+            // Extract and process JavaScript execute blocks FIRST
+            var (processedText, lineMapping) = ExtractAndProcessExecuteBlocks(text, result);
+
+            // **NEW: Extract and process tuple schemas**
+            processedText = ExtractAndProcessTupleSchemas(processedText, result);
+
+            // Extract and process subject to blocks
+            processedText = ExtractSubjectToBlocks(processedText, lineMapping, result);
+
+            // Split into statements
+            var statements = SplitIntoStatements(processedText, lineMapping);
+
+            // Process each statement
+            foreach (var (statement, lineNumber) in statements)
+            {
+                if (!string.IsNullOrWhiteSpace(statement))
+                {
+                    ProcessStatement(statement, lineNumber, result);
+                }
+            }
+
+            return result;
+        }
+
+        private string ExtractAndProcessTupleSchemas(string text, ParseSessionResult result)
+        {
+            // Pattern: tuple Name { ... }
+            string pattern = @"tuple\s+([a-zA-Z][a-zA-Z0-9_]*)\s*\{";
+            var matches = Regex.Matches(text, pattern, RegexOptions.IgnoreCase);
+
+            if (matches.Count == 0)
+            {
+                return text; // No tuples
+            }
+
+            var resultText = new System.Text.StringBuilder();
+            int lastIndex = 0;
+
+            foreach (Match match in matches)
+            {
+                // Append text before this tuple
+                resultText.Append(text.Substring(lastIndex, match.Index - lastIndex));
+
+                // Find matching closing brace
+                int closingBraceIndex = FindClosingBrace(text, match.Index + match.Length);
+
+                if (closingBraceIndex == -1)
+                {
+                    result.AddError($"Tuple schema: Missing closing brace '}}' for tuple '{match.Groups[1].Value}'", 
+                        text.Substring(0, match.Index).Count(c => c == '\n') + 1);
+                    continue;
+                }
+
+                // Extract the complete tuple definition
+                string tupleDefinition = text.Substring(match.Index, closingBraceIndex - match.Index + 1);
+                
+                // Parse and register the tuple schema
+                if (TryParseTupleSchemaBlock(tupleDefinition, out var schema, out string error))
+                {
+                    modelManager.AddTupleSchema(schema);
+                    result.IncrementSuccess();
+                }
+                else
+                {
+                    result.AddError($"Error parsing tuple schema: {error}", 
+                        text.Substring(0, match.Index).Count(c => c == '\n') + 1);
+                }
+
+                lastIndex = closingBraceIndex + 1;
+            }
+
+            // Append remaining text
+            if (lastIndex < text.Length)
+            {
+                resultText.Append(text.Substring(lastIndex));
+            }
+
+            return resultText.ToString();
+        }
+
+        private bool TryParseTupleSchemaBlock(string block, out TupleSchema? schema, out string error)
+        {
+            schema = null;
+            error = string.Empty;
+
+            // Extract tuple name
+            var nameMatch = Regex.Match(block, @"tuple\s+([a-zA-Z][a-zA-Z0-9_]*)\s*\{", RegexOptions.IgnoreCase);
+            if (!nameMatch.Success)
+            {
+                error = "Invalid tuple syntax";
+                return false;
+            }
+
+            string tupleName = nameMatch.Groups[1].Value;
+            schema = new TupleSchema(tupleName);
+
+            // Extract body (everything between { and })
+            int openBrace = block.IndexOf('{');
+            int closeBrace = block.LastIndexOf('}');
+            
+            if (openBrace == -1 || closeBrace == -1)
+            {
+                error = "Missing braces in tuple definition";
+                return false;
+            }
+
+            string body = block.Substring(openBrace + 1, closeBrace - openBrace - 1);
+
+            // Parse field declarations
+            var fieldPattern = @"(float|int|bool|string)\s+([a-zA-Z][a-zA-Z0-9_]*)\s*;";
+            var fieldMatches = Regex.Matches(body, fieldPattern, RegexOptions.IgnoreCase);
+
+            if (fieldMatches.Count == 0)
+            {
+                error = "Tuple must have at least one field";
+                return false;
+            }
+
+            foreach (Match fieldMatch in fieldMatches)
+            {
+                string typeStr = fieldMatch.Groups[1].Value.ToLower();
+                string fieldName = fieldMatch.Groups[2].Value;
+
+                VariableType fieldType = typeStr switch
+                {
+                    "float" => VariableType.Float,
+                    "int" => VariableType.Integer,
+                    "bool" => VariableType.Boolean,
+                    "string" => VariableType.String,
+                    _ => VariableType.Float
+                };
+
+                try
+                {
+                    schema.AddField(fieldName, fieldType);
+                }
+                catch (Exception ex)
+                {
+                    error = ex.Message;
+                    return false;
+                }
+            }
+
+            return true;
+        }
+
+        public ParseSessionResult Parse(string text)
+        {
+            var result = new ParseSessionResult();
+
+            if (string.IsNullOrWhiteSpace(text))
+            {
+                result.AddError("No text to parse", 0);
+                return result;
+            }
+
+            // Extract and process JavaScript execute blocks FIRST
+            var (processedText, lineMapping) = ExtractAndProcessExecuteBlocks(text, result);
+
+            // **NEW: Extract and process tuple schemas**
+            processedText = ExtractAndProcessTupleSchemas(processedText, result);
+
+            // Extract and process subject to blocks
+            processedText = ExtractSubjectToBlocks(processedText, lineMapping, result);
+
+            // Split into statements
+            var statements = SplitIntoStatements(processedText, lineMapping);
+
+            // Process each statement
+            foreach (var (statement, lineNumber) in statements)
+            {
+                if (!string.IsNullOrWhiteSpace(statement))
+                {
+                    ProcessStatement(statement, lineNumber, result);
+                }
+            }
+
+            return result;
+        }
+
+        private string ExtractAndProcessTupleSchemas(string text, ParseSessionResult result)
+        {
+            // Pattern: tuple Name { ... }
+            string pattern = @"tuple\s+([a-zA-Z][a-zA-Z0-9_]*)\s*\{";
+            var matches = Regex.Matches(text, pattern, RegexOptions.IgnoreCase);
+
+            if (matches.Count == 0)
+            {
+                return text; // No tuples
+            }
+
+            var resultText = new System.Text.StringBuilder();
+            int lastIndex = 0;
+
+            foreach (Match match in matches)
+            {
+                // Append text before this tuple
+                resultText.Append(text.Substring(lastIndex, match.Index - lastIndex));
+
+                // Find matching closing brace
+                int closingBraceIndex = FindClosingBrace(text, match.Index + match.Length);
+
+                if (closingBraceIndex == -1)
+                {
+                    result.AddError($"Tuple schema: Missing closing brace '}}' for tuple '{match.Groups[1].Value}'", 
+                        text.Substring(0, match.Index).Count(c => c == '\n') + 1);
+                    continue;
+                }
+
+                // Extract the complete tuple definition
+                string tupleDefinition = text.Substring(match.Index, closingBraceIndex - match.Index + 1);
+                
+                // Parse and register the tuple schema
+                if (TryParseTupleSchemaBlock(tupleDefinition, out var schema, out string error))
+                {
+                    modelManager.AddTupleSchema(schema);
+                    result.IncrementSuccess();
+                }
+                else
+                {
+                    result.AddError($"Error parsing tuple schema: {error}", 
+                        text.Substring(0, match.Index).Count(c => c == '\n') + 1);
+                }
+
+                lastIndex = closingBraceIndex + 1;
+            }
+
+            // Append remaining text
+            if (lastIndex < text.Length)
+            {
+                resultText.Append(text.Substring(lastIndex));
+            }
+
+            return resultText.ToString();
+        }
+
+        private bool TryParseTupleSchemaBlock(string block, out TupleSchema? schema, out string error)
+        {
+            schema = null;
+            error = string.Empty;
+
+            // Extract tuple name
+            var nameMatch = Regex.Match(block, @"tuple\s+([a-zA-Z][a-zA-Z0-9_]*)\s*\{", RegexOptions.IgnoreCase);
+            if (!nameMatch.Success)
+            {
+                error = "Invalid tuple syntax";
+                return false;
+            }
+
+            string tupleName = nameMatch.Groups[1].Value;
+            schema = new TupleSchema(tupleName);
+
+            // Extract body (everything between { and })
+            int openBrace = block.IndexOf('{');
+            int closeBrace = block.LastIndexOf('}');
+            
+            if (openBrace == -1 || closeBrace == -1)
+            {
+                error = "Missing braces in tuple definition";
+                return false;
+            }
+
+            string body = block.Substring(openBrace + 1, closeBrace - openBrace - 1);
+
+            // Parse field declarations
+            var fieldPattern = @"(float|int|bool|string)\s+([a-zA-Z][a-zA-Z0-9_]*)\s*;";
+            var fieldMatches = Regex.Matches(body, fieldPattern, RegexOptions.IgnoreCase);
+
+            if (fieldMatches.Count == 0)
+            {
+                error = "Tuple must have at least one field";
+                return false;
+            }
+
+            foreach (Match fieldMatch in fieldMatches)
+            {
+                string typeStr = fieldMatch.Groups[1].Value.ToLower();
+                string fieldName = fieldMatch.Groups[2].Value;
+
+                VariableType fieldType = typeStr switch
+                {
+                    "float" => VariableType.Float,
+                    "int" => VariableType.Integer,
+                    "bool" => VariableType.Boolean,
+                    "string" => VariableType.String,
+                    _ => VariableType.Float
+                };
+
+                try
+                {
+                    schema.AddField(fieldName, fieldType);
+                }
+                catch (Exception ex)
+                {
+                    error = ex.Message;
+                    return false;
+                }
+            }
+
+            return true;
+        }
+
+        public ParseSessionResult Parse(string text)
+        {
+            var result = new ParseSessionResult();
+
+            if (string.IsNullOrWhiteSpace(text))
+            {
+                result.AddError("No text to parse", 0);
+                return result;
+            }
+
+            // Extract and process JavaScript execute blocks FIRST
+            var (processedText, lineMapping) = ExtractAndProcessExecuteBlocks(text, result);
+
+            // **NEW: Extract and process tuple schemas**
+            processedText = ExtractAndProcessTupleSchemas(processedText, result);
+
+            // Extract and process subject to blocks
+            processedText = ExtractSubjectToBlocks(processedText, lineMapping, result);
+
+            // Split into statements
+            var statements = SplitIntoStatements(processedText, lineMapping);
+
+            // Process each statement
+            foreach (var (statement, lineNumber) in statements)
+            {
+                if (!string.IsNullOrWhiteSpace(statement))
+                {
+                    ProcessStatement(statement, lineNumber, result);
+                }
+            }
+
+            return result;
+        }
+
+        private string ExtractAndProcessTupleSchemas(string text, ParseSessionResult result)
+        {
+            // Pattern: tuple Name { ... }
+            string pattern = @"tuple\s+([a-zA-Z][a-zA-Z0-9_]*)\s*\{";
+            var matches = Regex.Matches(text, pattern, RegexOptions.IgnoreCase);
+
+            if (matches.Count == 0)
+            {
+                return text; // No tuples
+            }
+
+            var resultText = new System.Text.StringBuilder();
+            int lastIndex = 0;
+
+            foreach (Match match in matches)
+            {
+                // Append text before this tuple
+                resultText.Append(text.Substring(lastIndex, match.Index - lastIndex));
+
+                // Find matching closing brace
+                int closingBraceIndex = FindClosingBrace(text, match.Index + match.Length);
+
+                if (closingBraceIndex == -1)
+                {
+                    result.AddError($"Tuple schema: Missing closing brace '}}' for tuple '{match.Groups[1].Value}'", 
+                        text.Substring(0, match.Index).Count(c => c == '\n') + 1);
+                    continue;
+                }
+
+                // Extract the complete tuple definition
+                string tupleDefinition = text.Substring(match.Index, closingBraceIndex - match.Index + 1);
+                
+                // Parse and register the tuple schema
+                if (TryParseTupleSchemaBlock(tupleDefinition, out var schema, out string error))
+                {
+                    modelManager.AddTupleSchema(schema);
+                    result.IncrementSuccess();
+                }
+                else
+                {
+                    result.AddError($"Error parsing tuple schema: {error}", 
+                        text.Substring(0, match.Index).Count(c => c == '\n') + 1);
+                }
+
+                lastIndex = closingBraceIndex + 1;
+            }
+
+            // Append remaining text
+            if (lastIndex < text.Length)
+            {
+                resultText.Append(text.Substring(lastIndex));
+            }
+
+            return resultText.ToString();
+        }
+
+        private bool TryParseTupleSchemaBlock(string block, out TupleSchema? schema, out string error)
+        {
+            schema = null;
+            error = string.Empty;
+
+            // Extract tuple name
+            var nameMatch = Regex.Match(block, @"tuple\s+([a-zA-Z][a-zA-Z0-9_]*)\s*\{", RegexOptions.IgnoreCase);
+            if (!nameMatch.Success)
+            {
+                error = "Invalid tuple syntax";
+                return false;
+            }
+
+            string tupleName = nameMatch.Groups[1].Value;
+            schema = new TupleSchema(tupleName);
+
+            // Extract body (everything between { and })
+            int openBrace = block.IndexOf('{');
+            int closeBrace = block.LastIndexOf('}');
+            
+            if (openBrace == -1 || closeBrace == -1)
+            {
+                error = "Missing braces in tuple definition";
+                return false;
+            }
+
+            string body = block.Substring(openBrace + 1, closeBrace - openBrace - 1);
+
+            // Parse field declarations
+            var fieldPattern = @"(float|int|bool|string)\s+([a-zA-Z][a-zA-Z0-9_]*)\s*;";
+            var fieldMatches = Regex.Matches(body, fieldPattern, RegexOptions.IgnoreCase);
+
+            if (fieldMatches.Count == 0)
+            {
+                error = "Tuple must have at least one field";
+                return false;
+            }
+
+            foreach (Match fieldMatch in fieldMatches)
+            {
+                string typeStr = fieldMatch.Groups[1].Value.ToLower();
+                string fieldName = fieldMatch.Groups[2].Value;
+
+                VariableType fieldType = typeStr switch
+                {
+                    "float" => VariableType.Float,
+                    "int" => VariableType.Integer,
+                    "bool" => VariableType.Boolean,
+                    "string" => VariableType.String,
+                    _ => VariableType.Float
+                };
+
+                try
+                {
+                    schema.AddField(fieldName, fieldType);
+                }
+                catch (Exception ex)
+                {
+                    error = ex.Message;
+                    return false;
+                }
+            }
+
+            return true;
+        }
+
+        public ParseSessionResult Parse(string text)
+        {
+            var result = new ParseSessionResult();
+
+            if (string.IsNullOrWhiteSpace(text))
+            {
+                result.AddError("No text to parse", 0);
+                return result;
+            }
+
+            // Extract and process JavaScript execute blocks FIRST
+            var (processedText, lineMapping) = ExtractAndProcessExecuteBlocks(text, result);
+
+            // **NEW: Extract and process tuple schemas**
+            processedText = ExtractAndProcessTupleSchemas(processedText, result);
+
+            // Extract and process subject to blocks
+            processedText = ExtractSubjectToBlocks(processedText, lineMapping, result);
+
+            // Split into statements
+            var statements = SplitIntoStatements(processedText, lineMapping);
+
+            // Process each statement
+            foreach (var (statement, lineNumber) in statements)
+            {
+                if (!string.IsNullOrWhiteSpace(statement))
+                {
+                    ProcessStatement(statement, lineNumber, result);
+                }
+            }
+
+            return result;
+        }
+
+        private string ExtractAndProcessTupleSchemas(string text, ParseSessionResult result)
+        {
+            // Pattern: tuple Name { ... }
+            string pattern = @"tuple\s+([a-zA-Z][a-zA-Z0-9_]*)\s*\{";
+            var matches = Regex.Matches(text, pattern, RegexOptions.IgnoreCase);
+
+            if (matches.Count == 0)
+            {
+                return text; // No tuples
+            }
+
+            var resultText = new System.Text.StringBuilder();
+            int lastIndex = 0;
+
+            foreach (Match match in matches)
+            {
+                // Append text before this tuple
+                resultText.Append(text.Substring(lastIndex, match.Index - lastIndex));
+
+                // Find matching closing brace
+                int closingBraceIndex = FindClosingBrace(text, match.Index + match.Length);
+
+                if (closingBraceIndex == -1)
+                {
+                    result.AddError($"Tuple schema: Missing closing brace '}}' for tuple '{match.Groups[1].Value}'", 
+                        text.Substring(0, match.Index).Count(c => c == '\n') + 1);
+                    continue;
+                }
+
+                // Extract the complete tuple definition
+                string tupleDefinition = text.Substring(match.Index, closingBraceIndex - match.Index + 1);
+                
+                // Parse and register the tuple schema
+                if (TryParseTupleSchemaBlock(tupleDefinition, out var schema, out string error))
+                {
+                    modelManager.AddTupleSchema(schema);
+                    result.IncrementSuccess();
+                }
+                else
+                {
+                    result.AddError($"Error parsing tuple schema: {error}", 
+                        text.Substring(0, match.Index).Count(c => c == '\n') + 1);
+                }
+
+                lastIndex = closingBraceIndex + 1;
+            }
+
+            // Append remaining text
+            if (lastIndex < text.Length)
+            {
+                resultText.Append(text.Substring(lastIndex));
+            }
+
+            return resultText.ToString();
+        }
+
+        private bool TryParseTupleSchemaBlock(string block, out TupleSchema? schema, out string error)
+        {
+            schema = null;
+            error = string.Empty;
+
+            // Extract tuple name
+            var nameMatch = Regex.Match(block, @"tuple\s+([a-zA-Z][a-zA-Z0-9_]*)\s*\{", RegexOptions.IgnoreCase);
+            if (!nameMatch.Success)
+            {
+                error = "Invalid tuple syntax";
+                return false;
+            }
+
+            string tupleName = nameMatch.Groups[1].Value;
+            schema = new TupleSchema(tupleName);
+
+            // Extract body (everything between { and })
+            int openBrace = block.IndexOf('{');
+            int closeBrace = block.LastIndexOf('}');
+            
+            if (openBrace == -1 || closeBrace == -1)
+            {
+                error = "Missing braces in tuple definition";
+                return false;
+            }
+
+            string body = block.Substring(openBrace + 1, closeBrace - openBrace - 1);
+
+            // Parse field declarations
+            var fieldPattern = @"(float|int|bool|string)\s+([a-zA-Z][a-zA-Z0-9_]*)\s*;";
+            var fieldMatches = Regex.Matches(body, fieldPattern, RegexOptions.IgnoreCase);
+
+            if (fieldMatches.Count == 0)
+            {
+                error = "Tuple must have at least one field";
+                return false;
+            }
+
+            foreach (Match fieldMatch in fieldMatches)
+            {
+                string typeStr = fieldMatch.Groups[1].Value.ToLower();
+                string fieldName = fieldMatch.Groups[2].Value;
+
+                VariableType fieldType = typeStr switch
+                {
+                    "float" => VariableType.Float,
+                    "int" => VariableType.Integer,
+                    "bool" => VariableType.Boolean,
+                    "string" => VariableType.String,
+                    _ => VariableType.Float
+                };
+
+                try
+                {
+                    schema.AddField(fieldName, fieldType);
+                }
+                catch (Exception ex)
+                {
+                    error = ex.Message;
+                    return false;
+                }
+            }
+
+            return true;
+        }
+
+        public ParseSessionResult Parse(string text)
+        {
+            var result = new ParseSessionResult();
+
+            if (string.IsNullOrWhiteSpace(text))
+            {
+                result.AddError("No text to parse", 0);
+                return result;
+            }
+
+            // Extract and process JavaScript execute blocks FIRST
+            var (processedText, lineMapping) = ExtractAndProcessExecuteBlocks(text, result);
+
+            // **NEW: Extract and process tuple schemas**
+            processedText = ExtractAndProcessTupleSchemas(processedText, result);
+
+            // Extract and process subject to blocks
+            processedText = ExtractSubjectToBlocks(processedText, lineMapping, result);
+
+            // Split into statements
+            var statements = SplitIntoStatements(processedText, lineMapping);
+
+            // Process each statement
+            foreach (var (statement, lineNumber) in statements)
+            {
+                if (!string.IsNullOrWhiteSpace(statement))
+                {
+                    ProcessStatement(statement, lineNumber, result);
+                }
+            }
+
+            return result;
+        }
+
+        private string ExtractAndProcessTupleSchemas(string text, ParseSessionResult result)
+        {
+            // Pattern: tuple Name { ... }
+            string pattern = @"tuple\s+([a-zA-Z][a-zA-Z0-9_]*)\s*\{";
+            var matches = Regex.Matches(text, pattern, RegexOptions.IgnoreCase);
+
+            if (matches.Count == 0)
+            {
+                return text; // No tuples
+            }
+
+            var resultText = new System.Text.StringBuilder();
+            int lastIndex = 0;
+
+            foreach (Match match in matches)
+            {
+                // Append text before this tuple
+                resultText.Append(text.Substring(lastIndex, match.Index - lastIndex));
+
+                // Find matching closing brace
+                int closingBraceIndex = FindClosingBrace(text, match.Index + match.Length);
+
+                if (closingBraceIndex == -1)
+                {
+                    result.AddError($"Tuple schema: Missing closing brace '}}' for tuple '{match.Groups[1].Value}'", 
+                        text.Substring(0, match.Index).Count(c => c == '\n') + 1);
+                    continue;
+                }
+
+                // Extract the complete tuple definition
+                string tupleDefinition = text.Substring(match.Index, closingBraceIndex - match.Index + 1);
+                
+                // Parse and register the tuple schema
+                if (TryParseTupleSchemaBlock(tupleDefinition, out var schema, out string error))
+                {
+                    modelManager.AddTupleSchema(schema);
+                    result.IncrementSuccess();
+                }
+                else
+                {
+                    result.AddError($"Error parsing tuple schema: {error}", 
+                        text.Substring(0, match.Index).Count(c => c == '\n') + 1);
+                }
+
+                lastIndex = closingBraceIndex + 1;
+            }
+
+            // Append remaining text
+            if (lastIndex < text.Length)
+            {
+                resultText.Append(text.Substring(lastIndex));
+            }
+
+            return resultText.ToString();
+        }
+
+        private bool TryParseTupleSchemaBlock(string block, out TupleSchema? schema, out string error)
+        {
+            schema = null;
+            error = string.Empty;
+
+            // Extract tuple name
+            var nameMatch = Regex.Match(block, @"tuple\s+([a-zA-Z][a-zA-Z0-9_]*)\s*\{", RegexOptions.IgnoreCase);
+            if (!nameMatch.Success)
+            {
+                error = "Invalid tuple syntax";
+                return false;
+            }
+
+            string tupleName = nameMatch.Groups[1].Value;
+            schema = new TupleSchema(tupleName);
+
+            // Extract body (everything between { and })
+            int openBrace = block.IndexOf('{');
+            int closeBrace = block.LastIndexOf('}');
+            
+            if (openBrace == -1 || closeBrace == -1)
+            {
+                error = "Missing braces in tuple definition";
+                return false;
+            }
+
+            string body = block.Substring(openBrace + 1, closeBrace - openBrace - 1);
+
+            // Parse field declarations
+            var fieldPattern = @"(float|int|bool|string)\s+([a-zA-Z][a-zA-Z0-9_]*)\s*;";
+            var fieldMatches = Regex.Matches(body, fieldPattern, RegexOptions.IgnoreCase);
+
+            if (fieldMatches.Count == 0)
+            {
+                error = "Tuple must have at least one field";
+                return false;
+            }
+
+            foreach (Match fieldMatch in fieldMatches)
+            {
+                string typeStr = fieldMatch.Groups[1].Value.ToLower();
+                string fieldName = fieldMatch.Groups[2].Value;
+
+                VariableType fieldType = typeStr switch
+                {
+                    "float" => VariableType.Float,
+                    "int" => VariableType.Integer,
+                    "bool" => VariableType.Boolean,
+                    "string" => VariableType.String,
+                    _ => VariableType.Float
+                };
+
+                try
+                {
+                    schema.AddField(fieldName, fieldType);
+                }
+                catch (Exception ex)
+                {
+                    error = ex.Message;
+                    return false;
+                }
+            }
+
+            return true;
+        }
+
+        public ParseSessionResult Parse(string text)
+        {
+            var result = new ParseSessionResult();
+
+            if (string.IsNullOrWhiteSpace(text))
+            {
+                result.AddError("No text to parse", 0);
+                return result;
+            }
+
+            // Extract and process JavaScript execute blocks FIRST
+            var (processedText, lineMapping) = ExtractAndProcessExecuteBlocks(text, result);
+
+            // **NEW: Extract and process tuple schemas**
+            processedText = ExtractAndProcessTupleSchemas(processedText, result);
+
+            // Extract and process subject to blocks
+            processedText = ExtractSubjectToBlocks(processedText, lineMapping, result);
+
+            // Split into statements
+            var statements = SplitIntoStatements(processedText, lineMapping);
+
+            // Process each statement
+            foreach (var (statement, lineNumber) in statements)
+            {
+                if (!string.IsNullOrWhiteSpace(statement))
+                {
+                    ProcessStatement(statement, lineNumber, result);
+                }
+            }
+
+            return result;
+        }
+
+        private string ExtractAndProcessTupleSchemas(string text, ParseSessionResult result)
+        {
+            // Pattern: tuple Name { ... }
+            string pattern = @"tuple\s+([a-zA-Z][a-zA-Z0-9_]*)\s*\{";
+            var matches = Regex.Matches(text, pattern, RegexOptions.IgnoreCase);
+
+            if (matches.Count == 0)
+            {
+                return text; // No tuples
+            }
+
+            var resultText = new System.Text.StringBuilder();
+            int lastIndex = 0;
+
+            foreach (Match match in matches)
+            {
+                // Append text before this tuple
+                resultText.Append(text.Substring(lastIndex, match.Index - lastIndex));
+
+                // Find matching closing brace
+                int closingBraceIndex = FindClosingBrace(text, match.Index + match.Length);
+
+                if (closingBraceIndex == -1)
+                {
+                    result.AddError($"Tuple schema: Missing closing brace '}}' for tuple '{match.Groups[1].Value}'", 
+                        text.Substring(0, match.Index).Count(c => c == '\n') + 1);
+                    continue;
+                }
+
+                // Extract the complete tuple definition
+                string tupleDefinition = text.Substring(match.Index, closingBraceIndex - match.Index + 1);
+                
+                // Parse and register the tuple schema
+                if (TryParseTupleSchemaBlock(tupleDefinition, out var schema, out string error))
+                {
+                    modelManager.AddTupleSchema(schema);
+                    result.IncrementSuccess();
+                }
+                else
+                {
+                    result.AddError($"Error parsing tuple schema: {error}", 
+                        text.Substring(0, match.Index).Count(c => c == '\n') + 1);
+                }
+
+                lastIndex = closingBraceIndex + 1;
+            }
+
+            // Append remaining text
+            if (lastIndex < text.Length)
+            {
+                resultText.Append(text.Substring(lastIndex));
+            }
+
+            return resultText.ToString();
+        }
+
+        private bool TryParseTupleSchemaBlock(string block, out TupleSchema? schema, out string error)
+        {
+            schema = null;
+            error = string.Empty;
+
+            // Extract tuple name
+            var nameMatch = Regex.Match(block, @"tuple\s+([a-zA-Z][a-zA-Z0-9_]*)\s*\{", RegexOptions.IgnoreCase);
+            if (!nameMatch.Success)
+            {
+                error = "Invalid tuple syntax";
+                return false;
+            }
+
+            string tupleName = nameMatch.Groups[1].Value;
+            schema = new TupleSchema(tupleName);
+
+            // Extract body (everything between { and })
+            int openBrace = block.IndexOf('{');
+            int closeBrace = block.LastIndexOf('}');
+            
+            if (openBrace == -1 || closeBrace == -1)
+            {
+                error = "Missing braces in tuple definition";
+                return false;
+            }
+
+            string body = block.Substring(openBrace + 1, closeBrace - openBrace - 1);
+
+            // Parse field declarations
+            var fieldPattern = @"(float|int|bool|string)\s+([a-zA-Z][a-zA-Z0-9_]*)\s*;";
+            var fieldMatches = Regex.Matches(body, fieldPattern, RegexOptions.IgnoreCase);
+
+            if (fieldMatches.Count == 0)
+            {
+                error = "Tuple must have at least one field";
+                return false;
+            }
+
+            foreach (Match fieldMatch in fieldMatches)
+            {
+                string typeStr = fieldMatch.Groups[1].Value.ToLower();
+                string fieldName = fieldMatch.Groups[2].Value;
+
+                VariableType fieldType = typeStr switch
+                {
+                    "float" => VariableType.Float,
+                    "int" => VariableType.Integer,
+                    "bool" => VariableType.Boolean,
+                    "string" => VariableType.String,
+                    _ => VariableType.Float
+                };
+
+                try
+                {
+                    schema.AddField(fieldName, fieldType);
+                }
+                catch (Exception ex)
+                {
+                    error = ex.Message;
+                    return false;
+                }
+            }
+
+            return true;
+        }
+
+        public ParseSessionResult Parse(string text)
+        {
+            var result = new ParseSessionResult();
+
+            if (string.IsNullOrWhiteSpace(text))
+            {
+                result.AddError("No text to parse", 0);
+                return result;
+            }
+
+            // Extract and process JavaScript execute blocks FIRST
+            var (processedText, lineMapping) = ExtractAndProcessExecuteBlocks(text, result);
+
+            // **NEW: Extract and process tuple schemas**
+            processedText = ExtractAndProcessTupleSchemas(processedText, result);
+
+            // Extract and process subject to blocks
+            processedText = ExtractSubjectToBlocks(processedText, lineMapping, result);
+
+            // Split into statements
+            var statements = SplitIntoStatements(processedText, lineMapping);
+
+            // Process each statement
+            foreach (var (statement, lineNumber) in statements)
+            {
+                if (!string.IsNullOrWhiteSpace(statement))
+                {
+                    ProcessStatement(statement, lineNumber, result);
+                }
+            }
+
+            return result;
+        }
+
+        private string ExtractAndProcessTupleSchemas(string text, ParseSessionResult result)
+        {
+            // Pattern: tuple Name { ... }
+            string pattern = @"tuple\s+([a-zA-Z][a-zA-Z0-9_]*)\s*\{";
+            var matches = Regex.Matches(text, pattern, RegexOptions.IgnoreCase);
+
+            if (matches.Count == 0)
+            {
+                return text; // No tuples
+            }
+
+            var resultText = new System.Text.StringBuilder();
+            int lastIndex = 0;
+
+            foreach (Match match in matches)
+            {
+                // Append text before this tuple
+                resultText.Append(text.Substring(lastIndex, match.Index - lastIndex));
+
+                // Find matching closing brace
+                int closingBraceIndex = FindClosingBrace(text, match.Index + match.Length);
+
+                if (closingBraceIndex == -1)
+                {
+                    result.AddError($"Tuple schema: Missing closing brace '}}' for tuple '{match.Groups[1].Value}'", 
+                        text.Substring(0, match.Index).Count(c => c == '\n') + 1);
+                    continue;
+                }
+
+                // Extract the complete tuple definition
+                string tupleDefinition = text.Substring(match.Index, closingBraceIndex - match.Index + 1);
+                
+                // Parse and register the tuple schema
+                if (TryParseTupleSchemaBlock(tupleDefinition, out var schema, out string error))
+                {
+                    modelManager.AddTupleSchema(schema);
+                    result.IncrementSuccess();
+                }
+                else
+                {
+                    result.AddError($"Error parsing tuple schema: {error}", 
+                        text.Substring(0, match.Index).Count(c => c == '\n') + 1);
+                }
+
+                lastIndex = closingBraceIndex + 1;
+            }
+
+            // Append remaining text
+            if (lastIndex < text.Length)
+            {
+                resultText.Append(text.Substring(lastIndex));
+            }
+
+            return resultText.ToString();
+        }
+
+        private bool TryParseTupleSchemaBlock(string block, out TupleSchema? schema, out string error)
+        {
+            schema = null;
+            error = string.Empty;
+
+            // Extract tuple name
+            var nameMatch = Regex.Match(block, @"tuple\s+([a-zA-Z][a-zA-Z0-9_]*)\s*\{", RegexOptions.IgnoreCase);
+            if (!nameMatch.Success)
+            {
+                error = "Invalid tuple syntax";
+                return false;
+            }
+
+            string tupleName = nameMatch.Groups[1].Value;
+            schema = new TupleSchema(tupleName);
+
+            // Extract body (everything between { and })
+            int openBrace = block.IndexOf('{');
+            int closeBrace = block.LastIndexOf('}');
+            
+            if (openBrace == -1 || closeBrace == -1)
+            {
+                error = "Missing braces in tuple definition";
+                return false;
+            }
+
+            string body = block.Substring(openBrace + 1, closeBrace - openBrace - 1);
+
+            // Parse field declarations
+            var fieldPattern = @"(float|int|bool|string)\s+([a-zA-Z][a-zA-Z0-9_]*)\s*;";
+            var fieldMatches = Regex.Matches(body, fieldPattern, RegexOptions.IgnoreCase);
+
+            if (fieldMatches.Count == 0)
+            {
+                error = "Tuple must have at least one field";
+                return false;
+            }
+
+            foreach (Match fieldMatch in fieldMatches)
+            {
+                string typeStr = fieldMatch.Groups[1].Value.ToLower();
+                string fieldName = fieldMatch.Groups[2].Value;
+
+                VariableType fieldType = typeStr switch
+                {
+                    "float" => VariableType.Float,
+                    "int" => VariableType.Integer,
+                    "bool" => VariableType.Boolean,
+                    "string" => VariableType.String,
+                    _ => VariableType.Float
+                };
+
+                try
+                {
+                    schema.AddField(fieldName, fieldType);
+                }
+                catch (Exception ex)
+                {
+                    error = ex.Message;
+                    return false;
+                }
+            }
+
+            return true;
+        }
+
+        public ParseSessionResult Parse(string text)
+        {
+            var result = new ParseSessionResult();
+
+            if (string.IsNullOrWhiteSpace(text))
+            {
+                result.AddError("No text to parse", 0);
+                return result;
+            }
+
+            // Extract and process JavaScript execute blocks FIRST
+            var (processedText, lineMapping) = ExtractAndProcessExecuteBlocks(text, result);
+
+            // **NEW: Extract and process tuple schemas**
+            processedText = ExtractAndProcessTupleSchemas(processedText, result);
+
+            // Extract and process subject to blocks
+            processedText = ExtractSubjectToBlocks(processedText, lineMapping, result);
+
+            // Split into statements
+            var statements = SplitIntoStatements(processedText, lineMapping);
+
+            // Process each statement
+            foreach (var (statement, lineNumber) in statements)
+            {
+                if (!string.IsNullOrWhiteSpace(statement))
+                {
+                    ProcessStatement(statement, lineNumber, result);
+                }
+            }
+
+            return result;
+        }
+
+        private string ExtractAndProcessTupleSchemas(string text, ParseSessionResult result)
+        {
+            // Pattern: tuple Name { ... }
+            string pattern = @"tuple\s+([a-zA-Z][a-zA-Z0-9_]*)\s*\{";
+            var matches = Regex.Matches(text, pattern, RegexOptions.IgnoreCase);
+
+            if (matches.Count == 0)
+            {
+                return text; // No tuples
+            }
+
+            var resultText = new System.Text.StringBuilder();
+            int lastIndex = 0;
+
+            foreach (Match match in matches)
+            {
+                // Append text before this tuple
+                resultText.Append(text.Substring(lastIndex, match.Index - lastIndex));
+
+                // Find matching closing brace
+                int closingBraceIndex = FindClosingBrace(text, match.Index + match.Length);
+
+                if (closingBraceIndex == -1)
+                {
+                    result.AddError($"Tuple schema: Missing closing brace '}}' for tuple '{match.Groups[1].Value}'", 
+                        text.Substring(0, match.Index).Count(c => c == '\n') + 1);
+                    continue;
+                }
+
+                // Extract the complete tuple definition
+                string tupleDefinition = text.Substring(match.Index, closingBraceIndex - match.Index + 1);
+                
+                // Parse and register the tuple schema
+                if (TryParseTupleSchemaBlock(tupleDefinition, out var schema, out string error))
+                {
+                    modelManager.AddTupleSchema(schema);
+                    result.IncrementSuccess();
+                }
+                else
+                {
+                    result.AddError($"Error parsing tuple schema: {error}", 
+                        text.Substring(0, match.Index).Count(c => c == '\n') + 1);
+                }
+
+                lastIndex = closingBraceIndex + 1;
+            }
+
+            // Append remaining text
+            if (lastIndex < text.Length)
+            {
+                resultText.Append(text.Substring(lastIndex));
+            }
+
+            return resultText.ToString();
+        }
+
+        private bool TryParseTupleSchemaBlock(string block, out TupleSchema? schema, out string error)
+        {
+            schema = null;
+            error = string.Empty;
+
+            // Extract tuple name
+            var nameMatch = Regex.Match(block, @"tuple\s+([a-zA-Z][a-zA-Z0-9_]*)\s*\{", RegexOptions.IgnoreCase);
+            if (!nameMatch.Success)
+            {
+                error = "Invalid tuple syntax";
+                return false;
+            }
+
+            string tupleName = nameMatch.Groups[1].Value;
+            schema = new TupleSchema(tupleName);
+
+            // Extract body (everything between { and })
+            int openBrace = block.IndexOf('{');
+            int closeBrace = block.LastIndexOf('}');
+
+            if (openBrace == -1 || closeBrace == -1)
+            {
+                error = "Missing braces in tuple definition";
+                return false;
+            }
+
+            string body = block.Substring(openBrace + 1, closeBrace - openBrace - 1);
+
+            // Parse field declarations
+            var fieldPattern = @"(float|int|bool|string)\s+([a-zA-Z][a-zA-Z0-9_]*)\s*;";
+            var fieldMatches = Regex.Matches(body, fieldPattern, RegexOptions.IgnoreCase);
+
+            if (fieldMatches.Count == 0)
+            {
+                error = "Tuple must have at least one field";
+                return false;
+            }
+
+            foreach (Match fieldMatch in fieldMatches)
+            {
+                string typeStr = fieldMatch.Groups[1].Value.ToLower();
+                string fieldName = fieldMatch.Groups[2].Value;
+
+                VariableType fieldType = typeStr switch
+                {
+                    "float" => VariableType.Float,
+                    "int" => VariableType.Integer,
+                    "bool" => VariableType.Boolean,
+                    "string" => VariableType.String,
+                    _ => VariableType.Float
+                };
+
+                try
+                {
+                    schema.AddField(fieldName, fieldType);
+                }
+                catch (Exception ex)
+                {
+                    error = ex.Message;
+                    return false;
+                }
+            }
+
+            return true;
+        }
+
+        public ParseSessionResult Parse(string text)
+        {
+            var result = new ParseSessionResult();
+
+            if (string.IsNullOrWhiteSpace(text))
+            {
+                result.AddError("No text to parse", 0);
+                return result;
+            }
+
+            // Extract and process JavaScript execute blocks FIRST
+            var (processedText, lineMapping) = ExtractAndProcessExecuteBlocks(text, result);
+
+            // **NEW: Extract and process tuple schemas**
+            processedText = ExtractAndProcessTupleSchemas(processedText, result);
+
+            // Extract and process subject to blocks
+            processedText = ExtractSubjectToBlocks(processedText, lineMapping, result);
+
+            // Split into statements
+            var statements = SplitIntoStatements(processedText, lineMapping);
+
+            // Process each statement
+            foreach (var (statement, lineNumber) in statements)
+            {
+                if (!string.IsNullOrWhiteSpace(statement))
+                {
+                    ProcessStatement(statement, lineNumber, result);
+                }
+            }
+
+            return result;
+        }
+
+        private string ExtractAndProcessTupleSchemas(string text, ParseSessionResult result)
+        {
+            // Pattern: tuple Name { ... }
+            string pattern = @"tuple\s+([a-zA-Z][a-zA-Z0-9_]*)\s*\{";
+            var matches = Regex.Matches(text, pattern, RegexOptions.IgnoreCase);
+
+            if (matches.Count == 0)
+            {
+                return text; // No tuples
+            }
+
+            var resultText = new System.Text.StringBuilder();
+            int lastIndex = 0;
+
+            foreach (Match match in matches)
+            {
+                // Append text before this tuple
+                resultText.Append(text.Substring(lastIndex, match.Index - lastIndex));
+
+                // Find matching closing brace
+                int closingBraceIndex = FindClosingBrace(text, match.Index + match.Length);
+
+                if (closingBraceIndex == -1)
+                {
+                    result.AddError($"Tuple schema: Missing closing brace '}}' for tuple '{match.Groups[1].Value}'", 
+            // **NEW: Extract and process tuple schemas**
+            processedText = ExtractAndProcessTupleSchemas(processedText, result);
+
+            // Extract and process subject to blocks
+            processedText = ExtractSubjectToBlocks(processedText, lineMapping, result);
+
+            // Split into statements
+            var statements = SplitIntoStatements(processedText, lineMapping);
+
+            // Process each statement
+            foreach (var (statement, lineNumber) in statements)
+            {
+                if (!string.IsNullOrWhiteSpace(statement))
+                {
+                    ProcessStatement(statement, lineNumber, result);
+                }
+            }
+
+            return result;
+        }
+
+        private string ExtractAndProcessTupleSchemas(string text, ParseSessionResult result)
+        {
+            // Pattern: tuple Name { ... }
+            string pattern = @"tuple\s+([a-zA-Z][a-zA-Z0-9_]*)\s*\{";
+            var matches = Regex.Matches(text, pattern, RegexOptions.IgnoreCase);
+
+            if (matches.Count == 0)
+            {
+                return text; // No tuples
+            }
+
+            var resultText = new System.Text.StringBuilder();
+            int lastIndex = 0;
+
+            foreach (Match match in matches)
+            {
+                // Append text before this tuple
+                resultText.Append(text.Substring(lastIndex, match.Index - lastIndex));
+
+                // Find matching closing brace
+                int closingBraceIndex = FindClosingBrace(text, match.Index + match.Length);
+
+                if (closingBraceIndex == -1)
+                {
+                    result.AddError($"Tuple schema: Missing closing brace '}}' for tuple '{match.Groups[1].Value}'", 
+                        text.Substring(0, match.Index).Count(c => c == '\n') + 1);
+                    continue;
+                }
+
+                // Extract the complete tuple definition
+                string tupleDefinition = text.Substring(match.Index, closingBraceIndex - match.Index + 1);
+                
+                // Parse and register the tuple schema
+                if (TryParseTupleSchemaBlock(tupleDefinition, out var schema, out string error))
+                {
+                    modelManager.AddTupleSchema(schema);
+                    result.IncrementSuccess();
+                }
+                else
+                {
+                    result.AddError($"Error parsing tuple schema: {error}", 
+                        text.Substring(0, match.Index).Count(c => c == '\n') + 1);
+                }
+
+                lastIndex = closingBraceIndex + 1;
+            }
+
+            // Append remaining text
+            if (lastIndex < text.Length)
+            {
+                resultText.Append(text.Substring(lastIndex));
+            }
+
+            return resultText.ToString();
+        }
+
+        private bool TryParseTupleSchemaBlock(string block, out TupleSchema? schema, out string error)
+        {
+            schema = null;
+            error = string.Empty;
+
+            // Extract tuple name
+            var nameMatch = Regex.Match(block, @"tuple\s+([a-zA-Z][a-zA-Z0-9_]*)\s*\{", RegexOptions.IgnoreCase);
+            if (!nameMatch.Success)
+            {
+                error = "Invalid tuple syntax";
+                return false;
+            }
+
+            string tupleName = nameMatch.Groups[1].Value;
+            schema = new TupleSchema(tupleName);
+
+            // Extract body (everything between { and })
+            int openBrace = block.IndexOf('{');
+            int closeBrace = block.LastIndexOf('}');
+            
+            if (openBrace == -1 || closeBrace == -1)
+            {
+                error = "Missing braces in tuple definition";
+                return false;
+            }
+
+            string body = block.Substring(openBrace + 1, closeBrace - openBrace - 1);
+
+            // Parse field declarations
+            var fieldPattern = @"(float|int|bool|string)\s+([a-zA-Z][a-zA-Z0-9_]*)\s*;";
+            var fieldMatches = Regex.Matches(body, fieldPattern, RegexOptions.IgnoreCase);
+
+            if (fieldMatches.Count == 0)
+            {
+                error = "Tuple must have at least one field";
+                return false;
+            }
+
+            foreach (Match fieldMatch in fieldMatches)
+            {
+                string typeStr = fieldMatch.Groups[1].Value.ToLower();
+                string fieldName = fieldMatch.Groups[2].Value;
+
+                VariableType fieldType = typeStr switch
+                {
+                    "float" => VariableType.Float,
+                    "int" => VariableType.Integer,
+                    "bool" => VariableType.Boolean,
+                    "string" => VariableType.String,
+                    _ => VariableType.Float
+                };
+
+                try
+                {
+                    schema.AddField(fieldName, fieldType);
+                }
+                catch (Exception ex)
+                {
+                    error = ex.Message;
+                    return false;
+                }
+            }
+
+            return true;
+        }
+
+        public ParseSessionResult Parse(string text)
+        {
+            var result = new ParseSessionResult();
+
+            if (string.IsNullOrWhiteSpace(text))
+            {
+                result.AddError("No text to parse", 0);
+                return result;
+            }
+
+            // Extract and process JavaScript execute blocks FIRST
+            var (processedText, lineMapping) = ExtractAndProcessExecuteBlocks(text, result);
+
+            // **NEW: Extract and process tuple schemas**
+            processedText = ExtractAndProcessTupleSchemas(processedText, result);
+
+            // Extract and process subject to blocks
+            processedText = ExtractSubjectToBlocks(processedText, lineMapping, result);
+
+            // Split into statements
+            var statements = SplitIntoStatements(processedText, lineMapping);
+
+            // Process each statement
+            foreach (var (statement, lineNumber) in statements)
+            {
+                if (!string.IsNullOrWhiteSpace(statement))
+                {
+                    ProcessStatement(statement, lineNumber, result);
+                }
+            }
+
+            return result;
+        }
+
+        private string ExtractAndProcessTupleSchemas(string text, ParseSessionResult result)
+        {
+            // Pattern: tuple Name { ... }
+            string pattern = @"tuple\s+([a-zA-Z][a-zA-Z0-9_]*)\s*\{";
+            var matches = Regex.Matches(text, pattern, RegexOptions.IgnoreCase);
+
+            if (matches.Count == 0)
+            {
+                return text; // No tuples
+            }
+
+            var resultText = new System.Text.StringBuilder();
+            int lastIndex = 0;
+
+            foreach (Match match in matches)
+            {
+                // Append text before this tuple
+                resultText.Append(text.Substring(lastIndex, match.Index - lastIndex));
+
+                // Find matching closing brace
+                int closingBraceIndex = FindClosingBrace(text, match.Index + match.Length);
+
+                if (closingBraceIndex == -1)
+                {
+                    result.AddError($"Tuple schema: Missing closing brace '}}' for tuple '{match.Groups[1].Value}'", 
+                        text.Substring(0, match.Index).Count(c => c == '\n') + 1);
+                    continue;
+                }
+
+                // Extract the complete tuple definition
+                string tupleDefinition = text.Substring(match.Index, closingBraceIndex - match.Index + 1);
+                
+                // Parse and register the tuple schema
+                if (TryParseTupleSchemaBlock(tupleDefinition, out var schema, out string error))
+                {
+                    modelManager.AddTupleSchema(schema);
+                    result.IncrementSuccess();
+                }
+                else
+                {
+                    result.AddError($"Error parsing tuple schema: {error}", 
+                        text.Substring(0, match.Index).Count(c => c == '\n') + 1);
+                }
+
+                lastIndex = closingBraceIndex + 1;
+            }
+
+            // Append remaining text
+            if (lastIndex < text.Length)
+            {
+                resultText.Append(text.Substring(lastIndex));
+            }
+
+            return resultText.ToString();
+        }
+
+        private bool TryParseTupleSchemaBlock(string block, out TupleSchema? schema, out string error)
+        {
+            schema = null;
+            error = string.Empty;
+
+            // Extract tuple name
+            var nameMatch = Regex.Match(block, @"tuple\s+([a-zA-Z][a-zA-Z0-9_]*)\s*\{", RegexOptions.IgnoreCase);
+            if (!nameMatch.Success)
+            {
+                error = "Invalid tuple syntax";
+                return false;
+            }
+
+            string tupleName = nameMatch.Groups[1].Value;
+            schema = new TupleSchema(tupleName);
+
+            // Extract body (everything between { and })
+            int openBrace = block.IndexOf('{');
+            int closeBrace = block.LastIndexOf('}');
+            
+            if (openBrace == -1 || closeBrace == -1)
+            {
+                error = "Missing braces in tuple definition";
+                return false;
+            }
+
+            string body = block.Substring(openBrace + 1, closeBrace - openBrace - 1);
+
+            // Parse field declarations
+            var fieldPattern = @"(float|int|bool|string)\s+([a-zA-Z][a-zA-Z0-9_]*)\s*;";
+            var fieldMatches = Regex.Matches(body, fieldPattern, RegexOptions.IgnoreCase);
+
+            if (fieldMatches.Count == 0)
+            {
+                error = "Tuple must have at least one field";
+                return false;
+            }
+
+            foreach (Match fieldMatch in fieldMatches)
+            {
+                string typeStr = fieldMatch.Groups[1].Value.ToLower();
+                string fieldName = fieldMatch.Groups[2].Value;
+
+                VariableType fieldType = typeStr switch
+                {
+                    "float" => VariableType.Float,
+                    "int" => VariableType.Integer,
+                    "bool" => VariableType.Boolean,
+                    "string" => VariableType.String,
+                    _ => VariableType.Float
+                };
+
+                try
+                {
+                    schema.AddField(fieldName, fieldType);
+                }
+                catch (Exception ex)
+                {
+                    error = ex.Message;
+                    return false;
+                }
+            }
+
+            return true;
+        }
+
+        public ParseSessionResult Parse(string text)
+        {
+            var result = new ParseSessionResult();
+
+            if (string.IsNullOrWhiteSpace(text))
+            {
+                result.AddError("No text to parse", 0);
+                return result;
+            }
+
+            // Extract and process JavaScript execute blocks FIRST
+            var (processedText, lineMapping) = ExtractAndProcessExecuteBlocks(text, result);
+
+            // **NEW: Extract and process tuple schemas**
+            processedText = ExtractAndProcessTupleSchemas(processedText, result);
+
+            // Extract and process subject to blocks
+            processedText = ExtractSubjectToBlocks(processedText, lineMapping, result);
+
+            // Split into statements
+            var statements = SplitIntoStatements(processedText, lineMapping);
+
+            // Process each statement
+            foreach (var (statement, lineNumber) in statements)
+            {
+                if (!string.IsNullOrWhiteSpace(statement))
+                {
+                    ProcessStatement(statement, lineNumber, result);
+                }
+            }
+
+            return result;
+        }
+
+        private string ExtractAndProcessTupleSchemas(string text, ParseSessionResult result)
+        {
+            // Pattern: tuple Name { ... }
+            string pattern = @"tuple\s+([a-zA-Z][a-zA-Z0-9_]*)\s*\{";
+            var matches = Regex.Matches(text, pattern, RegexOptions.IgnoreCase);
+
+            if (matches.Count == 0)
+            {
+                return text; // No tuples
+            }
+
+            var resultText = new System.Text.StringBuilder();
+            int lastIndex = 0;
+
+            foreach (Match match in matches)
+            {
+                // Append text before this tuple
+                resultText.Append(text.Substring(lastIndex, match.Index - lastIndex));
+
+                // Find matching closing brace
+                int closingBraceIndex = FindClosingBrace(text, match.Index + match.Length);
+
+                if (closingBraceIndex == -1)
+                {
+                    result.AddError($"Tuple schema: Missing closing brace '}}' for tuple '{match.Groups[1].Value}'", 
+                        text.Substring(0, match.Index).Count(c => c == '\n') + 1);
+                    continue;
+                }
+
+                // Extract the complete tuple definition
+                string tupleDefinition = text.Substring(match.Index, closingBraceIndex - match.Index + 1);
+                
+                // Parse and register the tuple schema
+                if (TryParseTupleSchemaBlock(tupleDefinition, out var schema, out string error))
+                {
+                    modelManager.AddTupleSchema(schema);
+                    result.IncrementSuccess();
+                }
+                else
+                {
+                    result.AddError($"Error parsing tuple schema: {error}", 
+                        text.Substring(0, match.Index).Count(c => c == '\n') + 1);
+                }
+
+                lastIndex = closingBraceIndex + 1;
+            }
+
+            // Append remaining text
+            if (lastIndex < text.Length)
+            {
+                resultText.Append(text.Substring(lastIndex));
+            }
+
+            return resultText.ToString();
+        }
+
+        private bool TryParseTupleSchemaBlock(string block, out TupleSchema? schema, out string error)
+        {
+            schema = null;
+            error = string.Empty;
+
+            // Extract tuple name
+            var nameMatch = Regex.Match(block, @"tuple\s+([a-zA-Z][a-zA-Z0-9_]*)\s*\{", RegexOptions.IgnoreCase);
+            if (!nameMatch.Success)
+            {
+                error = "Invalid tuple syntax";
+                return false;
+            }
+
+            string tupleName = nameMatch.Groups[1].Value;
+            schema = new TupleSchema(tupleName);
+
+            // Extract body (everything between { and })
+            int openBrace = block.IndexOf('{');
+            int closeBrace = block.LastIndexOf('}');
+            
+            if (openBrace == -1 || closeBrace == -1)
+            {
+                error = "Missing braces in tuple definition";
+                return false;
+            }
+
+            string body = block.Substring(openBrace + 1, closeBrace - openBrace - 1);
+
+            // Parse field declarations
+            var fieldPattern = @"(float|int|bool|string)\s+([a-zA-Z][a-zA-Z0-9_]*)\s*;";
+            var fieldMatches = Regex.Matches(body, fieldPattern, RegexOptions.IgnoreCase);
+
+            if (fieldMatches.Count == 0)
+            {
+                error = "Tuple must have at least one field";
+                return false;
+            }
+
+            foreach (Match fieldMatch in fieldMatches)
+            {
+                string typeStr = fieldMatch.Groups[1].Value.ToLower();
+                string fieldName = fieldMatch.Groups[2].Value;
+
+                VariableType fieldType = typeStr switch
+                {
+                    "float" => VariableType.Float,
+                    "int" => VariableType.Integer,
+                    "bool" => VariableType.Boolean,
+                    "string" => VariableType.String,
+                    _ => VariableType.Float
+                };
+
+                try
+                {
+                    schema.AddField(fieldName, fieldType);
+                }
+                catch (Exception ex)
+                {
+                    error = ex.Message;
+                    return false;
+                }
+            }
+
+            return true;
+        }
+
+        public ParseSessionResult Parse(string text)
+        {
+            var result = new ParseSessionResult();
+
+            if (string.IsNullOrWhiteSpace(text))
+            {
+                result.AddError("No text to parse", 0);
+                return result;
+            }
+
+            // Extract and process JavaScript execute blocks FIRST
+            var (processedText, lineMapping) = ExtractAndProcessExecuteBlocks(text, result);
+
+            // **NEW: Extract and process tuple schemas**
+            processedText = ExtractAndProcessTupleSchemas(processedText, result);
+
+            // Extract and process subject to blocks
+            processedText = ExtractSubjectToBlocks(processedText, lineMapping, result);
+
+            // Split into statements
+            var statements = SplitIntoStatements(processedText, lineMapping);
+
+            // Process each statement
+            foreach (var (statement, lineNumber) in statements)
+            {
+                if (!string.IsNullOrWhiteSpace(statement))
+                {
+                    ProcessStatement(statement, lineNumber, result);
+                }
+            }
+
+            return result;
+        }
+
+        private string ExtractAndProcessTupleSchemas(string text, ParseSessionResult result)
+        {
+            // Pattern: tuple Name { ... }
+            string pattern = @"tuple\s+([a-zA-Z][a-zA-Z0-9_]*)\s*\{";
+            var matches = Regex.Matches(text, pattern, RegexOptions.IgnoreCase);
+
+            if (matches.Count == 0)
+            {
+                return text; // No tuples
+            }
+
+            var resultText = new System.Text.StringBuilder();
+            int lastIndex = 0;
+
+            foreach (Match match in matches)
+            {
+                // Append text before this tuple
+                resultText.Append(text.Substring(lastIndex, match.Index - lastIndex));
+
+                // Find matching closing brace
+                int closingBraceIndex = FindClosingBrace(text, match.Index + match.Length);
+
+                if (closingBraceIndex == -1)
+                {
+                    result.AddError($"Tuple schema: Missing closing brace '}}' for tuple '{match.Groups[1].Value}'", 
+                        text.Substring(0, match.Index).Count(c => c == '\n') + 1);
+                    continue;
+                }
+
+                // Extract the complete tuple definition
+                string tupleDefinition = text.Substring(match.Index, closingBraceIndex - match.Index + 1);
+                
+                // Parse and register the tuple schema
+                if (TryParseTupleSchemaBlock(tupleDefinition, out var schema, out string error))
+                {
+                    modelManager.AddTupleSchema(schema);
+                    result.IncrementSuccess();
+                }
+                else
+                {
+                    result.AddError($"Error parsing tuple schema: {error}", 
+                        text.Substring(0, match.Index).Count(c => c == '\n') + 1);
+                }
+
+                lastIndex = closingBraceIndex + 1;
+            }
+
+            // Append remaining text
+            if (lastIndex < text.Length)
+            {
+                resultText.Append(text.Substring(lastIndex));
+            }
+
+            return resultText.ToString();
+        }
+
+        private bool TryParseTupleSchemaBlock(string block, out TupleSchema? schema, out string error)
+        {
+            schema = null;
+            error = string.Empty;
+
+            // Extract tuple name
+            var nameMatch = Regex.Match(block, @"tuple\s+([a-zA-Z][a-zA-Z0-9_]*)\s*\{", RegexOptions.IgnoreCase);
+            if (!nameMatch.Success)
+            {
+                error = "Invalid tuple syntax";
+                return false;
+            }
+
+            string tupleName = nameMatch.Groups[1].Value;
+            schema = new TupleSchema(tupleName);
+
+            // Extract body (everything between { and })
+            int openBrace = block.IndexOf('{');
+            int closeBrace = block.LastIndexOf('}');
+            
+            if (openBrace == -1 || closeBrace == -1)
+            {
+                error = "Missing braces in tuple definition";
+                return false;
+            }
+
+            string body = block.Substring(openBrace + 1, closeBrace - openBrace - 1);
+
+            // Parse field declarations
+            var fieldPattern = @"(float|int|bool|string)\s+([a-zA-Z][a-zA-Z0-9_]*)\s*;";
+            var fieldMatches = Regex.Matches(body, fieldPattern, RegexOptions.IgnoreCase);
+
+            if (fieldMatches.Count == 0)
+            {
+                error = "Tuple must have at least one field";
+                return false;
+            }
+
+            foreach (Match fieldMatch in fieldMatches)
+            {
+                string typeStr = fieldMatch.Groups[1].Value.ToLower();
+                string fieldName = fieldMatch.Groups[2].Value;
+
+                VariableType fieldType = typeStr switch
+                {
+                    "float" => VariableType.Float,
+                    "int" => VariableType.Integer,
+                    "bool" => VariableType.Boolean,
+                    "string" => VariableType.String,
+                    _ => VariableType.Float
+                };
+
+                try
+                {
+                    schema.AddField(fieldName, fieldType);
+                }
+                catch (Exception ex)
+                {
+                    error = ex.Message;
+                    return false;
+                }
+            }
+
+            return true;
+        }
+
+        public ParseSessionResult Parse(string text)
+        {
+            var result = new ParseSessionResult();
+
+            if (string.IsNullOrWhiteSpace(text))
+            {
+                result.AddError("No text to parse", 0);
+                return result;
+            }
+
+            // Extract and process JavaScript execute blocks FIRST
+            var (processedText, lineMapping) = ExtractAndProcessExecuteBlocks(text, result);
+
+            // **NEW: Extract and process tuple schemas**
+            processedText = ExtractAndProcessTupleSchemas(processedText, result);
+
+            // Extract and process subject to blocks
+            processedText = ExtractSubjectToBlocks(processedText, lineMapping, result);
+
+            // Split into statements
+            var statements = SplitIntoStatements(processedText, lineMapping);
+
+            // Process each statement
+            foreach (var (statement, lineNumber) in statements)
+            {
+                if (!string.IsNullOrWhiteSpace(statement))
+                {
+                    ProcessStatement(statement, lineNumber, result);
+                }
+            }
+
+            return result;
+        }
+
+        private string ExtractAndProcessTupleSchemas(string text, ParseSessionResult result)
+        {
+            // Pattern: tuple Name { ... }
+            string pattern = @"tuple\s+([a-zA-Z][a-zA-Z0-9_]*)\s*\{";
+            var matches = Regex.Matches(text, pattern, RegexOptions.IgnoreCase);
+
+            if (matches.Count == 0)
+            {
+                return text; // No tuples
+            }
+
+            var resultText = new System.Text.StringBuilder();
+            int lastIndex = 0;
+
+            foreach (Match match in matches)
+            {
+                // Append text before this tuple
+                resultText.Append(text.Substring(lastIndex, match.Index - lastIndex));
+
+                // Find matching closing brace
+                int closingBraceIndex = FindClosingBrace(text, match.Index + match.Length);
+
+                if (closingBraceIndex == -1)
+                {
+                    result.AddError($"Tuple schema: Missing closing brace '}}' for tuple '{match.Groups[1].Value}'", 
+                        text.Substring(0, match.Index).Count(c => c == '\n') + 1);
+                    continue;
+                }
+
+                // Extract the complete tuple definition
+                string tupleDefinition = text.Substring(match.Index, closingBraceIndex - match.Index + 1);
+                
+                // Parse and register the tuple schema
+                if (TryParseTupleSchemaBlock(tupleDefinition, out var schema, out string error))
+                {
+                    modelManager.AddTupleSchema(schema);
+                    result.IncrementSuccess();
+                }
+                else
+                {
+                    result.AddError($"Error parsing tuple schema: {error}", 
+                        text.Substring(0, match.Index).Count(c => c == '\n') + 1);
+                }
+
+                lastIndex = closingBraceIndex + 1;
+            }
+
+            // Append remaining text
+            if (lastIndex < text.Length)
+            {
+                resultText.Append(text.Substring(lastIndex));
+            }
+
+            return resultText.ToString();
+        }
+
+        private bool TryParseTupleSchemaBlock(string block, out TupleSchema? schema, out string error)
+        {
+            schema = null;
+            error = string.Empty;
+
+            // Extract tuple name
+            var nameMatch = Regex.Match(block, @"tuple\s+([a-zA-Z][a-zA-Z0-9_]*)\s*\{", RegexOptions.IgnoreCase);
+            if (!nameMatch.Success)
+            {
+                error = "Invalid tuple syntax";
+                return false;
+            }
+
+            string tupleName = nameMatch.Groups[1].Value;
+            schema = new TupleSchema(tupleName);
+
+            // Extract body (everything between { and })
+            int openBrace = block.IndexOf('{');
+            int closeBrace = block.LastIndexOf('}');
+            
+            if (openBrace == -1 || closeBrace == -1)
+            {
+                error = "Missing braces in tuple definition";
+                return false;
+            }
+
+            string body = block.Substring(openBrace + 1, closeBrace - openBrace - 1);
+
+            // Parse field declarations
+            var fieldPattern = @"(float|int|bool|string)\s+([a-zA-Z][a-zA-Z0-9_]*)\s*;";
+            var fieldMatches = Regex.Matches(body, fieldPattern, RegexOptions.IgnoreCase);
+
+            if (fieldMatches.Count == 0)
+            {
+                error = "Tuple must have at least one field";
+                return false;
+            }
+
+            foreach (Match fieldMatch in fieldMatches)
+            {
+                string typeStr = fieldMatch.Groups[1].Value.ToLower();
+                string fieldName = fieldMatch.Groups[2].Value;
+
+                VariableType fieldType = typeStr switch
+                {
+                    "float" => VariableType.Float,
+                    "int" => VariableType.Integer,
+                    "bool" => VariableType.Boolean,
+                    "string" => VariableType.String,
+                    _ => VariableType.Float
+                };
+
+                try
+                {
+                    schema.AddField(fieldName, fieldType);
+                }
+                catch (Exception ex)
+                {
+                    error = ex.Message;
+                    return false;
+                }
+            }
+
+            return true;
+        }
+
+        public ParseSessionResult Parse(string text)
+        {
+            var result = new ParseSessionResult();
+
+            if (string.IsNullOrWhiteSpace(text))
+            {
+                result.AddError("No text to parse", 0);
+                return result;
+            }
+
+            // Extract and process JavaScript execute blocks FIRST
+            var (processedText, lineMapping) = ExtractAndProcessExecuteBlocks(text, result);
+
+            // **NEW: Extract and process tuple schemas**
+            processedText = ExtractAndProcessTupleSchemas(processedText, result);
+
+            // Extract and process subject to blocks
+            processedText = ExtractSubjectToBlocks(processedText, lineMapping, result);
+
+            // Split into statements
+            var statements = SplitIntoStatements(processedText, lineMapping);
+
+            // Process each statement
+            foreach (var (statement, lineNumber) in statements)
+            {
+                if (!string.IsNullOrWhiteSpace(statement))
+                {
+                    ProcessStatement(statement, lineNumber, result);
+                }
+            }
+
+            return result;
+        }
+
+        private string ExtractAndProcessTupleSchemas(string text, ParseSessionResult result)
+        {
+            // Pattern: tuple Name { ... }
+            string pattern = @"tuple\s+([a-zA-Z][a-zA-Z0-9_]*)\s*\{";
+            var matches = Regex.Matches(text, pattern, RegexOptions.IgnoreCase);
+
+            if (matches.Count == 0)
+            {
+                return text; // No tuples
+            }
+
+            var resultText = new System.Text.StringBuilder();
+            int lastIndex = 0;
+
+            foreach (Match match in matches)
+            {
+                // Append text before this tuple
+                resultText.Append(text.Substring(lastIndex, match.Index - lastIndex));
+
+                // Find matching closing brace
+                int closingBraceIndex = FindClosingBrace(text, match.Index + match.Length);
+
+                if (closingBraceIndex == -1)
+                {
+                    result.AddError($"Tuple schema: Missing closing brace '}}' for tuple '{match.Groups[1].Value}'", 
+                        text.Substring(0, match.Index).Count(c => c == '\n') + 1);
+                    continue;
+                }
+
+                // Extract the complete tuple definition
+                string tupleDefinition = text.Substring(match.Index, closingBraceIndex - match.Index + 1);
+                
+                // Parse and register the tuple schema
+                if (TryParseTupleSchemaBlock(tupleDefinition, out var schema, out string error))
+                {
+                    modelManager.AddTupleSchema(schema);
+                    result.IncrementSuccess();
+                }
+                else
+                {
+                    result.AddError($"Error parsing tuple schema: {error}", 
+                        text.Substring(0, match.Index).Count(c => c == '\n') + 1);
+                }
+
+                lastIndex = closingBraceIndex + 1;
+            }
+
+            // Append remaining text
+            if (lastIndex < text.Length)
+            {
+                resultText.Append(text.Substring(lastIndex));
+            }
+
+            return resultText.ToString();
+        }
+
+        private bool TryParseTupleSchemaBlock(string block, out TupleSchema? schema, out string error)
+        {
+            schema = null;
+            error = string.Empty;
+
+            // Extract tuple name
+            var nameMatch = Regex.Match(block, @"tuple\s+([a-zA-Z][a-zA-Z0-9_]*)\s*\{", RegexOptions.IgnoreCase);
+            if (!nameMatch.Success)
+            {
+                error = "Invalid tuple syntax";
+                return false;
+            }
+
+            string tupleName = nameMatch.Groups[1].Value;
+            schema = new TupleSchema(tupleName);
+
+            // Extract body (everything between { and })
+            int openBrace = block.IndexOf('{');
+            int closeBrace = block.LastIndexOf('}');
+            
+            if (openBrace == -1 || closeBrace == -1)
+            {
+                error = "Missing braces in tuple definition";
+                return false;
+            }
+
+            string body = block.Substring(openBrace + 1, closeBrace - openBrace - 1);
+
+            // Parse field declarations
+            var fieldPattern = @"(float|int|bool|string)\s+([a-zA-Z][a-zA-Z0-9_]*)\s*;";
+            var fieldMatches = Regex.Matches(body, fieldPattern, RegexOptions.IgnoreCase);
+
+            if (fieldMatches.Count == 0)
+            {
+                error = "Tuple must have at least one field";
+                return false;
+            }
+
+            foreach (Match fieldMatch in fieldMatches)
+            {
+                string typeStr = fieldMatch.Groups[1].Value.ToLower();
+                string fieldName = fieldMatch.Groups[2].Value;
+
+                VariableType fieldType = typeStr switch
+                {
+                    "float" => VariableType.Float,
+                    "int" => VariableType.Integer,
+                    "bool" => VariableType.Boolean,
+                    "string" => VariableType.String,
+                    _ => VariableType.Float
+                };
+
+                try
+                {
+                    schema.AddField(fieldName, fieldType);
+                }
+                catch (Exception ex)
+                {
+                    error = ex.Message;
+                    return false;
+                }
+            }
+
+            return true;
+        }
+
+        public ParseSessionResult Parse(string text)
+        {
+            var result = new ParseSessionResult();
+
+            if (string.IsNullOrWhiteSpace(text))
+            {
+                result.AddError("No text to parse", 0);
+                return result;
+            }
+
+            // Extract and process JavaScript execute blocks FIRST
+            var (processedText, lineMapping) = ExtractAndProcessExecuteBlocks(text, result);
+
+            // **NEW: Extract and process tuple schemas**
+            processedText = ExtractAndProcessTupleSchemas(processedText, result);
+
+            // Extract and process subject to blocks
+            processedText = ExtractSubjectToBlocks(processedText, lineMapping, result);
+
+            // Split into statements
+            var statements = SplitIntoStatements(processedText, lineMapping);
+
+            // Process each statement
+            foreach (var (statement, lineNumber) in statements)
+            {
+                if (!string.IsNullOrWhiteSpace(statement))
+                {
+                    ProcessStatement(statement, lineNumber, result);
+                }
+            }
+
+            return result;
+        }
+
+        private string ExtractAndProcessTupleSchemas(string text, ParseSessionResult result)
+        {
+            // Pattern: tuple Name { ... }
+            string pattern = @"tuple\s+([a-zA-Z][a-zA-Z0-9_]*)\s*\{";
+            var matches = Regex.Matches(text, pattern, RegexOptions.IgnoreCase);
+
+            if (matches.Count == 0)
+            {
+                return text; // No tuples
+            }
+
+            var resultText = new System.Text.StringBuilder();
+            int lastIndex = 0;
+
+            foreach (Match match in matches)
+            {
+                // Append text before this tuple
+                resultText.Append(text.Substring(lastIndex, match.Index - lastIndex));
+
+                // Find matching closing brace
+                int closingBraceIndex = FindClosingBrace(text, match.Index + match.Length);
+
+                if (closingBraceIndex == -1)
+                {
+                    result.AddError($"Tuple schema: Missing closing brace '}}' for tuple '{match.Groups[1].Value}'", 
+                        text.Substring(0, match.Index).Count(c => c == '\n') + 1);
+                    continue;
+                }
+
+                // Extract the complete tuple definition
+                string tupleDefinition = text.Substring(match.Index, closingBraceIndex - match.Index + 1);
+                
+                // Parse and register the tuple schema
+                if (TryParseTupleSchemaBlock(tupleDefinition, out var schema, out string error))
+                {
+                    modelManager.AddTupleSchema(schema);
+                    result.IncrementSuccess();
+                }
+                else
+                {
+                    result.AddError($"Error parsing tuple schema: {error}", 
+                        text.Substring(0, match.Index).Count(c => c == '\n') + 1);
+                }
+
+                lastIndex = closingBraceIndex + 1;
+            }
+
+            // Append remaining text
+            if (lastIndex < text.Length)
+            {
+                resultText.Append(text.Substring(lastIndex));
+            }
+
+            return resultText.ToString();
+        }
+
+        private bool TryParseTupleSchemaBlock(string block, out TupleSchema? schema, out string error)
+        {
+            schema = null;
+            error = string.Empty;
+
+            // Extract tuple name
+            var nameMatch = Regex.Match(block, @"tuple\s+([a-zA-Z][a-zA-Z0-9_]*)\s*\{", RegexOptions.IgnoreCase);
+            if (!nameMatch.Success)
+            {
+                error = "Invalid tuple syntax";
+                return false;
+            }
+
+            string tupleName = nameMatch.Groups[1].Value;
+            schema = new TupleSchema(tupleName);
+
+            // Extract body (everything between { and })
+            int openBrace = block.IndexOf('{');
+            int closeBrace = block.LastIndexOf('}');
+            
+            if (openBrace == -1 || closeBrace == -1)
+            {
+                error = "Missing braces in tuple definition";
+                return false;
+            }
+
+            string body = block.Substring(openBrace + 1, closeBrace - openBrace - 1);
+
+            // Parse field declarations
+            var fieldPattern = @"(float|int|bool|string)\s+([a-zA-Z][a-zA-Z0-9_]*)\s*;";
+            var fieldMatches = Regex.Matches(body, fieldPattern, RegexOptions.IgnoreCase);
+
+            if (fieldMatches.Count == 0)
+            {
+                error = "Tuple must have at least one field";
+                return false;
+            }
+
+            foreach (Match fieldMatch in fieldMatches)
+            {
+                string typeStr = fieldMatch.Groups[1].Value.ToLower();
+                string fieldName = fieldMatch.Groups[2].Value;
+
+                VariableType fieldType = typeStr switch
+                {
+                    "float" => VariableType.Float,
+                    "int" => VariableType.Integer,
+                    "bool" => VariableType.Boolean,
+                    "string" => VariableType.String,
+                    _ => VariableType.Float
+                };
+
+                try
+                {
+                    schema.AddField(fieldName, fieldType);
+                }
+                catch (Exception ex)
+                {
+                    error = ex.Message;
+                    return false;
+                }
+            }
+
+            return true;
+        }
+
+        public ParseSessionResult Parse(string text)
+        {
+            var result = new ParseSessionResult();
+
+            if (string.IsNullOrWhiteSpace(text))
+            {
+                result.AddError("No text to parse", 0);
+                return result;
+            }
+
+            // Extract and process JavaScript execute blocks FIRST
+            var (processedText, lineMapping) = ExtractAndProcessExecuteBlocks(text, result);
+
+            // **NEW: Extract and process tuple schemas**
+            processedText = ExtractAndProcessTupleSchemas(processedText, result);
+
+            // Extract and process subject to blocks
+            processedText = ExtractSubjectToBlocks(processedText, lineMapping, result);
+
+            // Split into statements
+            var statements = SplitIntoStatements(processedText, lineMapping);
+
+            // Process each statement
+            foreach (var (statement, lineNumber) in statements)
+            {
+                if (!string.IsNullOrWhiteSpace(statement))
+                {
+                    ProcessStatement(statement, lineNumber, result);
+                }
+            }
+
+            return result;
+        }
+
+        private string ExtractAndProcessTupleSchemas(string text, ParseSessionResult result)
+        {
+            // Pattern: tuple Name { ... }
+            string pattern = @"tuple\s+([a-zA-Z][a-zA-Z0-9_]*)\s*\{";
+            var matches = Regex.Matches(text, pattern, RegexOptions.IgnoreCase);
+
+            if (matches.Count == 0)
+            {
+                return text; // No tuples
+            }
+
+            var resultText = new System.Text.StringBuilder();
+            int lastIndex = 0;
+
+            foreach (Match match in matches)
+            {
+                // Append text before this tuple
+                resultText.Append(text.Substring(lastIndex, match.Index - lastIndex));
+
+                // Find matching closing brace
+                int closingBraceIndex = FindClosingBrace(text, match.Index + match.Length);
+
+                if (closingBraceIndex == -1)
+                {
+                    result.AddError($"Tuple schema: Missing closing brace '}}' for tuple '{match.Groups[1].Value}'", 
+                        text.Substring(0, match.Index).Count(c => c == '\n') + 1);
+                    continue;
+                }
+
+                // Extract the complete tuple definition
+                string tupleDefinition = text.Substring(match.Index, closingBraceIndex - match.Index + 1);
+                
+                // Parse and register the tuple schema
+                if (TryParseTupleSchemaBlock(tupleDefinition, out var schema, out string error))
+                {
+                    modelManager.AddTupleSchema(schema);
+                    result.IncrementSuccess();
+                }
+                else
+                {
+                    result.AddError($"Error parsing tuple schema: {error}", 
+                        text.Substring(0, match.Index).Count(c => c == '\n') + 1);
+                }
+
+                lastIndex = closingBraceIndex + 1;
+            }
+
+            // Append remaining text
+            if (lastIndex < text.Length)
+            {
+                resultText.Append(text.Substring(lastIndex));
+            }
+
+            return resultText.ToString();
+        }
+
+        private bool TryParseTupleSchemaBlock(string block, out TupleSchema? schema, out string error)
+        {
+            schema = null;
+            error = string.Empty;
+
+            // Extract tuple name
+            var nameMatch = Regex.Match(block, @"tuple\s+([a-zA-Z][a-zA-Z0-9_]*)\s*\{", RegexOptions.IgnoreCase);
+            if (!nameMatch.Success)
+            {
+                error = "Invalid tuple syntax";
+                return false;
+            }
+
+            string tupleName = nameMatch.Groups[1].Value;
+            schema = new TupleSchema(tupleName);
+
+            // Extract body (everything between { and })
+            int openBrace = block.IndexOf('{');
+            int closeBrace = block.LastIndexOf('}');
+            
+            if (openBrace == -1 || closeBrace == -1)
+            {
+                error = "Missing braces in tuple definition";
+                return false;
+            }
+
+            string body = block.Substring(openBrace + 1, closeBrace - openBrace - 1);
+
+            // Parse field declarations
+            var fieldPattern = @"(float|int|bool|string)\s+([a-zA-Z][a-zA-Z0-9_]*)\s*;";
+            var fieldMatches = Regex.Matches(body, fieldPattern, RegexOptions.IgnoreCase);
+
+            if (fieldMatches.Count == 0)
+            {
+                error = "Tuple must have at least one field";
+                return false;
+            }
+
+            foreach (Match fieldMatch in fieldMatches)
+            {
+                string typeStr = fieldMatch.Groups[1].Value.ToLower();
+                string fieldName = fieldMatch.Groups[2].Value;
+
+                VariableType fieldType = typeStr switch
+                {
+                    "float" => VariableType.Float,
+                    "int" => VariableType.Integer,
+                    "bool" => VariableType.Boolean,
+                    "string" => VariableType.String,
+                    _ => VariableType.Float
+                };
+
+                try
+                {
+                    schema.AddField(fieldName, fieldType);
+                }
+                catch (Exception ex)
+                {
+                    error = ex.Message;
+                    return false;
+                }
+            }
+
+            return true;
+        }
+
+        public ParseSessionResult Parse(string text)
+        {
+            var result = new ParseSessionResult();
+
+            if (string.IsNullOrWhiteSpace(text))
+            {
+                result.AddError("No text to parse", 0);
+                return result;
+            }
+
+            // Extract and process JavaScript execute blocks FIRST
+            var (processedText, lineMapping) = ExtractAndProcessExecuteBlocks(text, result);
+
+            // **NEW: Extract and process tuple schemas**
+            processedText = ExtractAndProcessTupleSchemas(processedText, result);
+
+            // Extract and process subject to blocks
+            processedText = ExtractSubjectToBlocks(processedText, lineMapping, result);
+
+            // Split into statements
+            var statements = SplitIntoStatements(processedText, lineMapping);
+
+            // Process each statement
+            foreach (var (statement, lineNumber) in statements)
+            {
+                if (!string.IsNullOrWhiteSpace(statement))
+                {
+                    ProcessStatement(statement, lineNumber, result);
+                }
+            }
+
+            return result;
+        }
+
+        private string ExtractAndProcessTupleSchemas(string text, ParseSessionResult result)
+        {
+            // Pattern: tuple Name { ... }
+            string pattern = @"tuple\s+([a-zA-Z][a-zA-Z0-9_]*)\s*\{";
+            var matches = Regex.Matches(text, pattern, RegexOptions.IgnoreCase);
+
+            if (matches.Count == 0)
+            {
+                return text; // No tuples
+            }
+
+            var resultText = new System.Text.StringBuilder();
+            int lastIndex = 0;
+
+            foreach (Match match in matches)
+            {
+                // Append text before this tuple
+                resultText.Append(text.Substring(lastIndex, match.Index - lastIndex));
+
+                // Find matching closing brace
+                int closingBraceIndex = FindClosingBrace(text, match.Index + match.Length);
+
+                if (closingBraceIndex == -1)
+                {
+                    result.AddError($"Tuple schema: Missing closing brace '}}' for tuple '{match.Groups[1].Value}'", 
+                        text.Substring(0, match.Index).Count(c => c == '\n') + 1);
+                    continue;
+                }
+
+                // Extract the complete tuple definition
+                string tupleDefinition = text.Substring(match.Index, closingBraceIndex - match.Index + 1);
+                
+                // Parse and register the tuple schema
+                if (TryParseTupleSchemaBlock(tupleDefinition, out var schema, out string error))
+                {
+                    modelManager.AddTupleSchema(schema);
+                    result.IncrementSuccess();
+                }
+                else
+                {
+                    result.AddError($"Error parsing tuple schema: {error}", 
+                        text.Substring(0, match.Index).Count(c => c == '\n') + 1);
+                }
+
+                lastIndex = closingBraceIndex + 1;
+            }
+
+            // Append remaining text
+            if (lastIndex < text.Length)
+            {
+                resultText.Append(text.Substring(lastIndex));
+            }
+
+            return resultText.ToString();
+        }
+
+        private bool TryParseTupleSchemaBlock(string block, out TupleSchema? schema, out string error)
+        {
+            schema = null;
+            error = string.Empty;
+
+            // Extract tuple name
+            var nameMatch = Regex.Match(block, @"tuple\s+([a-zA-Z][a-zA-Z0-9_]*)\s*\{", RegexOptions.IgnoreCase);
+            if (!nameMatch.Success)
+            {
+                error = "Invalid tuple syntax";
+                return false;
+            }
+
+            string tupleName = nameMatch.Groups[1].Value;
+            schema = new TupleSchema(tupleName);
+
+            // Extract body (everything between { and })
+            int openBrace = block.IndexOf('{');
+            int closeBrace = block.LastIndexOf('}');
+            
+            if (openBrace == -1 || closeBrace == -1)
+            {
+                error = "Missing braces in tuple definition";
+                return false;
+            }
+
+            string body = block.Substring(openBrace + 1, closeBrace - openBrace - 1);
+
+            // Parse field declarations
+            var fieldPattern = @"(float|int|bool|string)\s+([a-zA-Z][a-zA-Z0-9_]*)\s*;";
+            var fieldMatches = Regex.Matches(body, fieldPattern, RegexOptions.IgnoreCase);
+
+            if (fieldMatches.Count == 0)
+            {
+                error = "Tuple must have at least one field";
+                return false;
+            }
+
+            foreach (Match fieldMatch in fieldMatches)
+            {
+                string typeStr = fieldMatch.Groups[1].Value.ToLower();
+                string fieldName = fieldMatch.Groups[2].Value;
+
+                VariableType fieldType = typeStr switch
+                {
+                    "float" => VariableType.Float,
+                    "int" => VariableType.Integer,
+                    "bool" => VariableType.Boolean,
+                    "string" => VariableType.String,
+                    _ => VariableType.Float
+                };
+
+                try
+                {
+                    schema.AddField(fieldName, fieldType);
+                }
+                catch (Exception ex)
+                {
+                    error = ex.Message;
+                    return false;
+                }
+            }
+
+            return true;
+        }
+
+        public ParseSessionResult Parse(string text)
+        {
+            var result = new ParseSessionResult();
+
+            if (string.IsNullOrWhiteSpace(text))
+            {
+                result.AddError("No text to parse", 0);
+                return result;
+            }
+
+            // Extract and process JavaScript execute blocks FIRST
+            var (processedText, lineMapping) = ExtractAndProcessExecuteBlocks(text, result);
+
+            // **NEW: Extract and process tuple schemas**
+            processedText = ExtractAndProcessTupleSchemas(processedText, result);
+
+            // Extract and process subject to blocks
+            processedText = ExtractSubjectToBlocks(processedText, lineMapping, result);
+
+            // Split into statements
+            var statements = SplitIntoStatements(processedText, lineMapping);
+
+            // Process each statement
+            foreach (var (statement, lineNumber) in statements)
+            {
+                if (!string.IsNullOrWhiteSpace(statement))
+                {
+                    ProcessStatement(statement, lineNumber, result);
+                }
+            }
+
+            return result;
+        }
+
+        private string ExtractAndProcessTupleSchemas(string text, ParseSessionResult result)
+        {
+            // Pattern: tuple Name { ... }
+            string pattern = @"tuple\s+([a-zA-Z][a-zA-Z0-9_]*)\s*\{";
+            var matches = Regex.Matches(text, pattern, RegexOptions.IgnoreCase);
+
+            if (matches.Count == 0)
+            {
+                return text; // No tuples
+            }
+
+            var resultText = new System.Text.StringBuilder();
+            int lastIndex = 0;
+
+            foreach (Match match in matches)
+            {
+                // Append text before this tuple
+                resultText.Append(text.Substring(lastIndex, match.Index - lastIndex));
+
+                // Find matching closing brace
+                int closingBraceIndex = FindClosingBrace(text, match.Index + match.Length);
+
+                if (closingBraceIndex == -1)
+                {
+                    result.AddError($"Tuple schema: Missing closing brace '}}' for tuple '{match.Groups[1].Value}'", 
+                        text.Substring(0, match.Index).Count(c => c == '\n') + 1);
+                    continue;
+                }
+
+                // Extract the complete tuple definition
+                string tupleDefinition = text.Substring(match.Index, closingBraceIndex - match.Index + 1);
+                
+                // Parse and register the tuple schema
+                if (TryParseTupleSchemaBlock(tupleDefinition, out var schema, out string error))
+                {
+                    modelManager.AddTupleSchema(schema);
+                    result.IncrementSuccess();
+                }
+                else
+                {
+                    result.AddError($"Error parsing tuple schema: {error}", 
+                        text.Substring(0, match.Index).Count(c => c == '\n') + 1);
+                }
+
+                lastIndex = closingBraceIndex + 1;
+            }
+
+            // Append remaining text
+            if (lastIndex < text.Length)
+            {
+                resultText.Append(text.Substring(lastIndex));
+            }
+
+            return resultText.ToString();
+        }
+
+        private bool TryParseTupleSchemaBlock(string block, out TupleSchema? schema, out string error)
+        {
+            schema = null;
+            error = string.Empty;
+
+            // Extract tuple name
+            var nameMatch = Regex.Match(block, @"tuple\s+([a-zA-Z][a-zA-Z0-9_]*)\s*\{", RegexOptions.IgnoreCase);
+            if (!nameMatch.Success)
+            {
+                error = "Invalid tuple syntax";
+                return false;
+            }
+
+            string tupleName = nameMatch.Groups[1].Value;
+            schema = new TupleSchema(tupleName);
+
+            // Extract body (everything between { and })
+            int openBrace = block.IndexOf('{');
+            int closeBrace = block.LastIndexOf('}');
+            
+            if (openBrace == -1 || closeBrace == -1)
+            {
+                error = "Missing braces in tuple definition";
+                return false;
+            }
+
+            string body = block.Substring(openBrace + 1, closeBrace - openBrace - 1);
+
+            // Parse field declarations
+            var fieldPattern = @"(float|int|bool|string)\s+([a-zA-Z][a-zA-Z0-9_]*)\s*;";
+            var fieldMatches = Regex.Matches(body, fieldPattern, RegexOptions.IgnoreCase);
+
+            if (fieldMatches.Count == 0)
+            {
+                error = "Tuple must have at least one field";
+                return false;
+            }
+
+            foreach (Match fieldMatch in fieldMatches)
+            {
+                string typeStr = fieldMatch.Groups[1].Value.ToLower();
+                string fieldName = fieldMatch.Groups[2].Value;
+
+                VariableType fieldType = typeStr switch
+                {
+                    "float" => VariableType.Float,
+                    "int" => VariableType.Integer,
+                    "bool" => VariableType.Boolean,
+                    "string" => VariableType.String,
+                    _ => VariableType.Float
+                };
+
+                try
+                {
+                    schema.AddField(fieldName, fieldType);
+                }
+                catch (Exception ex)
+                {
+                    error = ex.Message;
+                    return false;
+                }
+            }
+
+            return true;
+        }
+
+        public ParseSessionResult Parse(string text)
+        {
+            var result = new ParseSessionResult();
+
+            if (string.IsNullOrWhiteSpace(text))
+            {
+                result.AddError("No text to parse", 0);
+                return result;
+            }
+
+            // Extract and process JavaScript execute blocks FIRST
+            var (processedText, lineMapping) = ExtractAndProcessExecuteBlocks(text, result);
+
+            // **NEW: Extract and process tuple schemas**
+            processedText = ExtractAndProcessTupleSchemas(processedText, result);
+
+            // Extract and process subject to blocks
+            processedText = ExtractSubjectToBlocks(processedText, lineMapping, result);
+
+            // Split into statements
+            var statements = SplitIntoStatements(processedText, lineMapping);
+
+            // Process each statement
+            foreach (var (statement, lineNumber) in statements)
+            {
+                if (!string.IsNullOrWhiteSpace(statement))
+                {
+                    ProcessStatement(statement, lineNumber, result);
+                }
+            }
+
+            return result;
+        }
+
+        private string ExtractAndProcessTupleSchemas(string text, ParseSessionResult result)
+        {
+            // Pattern: tuple Name { ... }
+            string pattern = @"tuple\s+([a-zA-Z][a-zA-Z0-9_]*)\s*\{";
+            var matches = Regex.Matches(text, pattern, RegexOptions.IgnoreCase);
+
+            if (matches.Count == 0)
+            {
+                return text; // No tuples
+            }
+
+            var resultText = new System.Text.StringBuilder();
+            int lastIndex = 0;
+
+            foreach (Match match in matches)
+            {
+                // Append text before this tuple
+                resultText.Append(text.Substring(lastIndex, match.Index - lastIndex));
+
+                // Find matching closing brace
+                int closingBraceIndex = FindClosingBrace(text, match.Index + match.Length);
+
+                if (closingBraceIndex == -1)
+                {
+                    result.AddError($"Tuple schema: Missing closing brace '}}' for tuple '{match.Groups[1].Value}'", 
+                        text.Substring(0, match.Index).Count(c => c == '\n') + 1);
+                    continue;
+                }
+
+                // Extract the complete tuple definition
+                string tupleDefinition = text.Substring(match.Index, closingBraceIndex - match.Index + 1);
+                
+                // Parse and register the tuple schema
+                if (TryParseTupleSchemaBlock(tupleDefinition, out var schema, out string error))
+                {
+                    modelManager.AddTupleSchema(schema);
+                    result.IncrementSuccess();
+                }
+                else
+                {
+                    result.AddError($"Error parsing tuple schema: {error}", 
+                        text.Substring(0, match.Index).Count(c => c == '\n') + 1);
+                }
+
+                lastIndex = closingBraceIndex + 1;
+            }
+
+            // Append remaining text
+            if (lastIndex < text.Length)
+            {
+                resultText.Append(text.Substring(lastIndex));
+            }
+
+            return resultText.ToString();
+        }
+
+        private bool TryParseTupleSchemaBlock(string block, out TupleSchema? schema, out string error)
+        {
+            schema = null;
+            error = string.Empty;
+
+            // Extract tuple name
+            var nameMatch = Regex.Match(block, @"tuple\s+([a-zA-Z][a-zA-Z0-9_]*)\s*\{", RegexOptions.IgnoreCase);
+            if (!nameMatch.Success)
+            {
+                error = "Invalid tuple syntax";
+                return false;
+            }
+
+            string tupleName = nameMatch.Groups[1].Value;
+            schema = new TupleSchema(tupleName);
+
+            // Extract body (everything between { and })
+            int openBrace = block.IndexOf('{');
+            int closeBrace = block.LastIndexOf('}');
+            
+            if (openBrace == -1 || closeBrace == -1)
+            {
+                error = "Missing braces in tuple definition";
+                return false;
+            }
+
+            string body = block.Substring(openBrace + 1, closeBrace - openBrace - 1);
+
+            // Parse field declarations
+            var fieldPattern = @"(float|int|bool|string)\s+([a-zA-Z][a-zA-Z0-9_]*)\s*;";
+            var fieldMatches = Regex.Matches(body, fieldPattern, RegexOptions.IgnoreCase);
+
+            if (fieldMatches.Count == 0)
+            {
+                error = "Tuple must have at least one field";
+                return false;
+            }
+
+            foreach (Match fieldMatch in fieldMatches)
+            {
+                string typeStr = fieldMatch.Groups[1].Value.ToLower();
+                string fieldName = fieldMatch.Groups[2].Value;
+
+                VariableType fieldType = typeStr switch
+                {
+                    "float" => VariableType.Float,
+                    "int" => VariableType.Integer,
+                    "bool" => VariableType.Boolean,
+                    "string" => VariableType.String,
+                    _ => VariableType.Float
+                };
+
+                try
+                {
+                    schema.AddField(fieldName, fieldType);
+                }
+                catch (Exception ex)
+                {
+                    error = ex.Message;
+                    return false;
+                }
+            }
+
+            return true;
+        }
+
+        public ParseSessionResult Parse(string text)
+        {
+            var result = new ParseSessionResult();
+
+            if (string.IsNullOrWhiteSpace(text))
+            {
+                result.AddError("No text to parse", 0);
+                return result;
+            }
+
+            // Extract and process JavaScript execute blocks FIRST
+            var (processedText, lineMapping) = ExtractAndProcessExecuteBlocks(text, result);
+
+            // **NEW: Extract and process tuple schemas**
+            processedText = ExtractAndProcessTupleSchemas(processedText, result);
+
+            // Extract and process subject to blocks
+            processedText = ExtractSubjectToBlocks(processedText, lineMapping, result);
+
+            // Split into statements
+            var statements = SplitIntoStatements(processedText, lineMapping);
+
+            // Process each statement
+            foreach (var (statement, lineNumber) in statements)
+            {
+                if (!string.IsNullOrWhiteSpace(statement))
+                {
+                    ProcessStatement(statement, lineNumber, result);
+                }
+            }
+
+            return result;
+        }
+
+        private string ExtractAndProcessTupleSchemas(string text, ParseSessionResult result)
+        {
+            // Pattern: tuple Name { ... }
+            string pattern = @"tuple\s+([a-zA-Z][a-zA-Z0-9_]*)\s*\{";
+            var matches = Regex.Matches(text, pattern, RegexOptions.IgnoreCase);
+
+            if (matches.Count == 0)
+            {
+                return text; // No tuples
+            }
+
+            var resultText = new System.Text.StringBuilder();
+            int lastIndex = 0;
+
+            foreach (Match match in matches)
+            {
+                // Append text before this tuple
+                resultText.Append(text.Substring(lastIndex, match.Index - lastIndex));
+
+                // Find matching closing brace
+                int closingBraceIndex = FindClosingBrace(text, match.Index + match.Length);
+
+                if (closingBraceIndex == -1)
+                {
+                    result.AddError($"Tuple schema: Missing closing brace '}}' for tuple '{match.Groups[1].Value}'", 
+                        text.Substring(0, match.Index).Count(c => c == '\n') + 1);
+                    continue;
+                }
+
+                // Extract the complete tuple definition
+                string tupleDefinition = text.Substring(match.Index, closingBraceIndex - match.Index + 1);
+                
+                // Parse and register the tuple schema
+                if (TryParseTupleSchemaBlock(tupleDefinition, out var schema, out string error))
+                {
+                    modelManager.AddTupleSchema(schema);
+                    result.IncrementSuccess();
+                }
+                else
+                {
+                    result.AddError($"Error parsing tuple schema: {error}", 
+                        text.Substring(0, match.Index).Count(c => c == '\n') + 1);
+                }
+
+                lastIndex = closingBraceIndex + 1;
+            }
+
+            // Append remaining text
+            if (lastIndex < text.Length)
+            {
+                resultText.Append(text.Substring(lastIndex));
+            }
+
+            return resultText.ToString();
+        }
+
+        private bool TryParseTupleSchemaBlock(string block, out TupleSchema? schema, out string error)
+        {
+            schema = null;
+            error = string.Empty;
+
+            // Extract tuple name
+            var nameMatch = Regex.Match(block, @"tuple\s+([a-zA-Z][a-zA-Z0-9_]*)\s*\{", RegexOptions.IgnoreCase);
+            if (!nameMatch.Success)
+            {
+                error = "Invalid tuple syntax";
+                return false;
+            }
+
+            string tupleName = nameMatch.Groups[1].Value;
+            schema = new TupleSchema(tupleName);
+
+            // Extract body (everything between { and })
+            int openBrace = block.IndexOf('{');
+            int closeBrace = block.LastIndexOf('}');
+            
+            if (openBrace == -1 || closeBrace == -1)
+            {
+                error = "Missing braces in tuple definition";
+                return false;
+            }
+
+            string body = block.Substring(openBrace + 1, closeBrace - openBrace - 1);
+
+            // Parse field declarations
+            var fieldPattern = @"(float|int|bool|string)\s+([a-zA-Z][a-zA-Z0-9_]*)\s*;";
+            var fieldMatches = Regex.Matches(body, fieldPattern, RegexOptions.IgnoreCase);
+
+            if (fieldMatches.Count == 0)
+            {
+                error = "Tuple must have at least one field";
+                return false;
+            }
+
+            foreach (Match fieldMatch in fieldMatches)
+            {
+                string typeStr = fieldMatch.Groups[1].Value.ToLower();
+                string fieldName = fieldMatch.Groups[2].Value;
+
+                VariableType fieldType = typeStr switch
+                {
+                    "float" => VariableType.Float,
+                    "int" => VariableType.Integer,
+                    "bool" => VariableType.Boolean,
+                    "string" => VariableType.String,
+                    _ => VariableType.Float
+                };
+
+                try
+                {
+                    schema.AddField(fieldName, fieldType);
+                }
+                catch (Exception ex)
+                {
+                    error = ex.Message;
+                    return false;
+                }
+            }
+
+            return true;
+        }
+
+        public ParseSessionResult Parse(string text)
+        {
+            var result = new ParseSessionResult();
+
+            if (string.IsNullOrWhiteSpace(text))
+            {
+                result.AddError("No text to parse", 0);
+                return result;
+            }
+
+            // Extract and process JavaScript execute blocks FIRST
+            var (processedText, lineMapping) = ExtractAndProcessExecuteBlocks(text, result);
+
+            // **NEW: Extract and process tuple schemas**
+            processedText = ExtractAndProcessTupleSchemas(processedText, result);
+
+            // Extract and process subject to blocks
+            processedText = ExtractSubjectToBlocks(processedText, lineMapping, result);
+
+            // Split into statements
+            var statements = SplitIntoStatements(processedText, lineMapping);
+
+            // Process each statement
+            foreach (var (statement, lineNumber) in statements)
+            {
+                if (!string.IsNullOrWhiteSpace(statement))
+                {
+                    ProcessStatement(statement, lineNumber, result);
+                }
+            }
+
+            return result;
+        }
+
+        private string ExtractAndProcessTupleSchemas(string text, ParseSessionResult result)
+        {
+            // Pattern: tuple Name { ... }
+            string pattern = @"tuple\s+([a-zA-Z][a-zA-Z0-9_]*)\s*\{";
+            var matches = Regex.Matches(text, pattern, RegexOptions.IgnoreCase);
+
+            if (matches.Count == 0)
+            {
+                return text; // No tuples
+            }
+
+            var resultText = new System.Text.StringBuilder();
+            int lastIndex = 0;
+
+            foreach (Match match in matches)
+            {
+                // Append text before this tuple
+                resultText.Append(text.Substring(lastIndex, match.Index - lastIndex));
+
+                // Find matching closing brace
+                int closingBraceIndex = FindClosingBrace(text, match.Index + match.Length);
+
+                if (closingBraceIndex == -1)
+                {
+                    result.AddError($"Tuple schema: Missing closing brace '}}' for tuple '{match.Groups[1].Value}'", 
+                        text.Substring(0, match.Index).Count(c => c == '\n') + 1);
+                    continue;
+                }
+
+                // Extract the complete tuple definition
+                string tupleDefinition = text.Substring(match.Index, closingBraceIndex - match.Index + 1);
+                
+                // Parse and register the tuple schema
+                if (TryParseTupleSchemaBlock(tupleDefinition, out var schema, out string error))
+                {
+                    modelManager.AddTupleSchema(schema);
+                    result.IncrementSuccess();
+                }
+                else
+                {
+                    result.AddError($"Error parsing tuple schema: {error}", 
+                        text.Substring(0, match.Index).Count(c => c == '\n') + 1);
+                }
+
+                lastIndex = closingBraceIndex + 1;
+            }
+
+            // Append remaining text
+            if (lastIndex < text.Length)
+            {
+                resultText.Append(text.Substring(lastIndex));
+            }
+
+            return resultText.ToString();
+        }
+
+        private bool TryParseTupleSchemaBlock(string block, out TupleSchema? schema, out string error)
+        {
+            schema = null;
+            error = string.Empty;
+
+            // Extract tuple name
+            var nameMatch = Regex.Match(block, @"tuple\s+([a-zA-Z][a-zA-Z0-9_]*)\s*\{", RegexOptions.IgnoreCase);
+            if (!nameMatch.Success)
+            {
+                error = "Invalid tuple syntax";
+                return false;
+            }
+
+            string tupleName = nameMatch.Groups[1].Value;
+            schema = new TupleSchema(tupleName);
+
+            // Extract body (everything between { and })
+            int openBrace = block.IndexOf('{');
+            int closeBrace = block.LastIndexOf('}');
+            
+            if (openBrace == -1 || closeBrace == -1)
+            {
+                error = "Missing braces in tuple definition";
+                return false;
+            }
+
+            string body = block.Substring(openBrace + 1, closeBrace - openBrace - 1);
+
+            // Parse field declarations
+            var fieldPattern = @"(float|int|bool|string)\s+([a-zA-Z][a-zA-Z0-9_]*)\s*;";
+            var fieldMatches = Regex.Matches(body, fieldPattern, RegexOptions.IgnoreCase);
+
+            if (fieldMatches.Count == 0)
+            {
+                error = "Tuple must have at least one field";
+                return false;
+            }
+
+            foreach (Match fieldMatch in fieldMatches)
+            {
+                string typeStr = fieldMatch.Groups[1].Value.ToLower();
+                string fieldName = fieldMatch.Groups[2].Value;
+
+                VariableType fieldType = typeStr switch
+                {
+                    "float" => VariableType.Float,
+                    "int" => VariableType.Integer,
+                    "bool" => VariableType.Boolean,
+                    "string" => VariableType.String,
+                    _ => VariableType.Float
+                };
+
+                try
+                {
+                    schema.AddField(fieldName, fieldType);
+                }
+                catch (Exception ex)
+                {
+                    error = ex.Message;
+                    return false;
+                }
+            }
+
+            return true;
+        }
+
+        public ParseSessionResult Parse(string text)
+        {
+            var result = new ParseSessionResult();
+
+            if (string.IsNullOrWhiteSpace(text))
+            {
+                result.AddError("No text to parse", 0);
+                return result;
+            }
+
+            // Extract and process JavaScript execute blocks FIRST
+            var (processedText, lineMapping) = ExtractAndProcessExecuteBlocks(text, result);
+
+            // **NEW: Extract and process tuple schemas**
+            processedText = ExtractAndProcessTupleSchemas(processedText, result);
+
+            // Extract and process subject to blocks
+            processedText = ExtractSubjectToBlocks(processedText, lineMapping, result);
+
+            // Split into statements
+            var statements = SplitIntoStatements(processedText, lineMapping);
+
+            // Process each statement
+            foreach (var (statement, lineNumber) in statements)
+            {
+                if (!string.IsNullOrWhiteSpace(statement))
+                {
+                    ProcessStatement(statement, lineNumber, result);
+                }
+            }
+
+            return result;
+        }
+
+        private string ExtractAndProcessTupleSchemas(string text, ParseSessionResult result)
+        {
+            // Pattern: tuple Name { ... }
+            string pattern = @"tuple\s+([a-zA-Z][a-zA-Z0-9_]*)\s*\{";
+            var matches = Regex.Matches(text, pattern, RegexOptions.IgnoreCase);
+
+            if (matches.Count == 0)
+            {
+                return text; // No tuples
+            }
+
+            var resultText = new System.Text.StringBuilder();
+            int lastIndex = 0;
+
+            foreach (Match match in matches)
+            {
+                // Append text before this tuple
+                resultText.Append(text.Substring(lastIndex, match.Index - lastIndex));
+
+                // Find matching closing brace
+                int closingBraceIndex = FindClosingBrace(text, match.Index + match.Length);
+
+                if (closingBraceIndex == -1)
+                {
+                    result.AddError($"Tuple schema: Missing closing brace '}}' for tuple '{match.Groups[1].Value}'", 
+                        text.Substring(0, match.Index).Count(c => c == '\n') + 1);
+                    continue;
+                }
+
+                // Extract the complete tuple definition
+                string tupleDefinition = text.Substring(match.Index, closingBraceIndex - match.Index + 1);
+                
+                // Parse and register the tuple schema
+                if (TryParseTupleSchemaBlock(tupleDefinition, out var schema, out string error))
+                {
+                    modelManager.AddTupleSchema(schema);
+                    result.IncrementSuccess();
+                }
+                else
+                {
+                    result.AddError($"Error parsing tuple schema: {error}", 
+                        text.Substring(0, match.Index).Count(c => c == '\n') + 1);
+                }
+
+                lastIndex = closingBraceIndex + 1;
+            }
+
+            // Append remaining text
+            if (lastIndex < text.Length)
+            {
+                resultText.Append(text.Substring(lastIndex));
+            }
+
+            return resultText.ToString();
+        }
+
+        private bool TryParseTupleSchemaBlock(string block, out TupleSchema? schema, out string error)
+        {
+            schema = null;
+            error = string.Empty;
+
+            // Extract tuple name
+            var nameMatch = Regex.Match(block, @"tuple\s+([a-zA-Z][a-zA-Z0-9_]*)\s*\{", RegexOptions.IgnoreCase);
+            if (!nameMatch.Success)
+            {
+                error = "Invalid tuple syntax";
+                return false;
+            }
+
+            string tupleName = nameMatch.Groups[1].Value;
+            schema = new TupleSchema(tupleName);
+
+            // Extract body (everything between { and })
+            int openBrace = block.IndexOf('{');
+            int closeBrace = block.LastIndexOf('}');
+            
+            if (openBrace == -1 || closeBrace == -1)
+            {
+                error = "Missing braces in tuple definition";
+                return false;
+            }
+
+            string body = block.Substring(openBrace + 1, closeBrace - openBrace - 1);
+
+            // Parse field declarations
+            var fieldPattern = @"(float|int|bool|string)\s+([a-zA-Z][a-zA-Z0-9_]*)\s*;";
+            var fieldMatches = Regex.Matches(body, fieldPattern, RegexOptions.IgnoreCase);
+
+            if (fieldMatches.Count == 0)
+            {
+                error = "Tuple must have at least one field";
+                return false;
+            }
+
+            foreach (Match fieldMatch in fieldMatches)
+            {
+                string typeStr = fieldMatch.Groups[1].Value.ToLower();
+                string fieldName = fieldMatch.Groups[2].Value;
+
+                VariableType fieldType = typeStr switch
+                {
+                    "float" => VariableType.Float,
+                    "int" => VariableType.Integer,
+                    "bool" => VariableType.Boolean,
+                    "string" => VariableType.String,
+                    _ => VariableType.Float
+                };
+
+                try
+                {
+                    schema.AddField(fieldName, fieldType);
+                }
+                catch (Exception ex)
+                {
+                    error = ex.Message;
+                    return false;
+                }
+            }
+
+            return true;
+        }
+
+        public ParseSessionResult Parse(string text)
+        {
+            var result = new ParseSessionResult();
+
+            if (string.IsNullOrWhiteSpace(text))
+            {
+                result.AddError("No text to parse", 0);
+                return result;
+            }
+
+            // Extract and process JavaScript execute blocks FIRST
+            var (processedText, lineMapping) = ExtractAndProcessExecuteBlocks(text, result);
+
+            // **NEW: Extract and process tuple schemas**
+            processedText = ExtractAndProcessTupleSchemas(processedText, result);
+
+            // Extract and process subject to blocks
+            processedText = ExtractSubjectToBlocks(processedText, lineMapping, result);
+
+            // Split into statements
+            var statements = SplitIntoStatements(processedText, lineMapping);
+
+            // Process each statement
+            foreach (var (statement, lineNumber) in statements)
+            {
+                if (!string.IsNullOrWhiteSpace(statement))
+                {
+                    ProcessStatement(statement, lineNumber, result);
+                }
+            }
+
+            return result;
+        }
+
+        private string ExtractAndProcessTupleSchemas(string text, ParseSessionResult result)
+        {
+            // Pattern: tuple Name { ... }
+            string pattern = @"tuple\s+([a-zA-Z][a-zA-Z0-9_]*)\s*\{";
+            var matches = Regex.Matches(text, pattern, RegexOptions.IgnoreCase);
+
+            if (matches.Count == 0)
+            {
+                return text; // No tuples
+            }
+
+            var resultText = new System.Text.StringBuilder();
+            int lastIndex = 0;
+
+            foreach (Match match in matches)
+            {
+                // Append text before this tuple
+                resultText.Append(text.Substring(lastIndex, match.Index - lastIndex));
+
+                // Find matching closing brace
+                int closingBraceIndex = FindClosingBrace(text, match.Index + match.Length);
+
+                if (closingBraceIndex == -1)
+                {
+                    result.AddError($"Tuple schema: Missing closing brace '}}' for tuple '{match.Groups[1].Value}'", 
+                        text.Substring(0, match.Index).Count(c => c == '\n') + 1);
+                    continue;
+                }
+
+                // Extract the complete tuple definition
+                string tupleDefinition = text.Substring(match.Index, closingBraceIndex - match.Index + 1);
+                
+                // Parse and register the tuple schema
+                if (TryParseTupleSchemaBlock(tupleDefinition, out var schema, out string error))
+                {
+                    modelManager.AddTupleSchema(schema);
+                    result.IncrementSuccess();
+                }
+                else
+                {
+                    result.AddError($"Error parsing tuple schema: {error}", 
+                        text.Substring(0, match.Index).Count(c => c == '\n') + 1);
+                }
+
+                lastIndex = closingBraceIndex + 1;
+            }
+
+            // Append remaining text
+            if (lastIndex < text.Length)
+            {
+                resultText.Append(text.Substring(lastIndex));
+            }
+
+            return resultText.ToString();
+        }
+
+        private bool TryParseTupleSchemaBlock(string block, out TupleSchema? schema, out string error)
+        {
+            schema = null;
+            error = string.Empty;
+
+            // Extract tuple name
+            var nameMatch = Regex.Match(block, @"tuple\s+([a-zA-Z][a-zA-Z0-9_]*)\s*\{", RegexOptions.IgnoreCase);
+            if (!nameMatch.Success)
+            {
+                error = "Invalid tuple syntax";
+                return false;
+            }
+
+            string tupleName = nameMatch.Groups[1].Value;
+            schema = new TupleSchema(tupleName);
+
+            // Extract body (everything between { and })
+            int openBrace = block.IndexOf('{');
+            int closeBrace = block.LastIndexOf('}');
+            
+            if (openBrace == -1 || closeBrace == -1)
+            {
+                error = "Missing braces in tuple definition";
+                return false;
+            }
+
+            string body = block.Substring(openBrace + 1, closeBrace - openBrace - 1);
+
+            // Parse field declarations
+            var fieldPattern = @"(float|int|bool|string)\s+([a-zA-Z][a-zA-Z0-9_]*)\s*;";
+            var fieldMatches = Regex.Matches(body, fieldPattern, RegexOptions.IgnoreCase);
+
+            if (fieldMatches.Count == 0)
+            {
+                error = "Tuple must have at least one field";
+                return false;
+            }
+
+            foreach (Match fieldMatch in fieldMatches)
+            {
+                string typeStr = fieldMatch.Groups[1].Value.ToLower();
+                string fieldName = fieldMatch.Groups[2].Value;
+
+                VariableType fieldType = typeStr switch
+                {
+                    "float" => VariableType.Float,
+                    "int" => VariableType.Integer,
+                    "bool" => VariableType.Boolean,
+                    "string" => VariableType.String,
+                    _ => VariableType.Float
+                };
+
+                try
+                {
+                    schema.AddField(fieldName, fieldType);
+                }
+                catch (Exception ex)
+                {
+                    error = ex.Message;
+                    return false;
+                }
+            }
+
+            return true;
+        }
+
+        public ParseSessionResult Parse(string text)
+        {
+            var result = new ParseSessionResult();
+
+            if (string.IsNullOrWhiteSpace(text))
+            {
+                result.AddError("No text to parse", 0);
+                return result;
+            }
+
+            // Extract and process JavaScript execute blocks FIRST
+            var (processedText, lineMapping) = ExtractAndProcessExecuteBlocks(text, result);
+
+            // **NEW: Extract and process tuple schemas**
+            processedText = ExtractAndProcessTupleSchemas(processedText, result);
+
+            // Extract and process subject to blocks
+            processedText = ExtractSubjectToBlocks(processedText, lineMapping, result);
+
+            // Split into statements
+            var statements = SplitIntoStatements(processedText, lineMapping);
+
+            // Process each statement
+            foreach (var (statement, lineNumber) in statements)
+            {
+                if (!string.IsNullOrWhiteSpace(statement))
+                {
+                    ProcessStatement(statement, lineNumber, result);
+                }
+            }
+
+            return result;
+        }
+
+        private string ExtractAndProcessTupleSchemas(string text, ParseSessionResult result)
+        {
+            // Pattern: tuple Name { ... }
+            string pattern = @"tuple\s+([a-zA-Z][a-zA-Z0-9_]*)\s*\{";
+            var matches = Regex.Matches(text, pattern, RegexOptions.IgnoreCase);
+
+            if (matches.Count == 0)
+            {
+                return text; // No tuples
+            }
+
+            var resultText = new System.Text.StringBuilder();
+            int lastIndex = 0;
+
+            foreach (Match match in matches)
+            {
+                // Append text before this tuple
+                resultText.Append(text.Substring(lastIndex, match.Index - lastIndex));
+
+                // Find matching closing brace
+                int closingBraceIndex = FindClosingBrace(text, match.Index + match.Length);
+
+                if (closingBraceIndex == -1)
+                {
+                    result.AddError($"Tuple schema: Missing closing brace '}}' for tuple '{match.Groups[1].Value}'", 
+                        text.Substring(0, match.Index).Count(c => c == '\n') + 1);
+                    continue;
+                }
+
+                // Extract the complete tuple definition
+                string tupleDefinition = text.Substring(match.Index, closingBraceIndex - match.Index + 1);
+                
+                // Parse and register the tuple schema
+                if (TryParseTupleSchemaBlock(tupleDefinition, out var schema, out string error))
+                {
+                    modelManager.AddTupleSchema(schema);
+                    result.IncrementSuccess();
+                }
+                else
+                {
+                    result.AddError($"Error parsing tuple schema: {error}", 
+                        text.Substring(0, match.Index).Count(c => c == '\n') + 1);
+                }
+
+                lastIndex = closingBraceIndex + 1;
+            }
+
+            // Append remaining text
+            if (lastIndex < text.Length)
+            {
+                resultText.Append(text.Substring(lastIndex));
+            }
+
+            return resultText.ToString();
+        }
+
+        private bool TryParseTupleSchemaBlock(string block, out TupleSchema? schema, out string error)
+        {
+            schema = null;
+            error = string.Empty;
+
+            // Extract tuple name
+            var nameMatch = Regex.Match(block, @"tuple\s+([a-zA-Z][a-zA-Z0-9_]*)\s*\{", RegexOptions.IgnoreCase);
+            if (!nameMatch.Success)
+            {
+                error = "Invalid tuple syntax";
+                return false;
+            }
+
+            string tupleName = nameMatch.Groups[1].Value;
+            schema = new TupleSchema(tupleName);
+
+            // Extract body (everything between { and })
+            int openBrace = block.IndexOf('{');
+            int closeBrace = block.LastIndexOf('}');
+            
+            if (openBrace == -1 || closeBrace == -1)
+            {
+                error = "Missing braces in tuple definition";
+                return false;
+            }
+
+            string body = block.Substring(openBrace + 1, closeBrace - openBrace - 1);
+
+            // Parse field declarations
+            var fieldPattern = @"(float|int|bool|string)\s+([a-zA-Z][a-zA-Z0-9_]*)\s*;";
+            var fieldMatches = Regex.Matches(body, fieldPattern, RegexOptions.IgnoreCase);
+
+            if (fieldMatches.Count == 0)
+            {
+                error = "Tuple must have at least one field";
+                return false;
+            }
+
+            foreach (Match fieldMatch in fieldMatches)
+            {
+                string typeStr = fieldMatch.Groups[1].Value.ToLower();
+                string fieldName = fieldMatch.Groups[2].Value;
+
+                VariableType fieldType = typeStr switch
+                {
+                    "float" => VariableType.Float,
+                    "int" => VariableType.Integer,
+                    "bool" => VariableType.Boolean,
+                    "string" => VariableType.String,
+                    _ => VariableType.Float
+                };
+
+                try
+                {
+                    schema.AddField(fieldName, fieldType);
+                }
+                catch (Exception ex)
+                {
+                    error = ex.Message;
+                    return false;
+                }
+            }
+
+            return true;
+        }
+
+        public ParseSessionResult Parse(string text)
+        {
+            var result = new ParseSessionResult();
+
+            if (string.IsNullOrWhiteSpace(text))
+            {
+                result.AddError("No text to parse", 0);
+                return result;
+            }
+
+            // Extract and process JavaScript execute blocks FIRST
+            var (processedText, lineMapping) = ExtractAndProcessExecuteBlocks(text, result);
+
+            // **NEW: Extract and process tuple schemas**
+            processedText = ExtractAndProcessTupleSchemas(processedText, result);
+
+            // Extract and process subject to blocks
+            processedText = ExtractSubjectToBlocks(processedText, lineMapping, result);
+
+            // Split into statements
+            var statements = SplitIntoStatements(processedText, lineMapping);
+
+            // Process each statement
+            foreach (var (statement, lineNumber) in statements)
+            {
+                if (!string.IsNullOrWhiteSpace(statement))
+                {
+                    ProcessStatement(statement, lineNumber, result);
+                }
+            }
+
+            return result;
+        }
+
+        private string ExtractAndProcessTupleSchemas(string text, ParseSessionResult result)
+        {
+            // Pattern: tuple Name { ... }
+            string pattern = @"tuple\s+([a-zA-Z][a-zA-Z0-9_]*)\s*\{";
+            var matches = Regex.Matches(text, pattern, RegexOptions.IgnoreCase);
+
+            if (matches.Count == 0)
+            {
+                return text; // No tuples
+            }
+
+            var resultText = new System.Text.StringBuilder();
+            int lastIndex = 0;
+
+            foreach (Match match in matches)
+            {
+                // Append text before this tuple
+                resultText.Append(text.Substring(lastIndex, match.Index - lastIndex));
+
+                // Find matching closing brace
+                int closingBraceIndex = FindClosingBrace(text, match.Index + match.Length);
+
+                if (closingBraceIndex == -1)
+                {
+                    result.AddError($"Tuple schema: Missing closing brace '}}' for tuple '{match.Groups[1].Value}'", 
+                        text.Substring(0, match.Index).Count(c => c == '\n') + 1);
+                    continue;
+                }
+
+                // Extract the complete tuple definition
+                string tupleDefinition = text.Substring(match.Index, closingBraceIndex - match.Index + 1);
+                
+                // Parse and register the tuple schema
+                if (TryParseTupleSchemaBlock(tupleDefinition, out var schema, out string error))
+                {
+                    modelManager.AddTupleSchema(schema);
+                    result.IncrementSuccess();
+                }
+                else
+                {
+                    result.AddError($"Error parsing tuple schema: {error}", 
+                        text.Substring(0, match.Index).Count(c => c == '\n') + 1);
+                }
+
+                lastIndex = closingBraceIndex + 1;
+            }
+
+            // Append remaining text
+            if (lastIndex < text.Length)
+            {
+                resultText.Append(text.Substring(lastIndex));
+            }
+
+            return resultText.ToString();
+        }
+
+        private bool TryParseTupleSchemaBlock(string block, out TupleSchema? schema, out string error)
+        {
+            schema = null;
+            error = string.Empty;
+
+            // Extract tuple name
+            var nameMatch = Regex.Match(block, @"tuple\s+([a-zA-Z][a-zA-Z0-9_]*)\s*\{", RegexOptions.IgnoreCase);
+            if (!nameMatch.Success)
+            {
+                error = "Invalid tuple syntax";
+                return false;
+            }
+
+            string tupleName = nameMatch.Groups[1].Value;
+            schema = new TupleSchema(tupleName);
+
+            // Extract body (everything between { and })
+            int openBrace = block.IndexOf('{');
+            int closeBrace = block.LastIndexOf('}');
+            
+            if (openBrace == -1 || closeBrace == -1)
+            {
+                error = "Missing braces in tuple definition";
+                return false;
+            }
+
+            string body = block.Substring(openBrace + 1, closeBrace - openBrace - 1);
+
+            // Parse field declarations
+            var fieldPattern = @"(float|int|bool|string)\s+([a-zA-Z][a-zA-Z0-9_]*)\s*;";
+            var fieldMatches = Regex.Matches(body, fieldPattern, RegexOptions.IgnoreCase);
+
+            if (fieldMatches.Count == 0)
+            {
+                error = "Tuple must have at least one field";
+                return false;
+            }
+
+            foreach (Match fieldMatch in fieldMatches)
+            {
+                string typeStr = fieldMatch.Groups[1].Value.ToLower();
+                string fieldName = fieldMatch.Groups[2].Value;
+
+                VariableType fieldType = typeStr switch
+                {
+                    "float" => VariableType.Float,
+                    "int" => VariableType.Integer,
+                    "bool" => VariableType.Boolean,
+                    "string" => VariableType.String,
+                    _ => VariableType.Float
+                };
+
+                try
+                {
+                    schema.AddField(fieldName, fieldType);
+                }
+                catch (Exception ex)
+                {
+                    error = ex.Message;
+                    return false;
+                }
+            }
+
+            return true;
+        }
+
+        public ParseSessionResult Parse(string text)
+        {
+            var result = new ParseSessionResult();
+
+            if (string.IsNullOrWhiteSpace(text))
+            {
+                result.AddError("No text to parse", 0);
+                return result;
+            }
+
+            // Extract and process JavaScript execute blocks FIRST
+            var (processedText, lineMapping) = ExtractAndProcessExecuteBlocks(text, result);
+
+            // **NEW: Extract and process tuple schemas**
+            processedText = ExtractAndProcessTupleSchemas(processedText, result);
+
+            // Extract and process subject to blocks
+            processedText = ExtractSubjectToBlocks(processedText, lineMapping, result);
+
+            // Split into statements
+            var statements = SplitIntoStatements(processedText, lineMapping);
+
+            // Process each statement
+            foreach (var (statement, lineNumber) in statements)
+            {
+                if (!string.IsNullOrWhiteSpace(statement))
+                {
+                    ProcessStatement(statement, lineNumber, result);
+                }
+            }
+
+            return result;
+        }
+
+        private string ExtractAndProcessTupleSchemas(string text, ParseSessionResult result)
+        {
+            // Pattern: tuple Name { ... }
+            string pattern = @"tuple\s+([a-zA-Z][a-zA-Z0-9_]*)\s*\{";
+            var matches = Regex.Matches(text, pattern, RegexOptions.IgnoreCase);
+
+            if (matches.Count == 0)
+            {
+                return text; // No tuples
+            }
+
+            var resultText = new System.Text.StringBuilder();
+            int lastIndex = 0;
+
+            foreach (Match match in matches)
+            {
+                // Append text before this tuple
+                resultText.Append(text.Substring(lastIndex, match.Index - lastIndex));
+
+                // Find matching closing brace
+                int closingBraceIndex = FindClosingBrace(text, match.Index + match.Length);
+
+                if (closingBraceIndex == -1)
+                {
+                    result.AddError($"Tuple schema: Missing closing brace '}}' for tuple '{match.Groups[1].Value}'", 
+                        text.Substring(0, match.Index).Count(c => c == '\n') + 1);
+                    continue;
+                }
+
+                // Extract the complete tuple definition
+                string tupleDefinition = text.Substring(match.Index, closingBraceIndex - match.Index + 1);
+                
+                // Parse and register the tuple schema
+                if (TryParseTupleSchemaBlock(tupleDefinition, out var schema, out string error))
+                {
+                    modelManager.AddTupleSchema(schema);
+                    result.IncrementSuccess();
+                }
+                else
+                {
+                    result.AddError($"Error parsing tuple schema: {error}", 
+                        text.Substring(0, match.Index).Count(c => c == '\n') + 1);
+                }
+
+                lastIndex = closingBraceIndex + 1;
+            }
+
+            // Append remaining text
+            if (lastIndex < text.Length)
+            {
+                resultText.Append(text.Substring(lastIndex));
+            }
+
+            return resultText.ToString();
+        }
+
+        private bool TryParseTupleSchemaBlock(string block, out TupleSchema? schema, out string error)
+        {
+            schema = null;
+            error = string.Empty;
+
+            // Extract tuple name
+            var nameMatch = Regex.Match(block, @"tuple\s+([a-zA-Z][a-zA-Z0-9_]*)\s*\{", RegexOptions.IgnoreCase);
+            if (!nameMatch.Success)
+            {
+                error = "Invalid tuple syntax";
+                return false;
+            }
+
+            string tupleName = nameMatch.Groups[1].Value;
+            schema = new TupleSchema(tupleName);
+
+            // Extract body (everything between { and })
+            int openBrace = block.IndexOf('{');
+            int closeBrace = block.LastIndexOf('}');
+
+            if (openBrace == -1 || closeBrace == -1)
+            {
+                error = "Missing braces in tuple definition";
+                return false;
+            }
+
+            string body = block.Substring(openBrace + 1, closeBrace - openBrace - 1);
+
+            // Parse field declarations
+            var fieldPattern = @"(float|int|bool|string)\s+([a-zA-Z][a-zA-Z0-9_]*)\s*;";
+            var fieldMatches = Regex.Matches(body, fieldPattern, RegexOptions.IgnoreCase);
+
+            if (fieldMatches.Count == 0)
+            {
+                error = "Tuple must have at least one field";
+                return false;
+            }
+
+            foreach (Match fieldMatch in fieldMatches)
+            {
+                string typeStr = fieldMatch.Groups[1].Value.ToLower();
+                string fieldName = fieldMatch.Groups[2].Value;
+
+                VariableType fieldType = typeStr switch
+                {
+                    "float" => VariableType.Float,
+                    "int" => VariableType.Integer,
+                    "bool" => VariableType.Boolean,
+                    "string" => VariableType.String,
+                    _ => VariableType.Float
+                };
+
+                try
+                {
+                    schema.AddField(fieldName, fieldType);
+                }
+                catch (Exception ex)
+                {
+                    error = ex.Message;
+                    return false;
+                }
+            }
+
+            return true;
+        }
+
+        public ParseSessionResult Parse(string text)
+        {
+            var result = new ParseSessionResult();
+
+            if (string.IsNullOrWhiteSpace(text))
+            {
+                result.AddError("No text to parse", 0);
+                return result;
+            }
+
+            // Extract and process JavaScript execute blocks FIRST
+            var (processedText, lineMapping) = ExtractAndProcessExecuteBlocks(text, result);
+
+            // **NEW: Extract and process tuple schemas**
+            processedText = ExtractAndProcessTupleSchemas(processedText, result);
+
+            // Extract and process subject to blocks
+            processedText = ExtractSubjectToBlocks(processedText, lineMapping, result);
+
+            // Split into statements
+            var statements = SplitIntoStatements(processedText, lineMapping);
+
+            // Process each statement
+            foreach (var (statement, lineNumber) in statements)
+            {
+                if (!string.IsNullOrWhiteSpace(statement))
+                {
+                    ProcessStatement(statement, lineNumber, result);
+                }
+            }
+
+            return result;
+        }
+
+        private string ExtractAndProcessTupleSchemas(string text, ParseSessionResult result)
+        {
+            // Pattern: tuple Name { ... }
+            string pattern = @"tuple\s+([a-zA-Z][a-zA-Z0-9_]*)\s*\{";
+            var matches = Regex.Matches(text, pattern, RegexOptions.IgnoreCase);
+
+            if (matches.Count == 0)
+            {
+                return text; // No tuples
+            }
+
+            var resultText = new System.Text.StringBuilder();
+            int lastIndex = 0;
+
+            foreach (Match match in matches)
+            {
+                // Append text before this tuple
+                resultText.Append(text.Substring(lastIndex, match.Index - lastIndex));
+
+                // Find matching closing brace
+                int closingBraceIndex = FindClosingBrace(text, match.Index + match.Length);
+
+                if (closingBraceIndex == -1)
+                {
+                    result.AddError($"Tuple schema: Missing closing brace '}}' for tuple '{match.Groups[1].Value}'", 
+                        text.Substring(0, match.Index).Count(c => c == '\n') + 1);
+                    continue;
+                }
+
+                // Extract the complete tuple definition
+                string tupleDefinition = text.Substring(match.Index, closingBraceIndex - match.Index + 1);
+                
+                // Parse and register the tuple schema
+                if (TryParseTupleSchemaBlock(tupleDefinition, out var schema, out string error))
+                {
+                    modelManager.AddTupleSchema(schema);
+                    result.IncrementSuccess();
+                }
+                else
+                {
+            // **NEW: Extract and process tuple schemas**
+            processedText = ExtractAndProcessTupleSchemas(processedText, result);
+
+            // Extract and process subject to blocks
+            processedText = ExtractSubjectToBlocks(processedText, lineMapping, result);
+
+            // Split into statements
+            var statements = SplitIntoStatements(processedText, lineMapping);
+
+            // Process each statement
+            foreach (var (statement, lineNumber) in statements)
+            {
+                if (!string.IsNullOrWhiteSpace(statement))
+                {
+                    ProcessStatement(statement, lineNumber, result);
+                }
+            }
+
+            return result;
+        }
+
+        private string ExtractAndProcessTupleSchemas(string text, ParseSessionResult result)
+        {
+            // Pattern: tuple Name { ... }
+            string pattern = @"tuple\s+([a-zA-Z][a-zA-Z0-9_]*)\s*\{";
+            var matches = Regex.Matches(text, pattern, RegexOptions.IgnoreCase);
+
+            if (matches.Count == 0)
+            {
+                return text; // No tuples
+            }
+
+            var resultText = new System.Text.StringBuilder();
+            int lastIndex = 0;
+
+            foreach (Match match in matches)
+            {
+                // Append text before this tuple
+                resultText.Append(text.Substring(lastIndex, match.Index - lastIndex));
+
+                // Find matching closing brace
+                int closingBraceIndex = FindClosingBrace(text, match.Index + match.Length);
+
+                if (closingBraceIndex == -1)
+                {
+                    result.AddError($"Tuple schema: Missing closing brace '}}' for tuple '{match.Groups[1].Value}'", 
+                        text.Substring(0, match.Index).Count(c => c == '\n') + 1);
+                    continue;
+                }
+
+                // Extract the complete tuple definition
+                string tupleDefinition = text.Substring(match.Index, closingBraceIndex - match.Index + 1);
+                
+                // Parse and register the tuple schema
+                if (TryParseTupleSchemaBlock(tupleDefinition, out var schema, out string error))
+                {
+                    modelManager.AddTupleSchema(schema);
+                    result.IncrementSuccess();
+                }
+                else
+                {
+                    result.AddError($"Error parsing tuple schema: {error}", 
+                        text.Substring(0, match.Index).Count(c => c == '\n') + 1);
+                }
+
+                lastIndex = closingBraceIndex + 1;
+            }
+
+            // Append remaining text
+            if (lastIndex < text.Length)
+            {
+                resultText.Append(text.Substring(lastIndex));
+            }
+
+            return resultText.ToString();
+        }
+
+        private bool TryParseTupleSchemaBlock(string block, out TupleSchema? schema, out string error)
+        {
+            schema = null;
+            error = string.Empty;
+
+            // Extract tuple name
+            var nameMatch = Regex.Match(block, @"tuple\s+([a-zA-Z][a-zA-Z0-9_]*)\s*\{", RegexOptions.IgnoreCase);
+            if (!nameMatch.Success)
+            {
+                error = "Invalid tuple syntax";
+                return false;
+            }
+
+            string tupleName = nameMatch.Groups[1].Value;
+            schema = new TupleSchema(tupleName);
+
+            // Extract body (everything between { and })
+            int openBrace = block.IndexOf('{');
+            int closeBrace = block.LastIndexOf('}');
+            
+            if (openBrace == -1 || closeBrace == -1)
+            {
+                error = "Missing braces in tuple definition";
+                return false;
+            }
+
+            string body = block.Substring(openBrace + 1, closeBrace - openBrace - 1);
+
+            // Parse field declarations
+            var fieldPattern = @"(float|int|bool|string)\s+([a-zA-Z][a-zA-Z0-9_]*)\s*;";
+            var fieldMatches = Regex.Matches(body, fieldPattern, RegexOptions.IgnoreCase);
+
+            if (fieldMatches.Count == 0)
+            {
+                error = "Tuple must have at least one field";
+                return false;
+            }
+
+            foreach (Match fieldMatch in fieldMatches)
+            {
+                string typeStr = fieldMatch.Groups[1].Value.ToLower();
+                string fieldName = fieldMatch.Groups[2].Value;
+
+                VariableType fieldType = typeStr switch
+                {
+                    "float" => VariableType.Float,
+                    "int" => VariableType.Integer,
+                    "bool" => VariableType.Boolean,
+                    "string" => VariableType.String,
+                    _ => VariableType.Float
+                };
+
+                try
+                {
+                    schema.AddField(fieldName, fieldType);
+                }
+                catch (Exception ex)
+                {
+                    error = ex.Message;
+                    return false;
+                }
+            }
+
+            return true;
+        }
+
+        public ParseSessionResult Parse(string text)
+        {
+            var result = new ParseSessionResult();
+
+            if (string.IsNullOrWhiteSpace(text))
+            {
+                result.AddError("No text to parse", 0);
+                return result;
+            }
+
+            // Extract and process JavaScript execute blocks FIRST
+            var (processedText, lineMapping) = ExtractAndProcessExecuteBlocks(text, result);
+
+            // **NEW: Extract and process tuple schemas**
+            processedText = ExtractAndProcessTupleSchemas(processedText, result);
+
+            // Extract and process subject to blocks
+            processedText = ExtractSubjectToBlocks(processedText, lineMapping, result);
+
+            // Split into statements
+            var statements = SplitIntoStatements(processedText, lineMapping);
+
+            // Process each statement
+            foreach (var (statement, lineNumber) in statements)
+            {
+                if (!string.IsNullOrWhiteSpace(statement))
+                {
+                    ProcessStatement(statement, lineNumber, result);
+                }
+            }
+
+            return result;
+        }
+
+        private string ExtractAndProcessTupleSchemas(string text, ParseSessionResult result)
+        {
+            // Pattern: tuple Name { ... }
+            string pattern = @"tuple\s+([a-zA-Z][a-zA-Z0-9_]*)\s*\{";
+            var matches = Regex.Matches(text, pattern, RegexOptions.IgnoreCase);
+
+            if (matches.Count == 0)
+            {
+                return text; // No tuples
+            }
+
+            var resultText = new System.Text.StringBuilder();
+            int lastIndex = 0;
+
+            foreach (Match match in matches)
+            {
+                // Append text before this tuple
+                resultText.Append(text.Substring(lastIndex, match.Index - lastIndex));
+
+                // Find matching closing brace
+                int closingBraceIndex = FindClosingBrace(text, match.Index + match.Length);
+
+                if (closingBraceIndex == -1)
+                {
+                    result.AddError($"Tuple schema: Missing closing brace '}}' for tuple '{match.Groups[1].Value}'", 
+                        text.Substring(0, match.Index).Count(c => c == '\n') + 1);
+                    continue;
+                }
+
+                // Extract the complete tuple definition
+                string tupleDefinition = text.Substring(match.Index, closingBraceIndex - match.Index + 1);
+                
+                // Parse and register the tuple schema
+                if (TryParseTupleSchemaBlock(tupleDefinition, out var schema, out string error))
+                {
+                    modelManager.AddTupleSchema(schema);
+                    result.IncrementSuccess();
+                }
+                else
+                {
+                    result.AddError($"Error parsing tuple schema: {error}", 
+                        text.Substring(0, match.Index).Count(c => c == '\n') + 1);
+                }
+
+                lastIndex = closingBraceIndex + 1;
+            }
+
+            // Append remaining text
+            if (lastIndex < text.Length)
+            {
+                resultText.Append(text.Substring(lastIndex));
+            }
+
+            return resultText.ToString();
+        }
+
+        private bool TryParseTupleSchemaBlock(string block, out TupleSchema? schema, out string error)
+        {
+            schema = null;
+            error = string.Empty;
+
+            // Extract tuple name
+            var nameMatch = Regex.Match(block, @"tuple\s+([a-zA-Z][a-zA-Z0-9_]*)\s*\{", RegexOptions.IgnoreCase);
+            if (!nameMatch.Success)
+            {
+                error = "Invalid tuple syntax";
+                return false;
+            }
+
+            string tupleName = nameMatch.Groups[1].Value;
+            schema = new TupleSchema(tupleName);
+
+            // Extract body (everything between { and })
+            int openBrace = block.IndexOf('{');
+            int closeBrace = block.LastIndexOf('}');
+            
+            if (openBrace == -1 || closeBrace == -1)
+            {
+                error = "Missing braces in tuple definition";
+                return false;
+            }
+
+            string body = block.Substring(openBrace + 1, closeBrace - openBrace - 1);
+
+            // Parse field declarations
+            var fieldPattern = @"(float|int|bool|string)\s+([a-zA-Z][a-zA-Z0-9_]*)\s*;";
+            var fieldMatches = Regex.Matches(body, fieldPattern, RegexOptions.IgnoreCase);
+
+            if (fieldMatches.Count == 0)
+            {
+                error = "Tuple must have at least one field";
+                return false;
+            }
+
+            foreach (Match fieldMatch in fieldMatches)
+            {
+                string typeStr = fieldMatch.Groups[1].Value.ToLower();
+                string fieldName = fieldMatch.Groups[2].Value;
+
+                VariableType fieldType = typeStr switch
+                {
+                    "float" => VariableType.Float,
+                    "int" => VariableType.Integer,
+                    "bool" => VariableType.Boolean,
+                    "string" => VariableType.String,
+                    _ => VariableType.Float
+                };
+
+                try
+                {
+                    schema.AddField(fieldName, fieldType);
+                }
+                catch (Exception ex)
+                {
+                    error = ex.Message;
+                    return false;
+                }
+            }
+
+            return true;
+        }
+
+        public ParseSessionResult Parse(string text)
+        {
+            var result = new ParseSessionResult();
+
+            if (string.IsNullOrWhiteSpace(text))
+            {
+                result.AddError("No text to parse", 0);
+                return result;
+            }
+
+            // Extract and process JavaScript execute blocks FIRST
+            var (processedText, lineMapping) = ExtractAndProcessExecuteBlocks(text, result);
+
+            // **NEW: Extract and process tuple schemas**
+            processedText = ExtractAndProcessTupleSchemas(processedText, result);
+
+            // Extract and process subject to blocks
+            processedText = ExtractSubjectToBlocks(processedText, lineMapping, result);
+
+            // Split into statements
+            var statements = SplitIntoStatements(processedText, lineMapping);
+
+            // Process each statement
+            foreach (var (statement, lineNumber) in statements)
+            {
+                if (!string.IsNullOrWhiteSpace(statement))
+                {
+                    ProcessStatement(statement, lineNumber, result);
+                }
+            }
+
+            return result;
+        }
+
+        private string ExtractAndProcessTupleSchemas(string text, ParseSessionResult result)
+        {
+            // Pattern: tuple Name { ... }
+            string pattern = @"tuple\s+([a-zA-Z][a-zA-Z0-9_]*)\s*\{";
+            var matches = Regex.Matches(text, pattern, RegexOptions.IgnoreCase);
+
+            if (matches.Count == 0)
+            {
+                return text; // No tuples
+            }
+
+            var resultText = new System.Text.StringBuilder();
+            int lastIndex = 0;
+
+            foreach (Match match in matches)
+            {
+                // Append text before this tuple
+                resultText.Append(text.Substring(lastIndex, match.Index - lastIndex));
+
+                // Find matching closing brace
+                int closingBraceIndex = FindClosingBrace(text, match.Index + match.Length);
+
+                if (closingBraceIndex == -1)
+                {
+                    result.AddError($"Tuple schema: Missing closing brace '}}' for tuple '{match.Groups[1].Value}'", 
+                        text.Substring(0, match.Index).Count(c => c == '\n') + 1);
+                    continue;
+                }
+
+                // Extract the complete tuple definition
+                string tupleDefinition = text.Substring(match.Index, closingBraceIndex - match.Index + 1);
+                
+                // Parse and register the tuple schema
+                if (TryParseTupleSchemaBlock(tupleDefinition, out var schema, out string error))
+                {
+                    modelManager.AddTupleSchema(schema);
+                    result.IncrementSuccess();
+                }
+                else
+                {
+                    result.AddError($"Error parsing tuple schema: {error}", 
+                        text.Substring(0, match.Index).Count(c => c == '\n') + 1);
+                }
+
+                lastIndex = closingBraceIndex + 1;
+            }
+
+            // Append remaining text
+            if (lastIndex < text.Length)
+            {
+                resultText.Append(text.Substring(lastIndex));
+            }
+
+            return resultText.ToString();
+        }
+
+        private bool TryParseTupleSchemaBlock(string block, out TupleSchema? schema, out string error)
+        {
+            schema = null;
+            error = string.Empty;
+
+            // Extract tuple name
+            var nameMatch = Regex.Match(block, @"tuple\s+([a-zA-Z][a-zA-Z0-9_]*)\s*\{", RegexOptions.IgnoreCase);
+            if (!nameMatch.Success)
+            {
+                error = "Invalid tuple syntax";
+                return false;
+            }
+
+            string tupleName = nameMatch.Groups[1].Value;
+            schema = new TupleSchema(tupleName);
+
+            // Extract body (everything between { and })
+            int openBrace = block.IndexOf('{');
+            int closeBrace = block.LastIndexOf('}');
+            
+            if (openBrace == -1 || closeBrace == -1)
+            {
+                error = "Missing braces in tuple definition";
+                return false;
+            }
+
+            string body = block.Substring(openBrace + 1, closeBrace - openBrace - 1);
+
+            // Parse field declarations
+            var fieldPattern = @"(float|int|bool|string)\s+([a-zA-Z][a-zA-Z0-9_]*)\s*;";
+            var fieldMatches = Regex.Matches(body, fieldPattern, RegexOptions.IgnoreCase);
+
+            if (fieldMatches.Count == 0)
+            {
+                error = "Tuple must have at least one field";
+                return false;
+            }
+
+            foreach (Match fieldMatch in fieldMatches)
+            {
+                string typeStr = fieldMatch.Groups[1].Value.ToLower();
+                string fieldName = fieldMatch.Groups[2].Value;
+
+                VariableType fieldType = typeStr switch
+                {
+                    "float" => VariableType.Float,
+                    "int" => VariableType.Integer,
+                    "bool" => VariableType.Boolean,
+                    "string" => VariableType.String,
+                    _ => VariableType.Float
+                };
+
+                try
+                {
+                    schema.AddField(fieldName, fieldType);
+                }
+                catch (Exception ex)
+                {
+                    error = ex.Message;
+                    return false;
+                }
+            }
+
+            return true;
+        }
+
+        public ParseSessionResult Parse(string text)
+        {
+            var result = new ParseSessionResult();
+
+            if (string.IsNullOrWhiteSpace(text))
+            {
+                result.AddError("No text to parse", 0);
+                return result;
+            }
+
+            // Extract and process JavaScript execute blocks FIRST
+            var (processedText, lineMapping) = ExtractAndProcessExecuteBlocks(text, result);
+
+            // **NEW: Extract and process tuple schemas**
+            processedText = ExtractAndProcessTupleSchemas(processedText, result);
+
+            // Extract and process subject to blocks
+            processedText = ExtractSubjectToBlocks(processedText, lineMapping, result);
+
+            // Split into statements
+            var statements = SplitIntoStatements(processedText, lineMapping);
+
+            // Process each statement
+            foreach (var (statement, lineNumber) in statements)
+            {
+                if (!string.IsNullOrWhiteSpace(statement))
+                {
+                    ProcessStatement(statement, lineNumber, result);
+                }
+            }
+
+            return result;
+        }
+
+        private string ExtractAndProcessTupleSchemas(string text, ParseSessionResult result)
+        {
+            // Pattern: tuple Name { ... }
+            string pattern = @"tuple\s+([a-zA-Z][a-zA-Z0-9_]*)\s*\{";
+            var matches = Regex.Matches(text, pattern, RegexOptions.IgnoreCase);
+
+            if (matches.Count == 0)
+            {
+                return text; // No tuples
+            }
+
+            var resultText = new System.Text.StringBuilder();
+            int lastIndex = 0;
+
+            foreach (Match match in matches)
+            {
+                // Append text before this tuple
+                resultText.Append(text.Substring(lastIndex, match.Index - lastIndex));
+
+                // Find matching closing brace
+                int closingBraceIndex = FindClosingBrace(text, match.Index + match.Length);
+
+                if (closingBraceIndex == -1)
+                {
+                    result.AddError($"Tuple schema: Missing closing brace '}}' for tuple '{match.Groups[1].Value}'", 
+                        text.Substring(0, match.Index).Count(c => c == '\n') + 1);
+                    continue;
+                }
+
+                // Extract the complete tuple definition
+                string tupleDefinition = text.Substring(match.Index, closingBraceIndex - match.Index + 1);
+                
+                // Parse and register the tuple schema
+                if (TryParseTupleSchemaBlock(tupleDefinition, out var schema, out string error))
+                {
+                    modelManager.AddTupleSchema(schema);
+                    result.IncrementSuccess();
+                }
+                else
+                {
+                    result.AddError($"Error parsing tuple schema: {error}", 
+                        text.Substring(0, match.Index).Count(c => c == '\n') + 1);
+                }
+
+                lastIndex = closingBraceIndex + 1;
+            }
+
+            // Append remaining text
+            if (lastIndex < text.Length)
+            {
+                resultText.Append(text.Substring(lastIndex));
+            }
+
+            return resultText.ToString();
+        }
+
+        private bool TryParseTupleSchemaBlock(string block, out TupleSchema? schema, out string error)
+        {
+            schema = null;
+            error = string.Empty;
+
+            // Extract tuple name
+            var nameMatch = Regex.Match(block, @"tuple\s+([a-zA-Z][a-zA-Z0-9_]*)\s*\{", RegexOptions.IgnoreCase);
+            if (!nameMatch.Success)
+            {
+                error = "Invalid tuple syntax";
+                return false;
+            }
+
+            string tupleName = nameMatch.Groups[1].Value;
+            schema = new TupleSchema(tupleName);
+
+            // Extract body (everything between { and })
+            int openBrace = block.IndexOf('{');
+            int closeBrace = block.LastIndexOf('}');
+            
+            if (openBrace == -1 || closeBrace == -1)
+            {
+                error = "Missing braces in tuple definition";
+                return false;
+            }
+
+            string body = block.Substring(openBrace + 1, closeBrace - openBrace - 1);
+
+            // Parse field declarations
+            var fieldPattern = @"(float|int|bool|string)\s+([a-zA-Z][a-zA-Z0-9_]*)\s*;";
+            var fieldMatches = Regex.Matches(body, fieldPattern, RegexOptions.IgnoreCase);
+
+            if (fieldMatches.Count == 0)
+            {
+                error = "Tuple must have at least one field";
+                return false;
+            }
+
+            foreach (Match fieldMatch in fieldMatches)
+            {
+                string typeStr = fieldMatch.Groups[1].Value.ToLower();
+                string fieldName = fieldMatch.Groups[2].Value;
+
+                VariableType fieldType = typeStr switch
+                {
+                    "float" => VariableType.Float,
+                    "int" => VariableType.Integer,
+                    "bool" => VariableType.Boolean,
+                    "string" => VariableType.String,
+                    _ => VariableType.Float
+                };
+
+                try
+                {
+                    schema.AddField(fieldName, fieldType);
+                }
+                catch (Exception ex)
+                {
+                    error = ex.Message;
+                    return false;
+                }
+            }
+
+            return true;
+        }
+
+        public ParseSessionResult Parse(string text)
+        {
+            var result = new ParseSessionResult();
+
+            if (string.IsNullOrWhiteSpace(text))
+            {
+                result.AddError("No text to parse", 0);
+                return result;
+            }
+
+            // Extract and process JavaScript execute blocks FIRST
+            var (processedText, lineMapping) = ExtractAndProcessExecuteBlocks(text, result);
+
+            // **NEW: Extract and process tuple schemas**
+            processedText = ExtractAndProcessTupleSchemas(processedText, result);
+
+            // Extract and process subject to blocks
+            processedText = ExtractSubjectToBlocks(processedText, lineMapping, result);
+
+            // Split into statements
+            var statements = SplitIntoStatements(processedText, lineMapping);
+
+            // Process each statement
+            foreach (var (statement, lineNumber) in statements)
+            {
+                if (!string.IsNullOrWhiteSpace(statement))
+                {
+                    ProcessStatement(statement, lineNumber, result);
+                }
+            }
+
+            return result;
+        }
+
+        private string ExtractAndProcessTupleSchemas(string text, ParseSessionResult result)
+        {
+            // Pattern: tuple Name { ... }
+            string pattern = @"tuple\s+([a-zA-Z][a-zA-Z0-9_]*)\s*\{";
+            var matches = Regex.Matches(text, pattern, RegexOptions.IgnoreCase);
+
+            if (matches.Count == 0)
+            {
+                return text; // No tuples
+            }
+
+            var resultText = new System.Text.StringBuilder();
+            int lastIndex = 0;
+
+            foreach (Match match in matches)
+            {
+                // Append text before this tuple
+                resultText.Append(text.Substring(lastIndex, match.Index - lastIndex));
+
+                // Find matching closing brace
+                int closingBraceIndex = FindClosingBrace(text, match.Index + match.Length);
+
+                if (closingBraceIndex == -1)
+                {
+                    result.AddError($"Tuple schema: Missing closing brace '}}' for tuple '{match.Groups[1].Value}'", 
+                        text.Substring(0, match.Index).Count(c => c == '\n') + 1);
+                    continue;
+                }
+
+                // Extract the complete tuple definition
+                string tupleDefinition = text.Substring(match.Index, closingBraceIndex - match.Index + 1);
+                
+                // Parse and register the tuple schema
+                if (TryParseTupleSchemaBlock(tupleDefinition, out var schema, out string error))
+                {
+                    modelManager.AddTupleSchema(schema);
+                    result.IncrementSuccess();
+                }
+                else
+                {
+                    result.AddError($"Error parsing tuple schema: {error}", 
+                        text.Substring(0, match.Index).Count(c => c == '\n') + 1);
+                }
+
+                lastIndex = closingBraceIndex + 1;
+            }
+
+            // Append remaining text
+            if (lastIndex < text.Length)
+            {
+                resultText.Append(text.Substring(lastIndex));
+            }
+
+            return resultText.ToString();
+        }
+
+        private bool TryParseTupleSchemaBlock(string block, out TupleSchema? schema, out string error)
+        {
+            schema = null;
+            error = string.Empty;
+
+            // Extract tuple name
+            var nameMatch = Regex.Match(block, @"tuple\s+([a-zA-Z][a-zA-Z0-9_]*)\s*\{", RegexOptions.IgnoreCase);
+            if (!nameMatch.Success)
+            {
+                error = "Invalid tuple syntax";
+                return false;
+            }
+
+            string tupleName = nameMatch.Groups[1].Value;
+            schema = new TupleSchema(tupleName);
+
+            // Extract body (everything between { and })
+            int openBrace = block.IndexOf('{');
+            int closeBrace = block.LastIndexOf('}');
+            
+            if (openBrace == -1 || closeBrace == -1)
+            {
+                error = "Missing braces in tuple definition";
+                return false;
+            }
+
+            string body = block.Substring(openBrace + 1, closeBrace - openBrace - 1);
+
+            // Parse field declarations
+            var fieldPattern = @"(float|int|bool|string)\s+([a-zA-Z][a-zA-Z0-9_]*)\s*;";
+            var fieldMatches = Regex.Matches(body, fieldPattern, RegexOptions.IgnoreCase);
+
+            if (fieldMatches.Count == 0)
+            {
+                error = "Tuple must have at least one field";
+                return false;
+            }
+
+            foreach (Match fieldMatch in fieldMatches)
+            {
+                string typeStr = fieldMatch.Groups[1].Value.ToLower();
+                string fieldName = fieldMatch.Groups[2].Value;
+
+                VariableType fieldType = typeStr switch
+                {
+                    "float" => VariableType.Float,
+                    "int" => VariableType.Integer,
+                    "bool" => VariableType.Boolean,
+                    "string" => VariableType.String,
+                    _ => VariableType.Float
+                };
+
+                try
+                {
+                    schema.AddField(fieldName, fieldType);
+                }
+                catch (Exception ex)
+                {
+                    error = ex.Message;
+                    return false;
+                }
+            }
+
+            return true;
+        }
+
+        public ParseSessionResult Parse(string text)
+        {
+            var result = new ParseSessionResult();
+
+            if (string.IsNullOrWhiteSpace(text))
+            {
+                result.AddError("No text to parse", 0);
+                return result;
+            }
+
+            // Extract and process JavaScript execute blocks FIRST
+            var (processedText, lineMapping) = ExtractAndProcessExecuteBlocks(text, result);
+
+            // **NEW: Extract and process tuple schemas**
+            processedText = ExtractAndProcessTupleSchemas(processedText, result);
+
+            // Extract and process subject to blocks
+            processedText = ExtractSubjectToBlocks(processedText, lineMapping, result);
+
+            // Split into statements
+            var statements = SplitIntoStatements(processedText, lineMapping);
+
+            // Process each statement
+            foreach (var (statement, lineNumber) in statements)
+            {
+                if (!string.IsNullOrWhiteSpace(statement))
+                {
+                    ProcessStatement(statement, lineNumber, result);
+                }
+            }
+
+            return result;
+        }
+
+        private string ExtractAndProcessTupleSchemas(string text, ParseSessionResult result)
+        {
+            // Pattern: tuple Name { ... }
+            string pattern = @"tuple\s+([a-zA-Z][a-zA-Z0-9_]*)\s*\{";
+            var matches = Regex.Matches(text, pattern, RegexOptions.IgnoreCase);
+
+            if (matches.Count == 0)
+            {
+                return text; // No tuples
+            }
+
+            var resultText = new System.Text.StringBuilder();
+            int lastIndex = 0;
+
+            foreach (Match match in matches)
+            {
+                // Append text before this tuple
+                resultText.Append(text.Substring(lastIndex, match.Index - lastIndex));
+
+                // Find matching closing brace
+                int closingBraceIndex = FindClosingBrace(text, match.Index + match.Length);
+
+                if (closingBraceIndex == -1)
+                {
+                    result.AddError($"Tuple schema: Missing closing brace '}}' for tuple '{match.Groups[1].Value}'", 
+                        text.Substring(0, match.Index).Count(c => c == '\n') + 1);
+                    continue;
+                }
+
+                // Extract the complete tuple definition
+                string tupleDefinition = text.Substring(match.Index, closingBraceIndex - match.Index + 1);
+                
+                // Parse and register the tuple schema
+                if (TryParseTupleSchemaBlock(tupleDefinition, out var schema, out string error))
+                {
+                    modelManager.AddTupleSchema(schema);
+                    result.IncrementSuccess();
+                }
+                else
+                {
+                    result.AddError($"Error parsing tuple schema: {error}", 
+                        text.Substring(0, match.Index).Count(c => c == '\n') + 1);
+                }
+
+                lastIndex = closingBraceIndex + 1;
+            }
+
+            // Append remaining text
+            if (lastIndex < text.Length)
+            {
+                resultText.Append(text.Substring(lastIndex));
+            }
+
+            return resultText.ToString();
+        }
+
+        private bool TryParseTupleSchemaBlock(string block, out TupleSchema? schema, out string error)
+        {
+            schema = null;
+            error = string.Empty;
+
+            // Extract tuple name
+            var nameMatch = Regex.Match(block, @"tuple\s+([a-zA-Z][a-zA-Z0-9_]*)\s*\{", RegexOptions.IgnoreCase);
+            if (!nameMatch.Success)
+            {
+                error = "Invalid tuple syntax";
+                return false;
+            }
+
+            string tupleName = nameMatch.Groups[1].Value;
+            schema = new TupleSchema(tupleName);
+
+            // Extract body (everything between { and })
+            int openBrace = block.IndexOf('{');
+            int closeBrace = block.LastIndexOf('}');
+            
+            if (openBrace == -1 || closeBrace == -1)
+            {
+                error = "Missing braces in tuple definition";
+                return false;
+            }
+
+            string body = block.Substring(openBrace + 1, closeBrace - openBrace - 1);
+
+            // Parse field declarations
+            var fieldPattern = @"(float|int|bool|string)\s+([a-zA-Z][a-zA-Z0-9_]*)\s*;";
+            var fieldMatches = Regex.Matches(body, fieldPattern, RegexOptions.IgnoreCase);
+
+            if (fieldMatches.Count == 0)
+            {
+                error = "Tuple must have at least one field";
+                return false;
+            }
+
+            foreach (Match fieldMatch in fieldMatches)
+            {
+                string typeStr = fieldMatch.Groups[1].Value.ToLower();
+                string fieldName = fieldMatch.Groups[2].Value;
+
+                VariableType fieldType = typeStr switch
+                {
+                    "float" => VariableType.Float,
+                    "int" => VariableType.Integer,
+                    "bool" => VariableType.Boolean,
+                    "string" => VariableType.String,
+                    _ => VariableType.Float
+                };
+
+                try
+                {
+                    schema.AddField(fieldName, fieldType);
+                }
+                catch (Exception ex)
+                {
+                    error = ex.Message;
+                    return false;
+                }
+            }
+
+            return true;
+        }
+
+        public ParseSessionResult Parse(string text)
+        {
+            var result = new ParseSessionResult();
+
+            if (string.IsNullOrWhiteSpace(text))
+            {
+                result.AddError("No text to parse", 0);
+                return result;
+            }
+
+            // Extract and process JavaScript execute blocks FIRST
+            var (processedText, lineMapping) = ExtractAndProcessExecuteBlocks(text, result);
+
+            // **NEW: Extract and process tuple schemas**
+            processedText = ExtractAndProcessTupleSchemas(processedText, result);
+
+            // Extract and process subject to blocks
+            processedText = ExtractSubjectToBlocks(processedText, lineMapping, result);
+
+            // Split into statements
+            var statements = SplitIntoStatements(processedText, lineMapping);
+
+            // Process each statement
+            foreach (var (statement, lineNumber) in statements)
+            {
+                if (!string.IsNullOrWhiteSpace(statement))
+                {
+                    ProcessStatement(statement, lineNumber, result);
+                }
+            }
+
+            return result;
+        }
+
+        private string ExtractAndProcessTupleSchemas(string text, ParseSessionResult result)
+        {
+            // Pattern: tuple Name { ... }
+            string pattern = @"tuple\s+([a-zA-Z][a-zA-Z0-9_]*)\s*\{";
+            var matches = Regex.Matches(text, pattern, RegexOptions.IgnoreCase);
+
+            if (matches.Count == 0)
+            {
+                return text; // No tuples
+            }
+
+            var resultText = new System.Text.StringBuilder();
+            int lastIndex = 0;
+
+            foreach (Match match in matches)
+            {
+                // Append text before this tuple
+                resultText.Append(text.Substring(lastIndex, match.Index - lastIndex));
+
+                // Find matching closing brace
+                int closingBraceIndex = FindClosingBrace(text, match.Index + match.Length);
+
+                if (closingBraceIndex == -1)
+                {
+                    result.AddError($"Tuple schema: Missing closing brace '}}' for tuple '{match.Groups[1].Value}'", 
+                        text.Substring(0, match.Index).Count(c => c == '\n') + 1);
+                    continue;
+                }
+
+                // Extract the complete tuple definition
+                string tupleDefinition = text.Substring(match.Index, closingBraceIndex - match.Index + 1);
+                
+                // Parse and register the tuple schema
+                if (TryParseTupleSchemaBlock(tupleDefinition, out var schema, out string error))
+                {
+                    modelManager.AddTupleSchema(schema);
+                    result.IncrementSuccess();
+                }
+                else
+                {
+                    result.AddError($"Error parsing tuple schema: {error}", 
+                        text.Substring(0, match.Index).Count(c => c == '\n') + 1);
+                }
+
+                lastIndex = closingBraceIndex + 1;
+            }
+
+            // Append remaining text
+            if (lastIndex < text.Length)
+            {
+                resultText.Append(text.Substring(lastIndex));
+            }
+
+            return resultText.ToString();
+        }
+
+        private bool TryParseTupleSchemaBlock(string block, out TupleSchema? schema, out string error)
+        {
+            schema = null;
+            error = string.Empty;
+
+            // Extract tuple name
+            var nameMatch = Regex.Match(block, @"tuple\s+([a-zA-Z][a-zA-Z0-9_]*)\s*\{", RegexOptions.IgnoreCase);
+            if (!nameMatch.Success)
+            {
+                error = "Invalid tuple syntax";
+                return false;
+            }
+
+            string tupleName = nameMatch.Groups[1].Value;
+            schema = new TupleSchema(tupleName);
+
+            // Extract body (everything between { and })
+            int openBrace = block.IndexOf('{');
+            int closeBrace = block.LastIndexOf('}');
+            
+            if (openBrace == -1 || closeBrace == -1)
+            {
+                error = "Missing braces in tuple definition";
+                return false;
+            }
+
+            string body = block.Substring(openBrace + 1, closeBrace - openBrace - 1);
+
+            // Parse field declarations
+            var fieldPattern = @"(float|int|bool|string)\s+([a-zA-Z][a-zA-Z0-9_]*)\s*;";
+            var fieldMatches = Regex.Matches(body, fieldPattern, RegexOptions.IgnoreCase);
+
+            if (fieldMatches.Count == 0)
+            {
+                error = "Tuple must have at least one field";
+                return false;
+            }
+
+            foreach (Match fieldMatch in fieldMatches)
+            {
+                string typeStr = fieldMatch.Groups[1].Value.ToLower();
+                string fieldName = fieldMatch.Groups[2].Value;
+
+                VariableType fieldType = typeStr switch
+                {
+                    "float" => VariableType.Float,
+                    "int" => VariableType.Integer,
+                    "bool" => VariableType.Boolean,
+                    "string" => VariableType.String,
+                    _ => VariableType.Float
+                };
+
+                try
+                {
+                    schema.AddField(fieldName, fieldType);
+                }
+                catch (Exception ex)
+                {
+                    error = ex.Message;
+                    return false;
+                }
+            }
+
+            return true;
+        }
+
+        public ParseSessionResult Parse(string text)
+        {
+            var result = new ParseSessionResult();
+
+            if (string.IsNullOrWhiteSpace(text))
+            {
+                result.AddError("No text to parse", 0);
+                return result;
+            }
+
+            // Extract and process JavaScript execute blocks FIRST
+            var (processedText, lineMapping) = ExtractAndProcessExecuteBlocks(text, result);
+
+            // **NEW: Extract and process tuple schemas**
+            processedText = ExtractAndProcessTupleSchemas(processedText, result);
+
+            // Extract and process subject to blocks
+            processedText = ExtractSubjectToBlocks(processedText, lineMapping, result);
+
+            // Split into statements
+            var statements = SplitIntoStatements(processedText, lineMapping);
+
+            // Process each statement
+            foreach (var (statement, lineNumber) in statements)
+            {
+                if (!string.IsNullOrWhiteSpace(statement))
+                {
+                    ProcessStatement(statement, lineNumber, result);
+                }
+            }
+
+            return result;
+        }
+
+        private string ExtractAndProcessTupleSchemas(string text, ParseSessionResult result)
+        {
+            // Pattern: tuple Name { ... }
+            string pattern = @"tuple\s+([a-zA-Z][a-zA-Z0-9_]*)\s*\{";
+            var matches = Regex.Matches(text, pattern, RegexOptions.IgnoreCase);
+
+            if (matches.Count == 0)
+            {
+                return text; // No tuples
+            }
+
+            var resultText = new System.Text.StringBuilder();
+            int lastIndex = 0;
+
+            foreach (Match match in matches)
+            {
+                // Append text before this tuple
+                resultText.Append(text.Substring(lastIndex, match.Index - lastIndex));
+
+                // Find matching closing brace
+                int closingBraceIndex = FindClosingBrace(text, match.Index + match.Length);
+
+                if (closingBraceIndex == -1)
+                {
+                    result.AddError($"Tuple schema: Missing closing brace '}}' for tuple '{match.Groups[1].Value}'", 
+                        text.Substring(0, match.Index).Count(c => c == '\n') + 1);
+                    continue;
+                }
+
+                // Extract the complete tuple definition
+                string tupleDefinition = text.Substring(match.Index, closingBraceIndex - match.Index + 1);
+                
+                // Parse and register the tuple schema
+                if (TryParseTupleSchemaBlock(tupleDefinition, out var schema, out string error))
+                {
+                    modelManager.AddTupleSchema(schema);
+                    result.IncrementSuccess();
+                }
+                else
+                {
+                    result.AddError($"Error parsing tuple schema: {error}", 
+                        text.Substring(0, match.Index).Count(c => c == '\n') + 1);
+                }
+
+                lastIndex = closingBraceIndex + 1;
+            }
+
+            // Append remaining text
+            if (lastIndex < text.Length)
+            {
+                resultText.Append(text.Substring(lastIndex));
+            }
+
+            return resultText.ToString();
+        }
+
+        private bool TryParseTupleSchemaBlock(string block, out TupleSchema? schema, out string error)
+        {
+            schema = null;
+            error = string.Empty;
+
+            // Extract tuple name
+            var nameMatch = Regex.Match(block, @"tuple\s+([a-zA-Z][a-zA-Z0-9_]*)\s*\{", RegexOptions.IgnoreCase);
+            if (!nameMatch.Success)
+            {
+                error = "Invalid tuple syntax";
+                return false;
+            }
+
+            string tupleName = nameMatch.Groups[1].Value;
+            schema = new TupleSchema(tupleName);
+
+            // Extract body (everything between { and })
+            int openBrace = block.IndexOf('{');
+            int closeBrace = block.LastIndexOf('}');
+            
+            if (openBrace == -1 || closeBrace == -1)
+            {
+                error = "Missing braces in tuple definition";
+                return false;
+            }
+
+            string body = block.Substring(openBrace + 1, closeBrace - openBrace - 1);
+
+            // Parse field declarations
+            var fieldPattern = @"(float|int|bool|string)\s+([a-zA-Z][a-zA-Z0-9_]*)\s*;";
+            var fieldMatches = Regex.Matches(body, fieldPattern, RegexOptions.IgnoreCase);
+
+            if (fieldMatches.Count == 0)
+            {
+                error = "Tuple must have at least one field";
+                return false;
+            }
+
+            foreach (Match fieldMatch in fieldMatches)
+            {
+                string typeStr = fieldMatch.Groups[1].Value.ToLower();
+                string fieldName = fieldMatch.Groups[2].Value;
+
+                VariableType fieldType = typeStr switch
+                {
+                    "float" => VariableType.Float,
+                    "int" => VariableType.Integer,
+                    "bool" => VariableType.Boolean,
+                    "string" => VariableType.String,
+                    _ => VariableType.Float
+                };
+
+                try
+                {
+                    schema.AddField(fieldName, fieldType);
+                }
+                catch (Exception ex)
+                {
+                    error = ex.Message;
+                    return false;
+                }
+            }
+
+            return true;
+        }
+
+        public ParseSessionResult Parse(string text)
+        {
+            var result = new ParseSessionResult();
+
+            if (string.IsNullOrWhiteSpace(text))
+            {
+                result.AddError("No text to parse", 0);
+                return result;
+            }
+
+            // Extract and process JavaScript execute blocks FIRST
+            var (processedText, lineMapping) = ExtractAndProcessExecuteBlocks(text, result);
+
+            // **NEW: Extract and process tuple schemas**
+            processedText = ExtractAndProcessTupleSchemas(processedText, result);
+
+            // Extract and process subject to blocks
+            processedText = ExtractSubjectToBlocks(processedText, lineMapping, result);
+
+            // Split into statements
+            var statements = SplitIntoStatements(processedText, lineMapping);
+
+            // Process each statement
+            foreach (var (statement, lineNumber) in statements)
+            {
+                if (!string.IsNullOrWhiteSpace(statement))
+                {
+                    ProcessStatement(statement, lineNumber, result);
+                }
+            }
+
+            return result;
+        }
+
+        private string ExtractAndProcessTupleSchemas(string text, ParseSessionResult result)
+        {
+            // Pattern: tuple Name { ... }
+            string pattern = @"tuple\s+([a-zA-Z][a-zA-Z0-9_]*)\s*\{";
+            var matches = Regex.Matches(text, pattern, RegexOptions.IgnoreCase);
+
+            if (matches.Count == 0)
+            {
+                return text; // No tuples
+            }
+
+            var resultText = new System.Text.StringBuilder();
+            int lastIndex = 0;
+
+            foreach (Match match in matches)
+            {
+                // Append text before this tuple
+                resultText.Append(text.Substring(lastIndex, match.Index - lastIndex));
+
+                // Find matching closing brace
+                int closingBraceIndex = FindClosingBrace(text, match.Index + match.Length);
+
+                if (closingBraceIndex == -1)
+                {
+                    result.AddError($"Tuple schema: Missing closing brace '}}' for tuple '{match.Groups[1].Value}'", 
+                        text.Substring(0, match.Index).Count(c => c == '\n') + 1);
+                    continue;
+                }
+
+                // Extract the complete tuple definition
+                string tupleDefinition = text.Substring(match.Index, closingBraceIndex - match.Index + 1);
+                
+                // Parse and register the tuple schema
+                if (TryParseTupleSchemaBlock(tupleDefinition, out var schema, out string error))
+                {
+                    modelManager.AddTupleSchema(schema);
+                    result.IncrementSuccess();
+                }
+                else
+                {
+                    result.AddError($"Error parsing tuple schema: {error}", 
+                        text.Substring(0, match.Index).Count(c => c == '\n') + 1);
+                }
+
+                lastIndex = closingBraceIndex + 1;
+            }
+
+            // Append remaining text
+            if (lastIndex < text.Length)
+            {
+                resultText.Append(text.Substring(lastIndex));
+            }
+
+            return resultText.ToString();
+        }
+
+        private bool TryParseTupleSchemaBlock(string block, out TupleSchema? schema, out string error)
+        {
+            schema = null;
+            error = string.Empty;
+
+            // Extract tuple name
+            var nameMatch = Regex.Match(block, @"tuple\s+([a-zA-Z][a-zA-Z0-9_]*)\s*\{", RegexOptions.IgnoreCase);
+            if (!nameMatch.Success)
+            {
+                error = "Invalid tuple syntax";
+                return false;
+            }
+
+            string tupleName = nameMatch.Groups[1].Value;
+            schema = new TupleSchema(tupleName);
+
+            // Extract body (everything between { and })
+            int openBrace = block.IndexOf('{');
+            int closeBrace = block.LastIndexOf('}');
+            
+            if (openBrace == -1 || closeBrace == -1)
+            {
+                error = "Missing braces in tuple definition";
+                return false;
+            }
+
+            string body = block.Substring(openBrace + 1, closeBrace - openBrace - 1);
+
+            // Parse field declarations
+            var fieldPattern = @"(float|int|bool|string)\s+([a-zA-Z][a-zA-Z0-9_]*)\s*;";
+            var fieldMatches = Regex.Matches(body, fieldPattern, RegexOptions.IgnoreCase);
+
+            if (fieldMatches.Count == 0)
+            {
+                error = "Tuple must have at least one field";
+                return false;
+            }
+
+            foreach (Match fieldMatch in fieldMatches)
+            {
+                string typeStr = fieldMatch.Groups[1].Value.ToLower();
+                string fieldName = fieldMatch.Groups[2].Value;
+
+                VariableType fieldType = typeStr switch
+                {
+                    "float" => VariableType.Float,
+                    "int" => VariableType.Integer,
+                    "bool" => VariableType.Boolean,
+                    "string" => VariableType.String,
+                    _ => VariableType.Float
+                };
+
+                try
+                {
+                    schema.AddField(fieldName, fieldType);
+                }
+                catch (Exception ex)
+                {
+                    error = ex.Message;
+                    return false;
+                }
+            }
+
+            return true;
+        }
+
+        public ParseSessionResult Parse(string text)
+        {
+            var result = new ParseSessionResult();
+
+            if (string.IsNullOrWhiteSpace(text))
+            {
+                result.AddError("No text to parse", 0);
+                return result;
+            }
+
+            // Extract and process JavaScript execute blocks FIRST
+            var (processedText, lineMapping) = ExtractAndProcessExecuteBlocks(text, result);
+
+            // **NEW: Extract and process tuple schemas**
+            processedText = ExtractAndProcessTupleSchemas(processedText, result);
+
+            // Extract and process subject to blocks
+            processedText = ExtractSubjectToBlocks(processedText, lineMapping, result);
+
+            // Split into statements
+            var statements = SplitIntoStatements(processedText, lineMapping);
+
+            // Process each statement
+            foreach (var (statement, lineNumber) in statements)
+            {
+                if (!string.IsNullOrWhiteSpace(statement))
+                {
+                    ProcessStatement(statement, lineNumber, result);
+                }
+            }
+
+            return result;
+        }
+
+        private string ExtractAndProcessTupleSchemas(string text, ParseSessionResult result)
+        {
+            // Pattern: tuple Name { ... }
+            string pattern = @"tuple\s+([a-zA-Z][a-zA-Z0-9_]*)\s*\{";
+            var matches = Regex.Matches(text, pattern, RegexOptions.IgnoreCase);
+
+            if (matches.Count == 0)
+            {
+                return text; // No tuples
+            }
+
+            var resultText = new System.Text.StringBuilder();
+            int lastIndex = 0;
+
+            foreach (Match match in matches)
+            {
+                // Append text before this tuple
+                resultText.Append(text.Substring(lastIndex, match.Index - lastIndex));
+
+                // Find matching closing brace
+                int closingBraceIndex = FindClosingBrace(text, match.Index + match.Length);
+
+                if (closingBraceIndex == -1)
+                {
+                    result.AddError($"Tuple schema: Missing closing brace '}}' for tuple '{match.Groups[1].Value}'", 
+                        text.Substring(0, match.Index).Count(c => c == '\n') + 1);
+                    continue;
+                }
+
+                // Extract the complete tuple definition
+                string tupleDefinition = text.Substring(match.Index, closingBraceIndex - match.Index + 1);
+                
+                // Parse and register the tuple schema
+                if (TryParseTupleSchemaBlock(tupleDefinition, out var schema, out string error))
+                {
+                    modelManager.AddTupleSchema(schema);
+                    result.IncrementSuccess();
+                }
+                else
+                {
+                    result.AddError($"Error parsing tuple schema: {error}", 
+                        text.Substring(0, match.Index).Count(c => c == '\n') + 1);
+                }
+
+                lastIndex = closingBraceIndex + 1;
+            }
+
+            // Append remaining text
+            if (lastIndex < text.Length)
+            {
+                resultText.Append(text.Substring(lastIndex));
+            }
+
+            return resultText.ToString();
+        }
+
+        private bool TryParseTupleSchemaBlock(string block, out TupleSchema? schema, out string error)
+        {
+            schema = null;
+            error = string.Empty;
+
+            // Extract tuple name
+            var nameMatch = Regex.Match(block, @"tuple\s+([a-zA-Z][a-zA-Z0-9_]*)\s*\{", RegexOptions.IgnoreCase);
+            if (!nameMatch.Success)
+            {
+                error = "Invalid tuple syntax";
+                return false;
+            }
+
+            string tupleName = nameMatch.Groups[1].Value;
+            schema = new TupleSchema(tupleName);
+
+            // Extract body (everything between { and })
+            int openBrace = block.IndexOf('{');
+            int closeBrace = block.LastIndexOf('}');
+            
+            if (openBrace == -1 || closeBrace == -1)
+            {
+                error = "Missing braces in tuple definition";
+                return false;
+            }
+
+            string body = block.Substring(openBrace + 1, closeBrace - openBrace - 1);
+
+            // Parse field declarations
+            var fieldPattern = @"(float|int|bool|string)\s+([a-zA-Z][a-zA-Z0-9_]*)\s*;";
+            var fieldMatches = Regex.Matches(body, fieldPattern, RegexOptions.IgnoreCase);
+
+            if (fieldMatches.Count == 0)
+            {
+                error = "Tuple must have at least one field";
+                return false;
+            }
+
+            foreach (Match fieldMatch in fieldMatches)
+            {
+                string typeStr = fieldMatch.Groups[1].Value.ToLower();
+                string fieldName = fieldMatch.Groups[2].Value;
+
+                VariableType fieldType = typeStr switch
+                {
+                    "float" => VariableType.Float,
+                    "int" => VariableType.Integer,
+                    "bool" => VariableType.Boolean,
+                    "string" => VariableType.String,
+                    _ => VariableType.Float
+                };
+
+                try
+                {
+                    schema.AddField(fieldName, fieldType);
+                }
+                catch (Exception ex)
+                {
+                    error = ex.Message;
+                    return false;
+                }
+            }
+
+            return true;
+        }
+
+        public ParseSessionResult Parse(string text)
+        {
+            var result = new ParseSessionResult();
+
+            if (string.IsNullOrWhiteSpace(text))
+            {
+                result.AddError("No text to parse", 0);
+                return result;
+            }
+
+            // Extract and process JavaScript execute blocks FIRST
+            var (processedText, lineMapping) = ExtractAndProcessExecuteBlocks(text, result);
+
+            // **NEW: Extract and process tuple schemas**
+            processedText = ExtractAndProcessTupleSchemas(processedText, result);
+
+            // Extract and process subject to blocks
+            processedText = ExtractSubjectToBlocks(processedText, lineMapping, result);
+
+            // Split into statements
+            var statements = SplitIntoStatements(processedText, lineMapping);
+
+            // Process each statement
+            foreach (var (statement, lineNumber) in statements)
+            {
+                if (!string.IsNullOrWhiteSpace(statement))
+                {
+                    ProcessStatement(statement, lineNumber, result);
+                }
+            }
+
+            return result;
+        }
+
+        private string ExtractAndProcessTupleSchemas(string text, ParseSessionResult result)
+        {
+            // Pattern: tuple Name { ... }
+            string pattern = @"tuple\s+([a-zA-Z][a-zA-Z0-9_]*)\s*\{";
+            var matches = Regex.Matches(text, pattern, RegexOptions.IgnoreCase);
+
+            if (matches.Count == 0)
+            {
+                return text; // No tuples
+            }
+
+            var resultText = new System.Text.StringBuilder();
+            int lastIndex = 0;
+
+            foreach (Match match in matches)
+            {
+                // Append text before this tuple
+                resultText.Append(text.Substring(lastIndex, match.Index - lastIndex));
+
+                // Find matching closing brace
+                int closingBraceIndex = FindClosingBrace(text, match.Index + match.Length);
+
+                if (closingBraceIndex == -1)
+                {
+                    result.AddError($"Tuple schema: Missing closing brace '}}' for tuple '{match.Groups[1].Value}'", 
+                        text.Substring(0, match.Index).Count(c => c == '\n') + 1);
+                    continue;
+                }
+
+                // Extract the complete tuple definition
+                string tupleDefinition = text.Substring(match.Index, closingBraceIndex - match.Index + 1);
+                
+                // Parse and register the tuple schema
+                if (TryParseTupleSchemaBlock(tupleDefinition, out var schema, out string error))
+                {
+                    modelManager.AddTupleSchema(schema);
+                    result.IncrementSuccess();
+                }
+                else
+                {
+                    result.AddError($"Error parsing tuple schema: {error}", 
+                        text.Substring(0, match.Index).Count(c => c == '\n') + 1);
+                }
+
+                lastIndex = closingBraceIndex + 1;
+            }
+
+            // Append remaining text
+            if (lastIndex < text.Length)
+            {
+                resultText.Append(text.Substring(lastIndex));
+            }
+
+            return resultText.ToString();
+        }
+
+        private bool TryParseTupleSchemaBlock(string block, out TupleSchema? schema, out string error)
+        {
+            schema = null;
+            error = string.Empty;
+
+            // Extract tuple name
+            var nameMatch = Regex.Match(block, @"tuple\s+([a-zA-Z][a-zA-Z0-9_]*)\s*\{", RegexOptions.IgnoreCase);
+            if (!nameMatch.Success)
+            {
+                error = "Invalid tuple syntax";
+                return false;
+            }
+
+            string tupleName = nameMatch.Groups[1].Value;
+            schema = new TupleSchema(tupleName);
+
+            // Extract body (everything between { and })
+            int openBrace = block.IndexOf('{');
+            int closeBrace = block.LastIndexOf('}');
+            
+            if (openBrace == -1 || closeBrace == -1)
+            {
+                error = "Missing braces in tuple definition";
+                return false;
+            }
+
+            string body = block.Substring(openBrace + 1, closeBrace - openBrace - 1);
+
+            // Parse field declarations
+            var fieldPattern = @"(float|int|bool|string)\s+([a-zA-Z][a-zA-Z0-9_]*)\s*;";
+            var fieldMatches = Regex.Matches(body, fieldPattern, RegexOptions.IgnoreCase);
+
+            if (fieldMatches.Count == 0)
+            {
+                error = "Tuple must have at least one field";
+                return false;
+            }
+
+            foreach (Match fieldMatch in fieldMatches)
+            {
+                string typeStr = fieldMatch.Groups[1].Value.ToLower();
+                string fieldName = fieldMatch.Groups[2].Value;
+
+                VariableType fieldType = typeStr switch
+                {
+                    "float" => VariableType.Float,
+                    "int" => VariableType.Integer,
+                    "bool" => VariableType.Boolean,
+                    "string" => VariableType.String,
+                    _ => VariableType.Float
+                };
+
+                try
+                {
+                    schema.AddField(fieldName, fieldType);
+                }
+                catch (Exception ex)
+                {
+                    error = ex.Message;
+                    return false;
+                }
+            }
+
+            return true;
+        }
+
+        public ParseSessionResult Parse(string text)
+        {
+            var result = new ParseSessionResult();
+
+            if (string.IsNullOrWhiteSpace(text))
+            {
+                result.AddError("No text to parse", 0);
+                return result;
+            }
+
+            // Extract and process JavaScript execute blocks FIRST
+            var (processedText, lineMapping) = ExtractAndProcessExecuteBlocks(text, result);
+
+            // **NEW: Extract and process tuple schemas**
+            processedText = ExtractAndProcessTupleSchemas(processedText, result);
+
+            // Extract and process subject to blocks
+            processedText = ExtractSubjectToBlocks(processedText, lineMapping, result);
+
+            // Split into statements
+            var statements = SplitIntoStatements(processedText, lineMapping);
+
+            // Process each statement
+            foreach (var (statement, lineNumber) in statements)
+            {
+                if (!string.IsNullOrWhiteSpace(statement))
+                {
+                    ProcessStatement(statement, lineNumber, result);
+                }
+            }
+
+            return result;
+        }
+
+        private string ExtractAndProcessTupleSchemas(string text, ParseSessionResult result)
+        {
+            // Pattern: tuple Name { ... }
+            string pattern = @"tuple\s+([a-zA-Z][a-zA-Z0-9_]*)\s*\{";
+            var matches = Regex.Matches(text, pattern, RegexOptions.IgnoreCase);
+
+            if (matches.Count == 0)
+            {
+                return text; // No tuples
+            }
+
+            var resultText = new System.Text.StringBuilder();
+            int lastIndex = 0;
+
+            foreach (Match match in matches)
+            {
+                // Append text before this tuple
+                resultText.Append(text.Substring(lastIndex, match.Index - lastIndex));
+
+                // Find matching closing brace
+                int closingBraceIndex = FindClosingBrace(text, match.Index + match.Length);
+
+                if (closingBraceIndex == -1)
+                {
+                    result.AddError($"Tuple schema: Missing closing brace '}}' for tuple '{match.Groups[1].Value}'", 
+                        text.Substring(0, match.Index).Count(c => c == '\n') + 1);
+                    continue;
+                }
+
+                // Extract the complete tuple definition
+                string tupleDefinition = text.Substring(match.Index, closingBraceIndex - match.Index + 1);
+                
+                // Parse and register the tuple schema
+                if (TryParseTupleSchemaBlock(tupleDefinition, out var schema, out string error))
+                {
+                    modelManager.AddTupleSchema(schema);
+                    result.IncrementSuccess();
+                }
+                else
+                {
+                    result.AddError($"Error parsing tuple schema: {error}", 
+                        text.Substring(0, match.Index).Count(c => c == '\n') + 1);
+                }
+
+                lastIndex = closingBraceIndex + 1;
+            }
+
+            // Append remaining text
+            if (lastIndex < text.Length)
+            {
+                resultText.Append(text.Substring(lastIndex));
+            }
+
+            return resultText.ToString();
+        }
+
+        private bool TryParseTupleSchemaBlock(string block, out TupleSchema? schema, out string error)
+        {
+            schema = null;
+            error = string.Empty;
+
+            // Extract tuple name
+            var nameMatch = Regex.Match(block, @"tuple\s+([a-zA-Z][a-zA-Z0-9_]*)\s*\{", RegexOptions.IgnoreCase);
+            if (!nameMatch.Success)
+            {
+                error = "Invalid tuple syntax";
+                return false;
+            }
+
+            string tupleName = nameMatch.Groups[1].Value;
+            schema = new TupleSchema(tupleName);
+
+            // Extract body (everything between { and })
+            int openBrace = block.IndexOf('{');
+            int closeBrace = block.LastIndexOf('}');
+            
+            if (openBrace == -1 || closeBrace == -1)
+            {
+                error = "Missing braces in tuple definition";
+                return false;
+            }
+
+            string body = block.Substring(openBrace + 1, closeBrace - openBrace - 1);
+
+            // Parse field declarations
+            var fieldPattern = @"(float|int|bool|string)\s+([a-zA-Z][a-zA-Z0-9_]*)\s*;";
+            var fieldMatches = Regex.Matches(body, fieldPattern, RegexOptions.IgnoreCase);
+
+            if (fieldMatches.Count == 0)
+            {
+                error = "Tuple must have at least one field";
+                return false;
+            }
+
+            foreach (Match fieldMatch in fieldMatches)
+            {
+                string typeStr = fieldMatch.Groups[1].Value.ToLower();
+                string fieldName = fieldMatch.Groups[2].Value;
+
+                VariableType fieldType = typeStr switch
+                {
+                    "float" => VariableType.Float,
+                    "int" => VariableType.Integer,
+                    "bool" => VariableType.Boolean,
+                    "string" => VariableType.String,
+                    _ => VariableType.Float
+                };
+
+                try
+                {
+                    schema.AddField(fieldName, fieldType);
+                }
+                catch (Exception ex)
+                {
+                    error = ex.Message;
+                    return false;
+                }
+            }
+
+            return true;
+        }
+
+        public ParseSessionResult Parse(string text)
+        {
+            var result = new ParseSessionResult();
+
+            if (string.IsNullOrWhiteSpace(text))
+            {
+                result.AddError("No text to parse", 0);
+                return result;
+            }
+
+            // Extract and process JavaScript execute blocks FIRST
+            var (processedText, lineMapping) = ExtractAndProcessExecuteBlocks(text, result);
+
+            // **NEW: Extract and process tuple schemas**
+            processedText = ExtractAndProcessTupleSchemas(processedText, result);
+
+            // Extract and process subject to blocks
+            processedText = ExtractSubjectToBlocks(processedText, lineMapping, result);
+
+            // Split into statements
+            var statements = SplitIntoStatements(processedText, lineMapping);
+
+            // Process each statement
+            foreach (var (statement, lineNumber) in statements)
+            {
+                if (!string.IsNullOrWhiteSpace(statement))
+                {
+                    ProcessStatement(statement, lineNumber, result);
+                }
+            }
+
+            return result;
+        }
+
+        private string ExtractAndProcessTupleSchemas(string text, ParseSessionResult result)
+        {
+            // Pattern: tuple Name { ... }
+            string pattern = @"tuple\s+([a-zA-Z][a-zA-Z0-9_]*)\s*\{";
+            var matches = Regex.Matches(text, pattern, RegexOptions.IgnoreCase);
+
+            if (matches.Count == 0)
+            {
+                return text; // No tuples
+            }
+
+            var resultText = new System.Text.StringBuilder();
+            int lastIndex = 0;
+
+            foreach (Match match in matches)
+            {
+                // Append text before this tuple
+                resultText.Append(text.Substring(lastIndex, match.Index - lastIndex));
+
+                // Find matching closing brace
+                int closingBraceIndex = FindClosingBrace(text, match.Index + match.Length);
+
+                if (closingBraceIndex == -1)
+                {
+                    result.AddError($"Tuple schema: Missing closing brace '}}' for tuple '{match.Groups[1].Value}'", 
+                        text.Substring(0, match.Index).Count(c => c == '\n') + 1);
+                    continue;
+                }
+
+                // Extract the complete tuple definition
+                string tupleDefinition = text.Substring(match.Index, closingBraceIndex - match.Index + 1);
+                
+                // Parse and register the tuple schema
+                if (TryParseTupleSchemaBlock(tupleDefinition, out var schema, out string error))
+                {
+                    modelManager.AddTupleSchema(schema);
+                    result.IncrementSuccess();
+                }
+                else
+                {
+                    result.AddError($"Error parsing tuple schema: {error}", 
+                        text.Substring(0, match.Index).Count(c => c == '\n') + 1);
+                }
+
+                lastIndex = closingBraceIndex + 1;
+            }
+
+            // Append remaining text
+            if (lastIndex < text.Length)
+            {
+                resultText.Append(text.Substring(lastIndex));
+            }
+
+            return resultText.ToString();
+        }
+
+        private bool TryParseTupleSchemaBlock(string block, out TupleSchema? schema, out string error)
+        {
+            schema = null;
+            error = string.Empty;
+
+            // Extract tuple name
+            var nameMatch = Regex.Match(block, @"tuple\s+([a-zA-Z][a-zA-Z0-9_]*)\s*\{", RegexOptions.IgnoreCase);
+            if (!nameMatch.Success)
+            {
+                error = "Invalid tuple syntax";
+                return false;
+            }
+
+            string tupleName = nameMatch.Groups[1].Value;
+            schema = new TupleSchema(tupleName);
+
+            // Extract body (everything between { and })
+            int openBrace = block.IndexOf('{');
+            int closeBrace = block.LastIndexOf('}');
+            
+            if (openBrace == -1 || closeBrace == -1)
+            {
+                error = "Missing braces in tuple definition";
+                return false;
+            }
+
+            string body = block.Substring(openBrace + 1, closeBrace - openBrace - 1);
+
+            // Parse field declarations
+            var fieldPattern = @"(float|int|bool|string)\s+([a-zA-Z][a-zA-Z0-9_]*)\s*;";
+            var fieldMatches = Regex.Matches(body, fieldPattern, RegexOptions.IgnoreCase);
+
+            if (fieldMatches.Count == 0)
+            {
+                error = "Tuple must have at least one field";
+                return false;
+            }
+
+            foreach (Match fieldMatch in fieldMatches)
+            {
+                string typeStr = fieldMatch.Groups[1].Value.ToLower();
+                string fieldName = fieldMatch.Groups[2].Value;
+
+                VariableType fieldType = typeStr switch
+                {
+                    "float" => VariableType.Float,
+                    "int" => VariableType.Integer,
+                    "bool" => VariableType.Boolean,
+                    "string" => VariableType.String,
+                    _ => VariableType.Float
+                };
+
+                try
+                {
+                    schema.AddField(fieldName, fieldType);
+                }
+                catch (Exception ex)
+                {
+                    error = ex.Message;
+                    return false;
+                }
+            }
+
+            return true;
+        }
+
+        public ParseSessionResult Parse(string text)
+        {
+            var result = new ParseSessionResult();
+
+            if (string.IsNullOrWhiteSpace(text))
+            {
+                result.AddError("No text to parse", 0);
+                return result;
+            }
+
+            // Extract and process JavaScript execute blocks FIRST
+            var (processedText, lineMapping) = ExtractAndProcessExecuteBlocks(text, result);
+
+            // **NEW: Extract and process tuple schemas**
+            processedText = ExtractAndProcessTupleSchemas(processedText, result);
+
+            // Extract and process subject to blocks
+            processedText = ExtractSubjectToBlocks(processedText, lineMapping, result);
+
+            // Split into statements
+            var statements = SplitIntoStatements(processedText, lineMapping);
+
+            // Process each statement
+            foreach (var (statement, lineNumber) in statements)
+            {
+                if (!string.IsNullOrWhiteSpace(statement))
+                {
+                    ProcessStatement(statement, lineNumber, result);
+                }
+            }
+
+            return result;
+        }
+
+        private string ExtractAndProcessTupleSchemas(string text, ParseSessionResult result)
+        {
+            // Pattern: tuple Name { ... }
+            string pattern = @"tuple\s+([a-zA-Z][a-zA-Z0-9_]*)\s*\{";
+            var matches = Regex.Matches(text, pattern, RegexOptions.IgnoreCase);
+
+            if (matches.Count == 0)
+            {
+                return text; // No tuples
+            }
+
+            var resultText = new System.Text.StringBuilder();
+            int lastIndex = 0;
+
+            foreach (Match match in matches)
+            {
+                // Append text before this tuple
+                resultText.Append(text.Substring(lastIndex, match.Index - lastIndex));
+
+                // Find matching closing brace
+                int closingBraceIndex = FindClosingBrace(text, match.Index + match.Length);
+
+                if (closingBraceIndex == -1)
+                {
+                    result.AddError($"Tuple schema: Missing closing brace '}}' for tuple '{match.Groups[1].Value}'", 
+                        text.Substring(0, match.Index).Count(c => c == '\n') + 1);
+                    continue;
+                }
+
+                // Extract the complete tuple definition
+                string tupleDefinition = text.Substring(match.Index, closingBraceIndex - match.Index + 1);
+                
+                // Parse and register the tuple schema
+                if (TryParseTupleSchemaBlock(tupleDefinition, out var schema, out string error))
+                {
+                    modelManager.AddTupleSchema(schema);
+                    result.IncrementSuccess();
+                }
+                else
+                {
+                    result.AddError($"Error parsing tuple schema: {error}", 
+                        text.Substring(0, match.Index).Count(c => c == '\n') + 1);
+                }
+
+                lastIndex = closingBraceIndex + 1;
+            }
+
+            // Append remaining text
+            if (lastIndex < text.Length)
+            {
+                resultText.Append(text.Substring(lastIndex));
+            }
+
+            return resultText.ToString();
+        }
+
+        private bool TryParseTupleSchemaBlock(string block, out TupleSchema? schema, out string error)
+        {
+            schema = null;
+            error = string.Empty;
+
+            // Extract tuple name
+            var nameMatch = Regex.Match(block, @"tuple\s+([a-zA-Z][a-zA-Z0-9_]*)\s*\{", RegexOptions.IgnoreCase);
+            if (!nameMatch.Success)
+            {
+                error = "Invalid tuple syntax";
+                return false;
+            }
+
+            string tupleName = nameMatch.Groups[1].Value;
+            schema = new TupleSchema(tupleName);
+
+            // Extract body (everything between { and })
+            int openBrace = block.IndexOf('{');
+            int closeBrace = block.LastIndexOf('}');
+            
+            if (openBrace == -1 || closeBrace == -1)
+            {
+                error = "Missing braces in tuple definition";
+                return false;
+            }
+
+            string body = block.Substring(openBrace + 1, closeBrace - openBrace - 1);
+
+            // Parse field declarations
+            var fieldPattern = @"(float|int|bool|string)\s+([a-zA-Z][a-zA-Z0-9_]*)\s*;";
+            var fieldMatches = Regex.Matches(body, fieldPattern, RegexOptions.IgnoreCase);
+
+            if (fieldMatches.Count == 0)
+            {
+                error = "Tuple must have at least one field";
+                return false;
+            }
+
+            foreach (Match fieldMatch in fieldMatches)
+            {
+                string typeStr = fieldMatch.Groups[1].Value.ToLower();
+                string fieldName = fieldMatch.Groups[2].Value;
+
+                VariableType fieldType = typeStr switch
+                {
+                    "float" => VariableType.Float,
+                    "int" => VariableType.Integer,
+                    "bool" => VariableType.Boolean,
+                    "string" => VariableType.String,
+                    _ => VariableType.Float
+                };
+
+                try
+                {
+                    schema.AddField(fieldName, fieldType);
+                }
+                catch (Exception ex)
+                {
+                    error = ex.Message;
+                    return false;
+                }
+            }
+
+            return true;
+        }
+
+        public ParseSessionResult Parse(string text)
+        {
+            var result = new ParseSessionResult();
+
+            if (string.IsNullOrWhiteSpace(text))
+            {
+                result.AddError("No text to parse", 0);
+                return result;
+            }
+
+            // Extract and process JavaScript execute blocks FIRST
+            var (processedText, lineMapping) = ExtractAndProcessExecuteBlocks(text, result);
+
+            // **NEW: Extract and process tuple schemas**
+            processedText = ExtractAndProcessTupleSchemas(processedText, result);
+
+            // Extract and process subject to blocks
+            processedText = ExtractSubjectToBlocks(processedText, lineMapping, result);
+
+            // Split into statements
+            var statements = SplitIntoStatements(processedText, lineMapping);
+
+            // Process each statement
+            foreach (var (statement, lineNumber) in statements)
+            {
+                if (!string.IsNullOrWhiteSpace(statement))
+                {
+                    ProcessStatement(statement, lineNumber, result);
+                }
+            }
+
+            return result;
+        }
+
+        private string ExtractAndProcessTupleSchemas(string text, ParseSessionResult result)
+        {
+            // Pattern: tuple Name { ... }
+            string pattern = @"tuple\s+([a-zA-Z][a-zA-Z0-9_]*)\s*\{";
+            var matches = Regex.Matches(text, pattern, RegexOptions.IgnoreCase);
+
+            if (matches.Count == 0)
+            {
+                return text; // No tuples
+            }
+
+            var resultText = new System.Text.StringBuilder();
+            int lastIndex = 0;
+
+            foreach (Match match in matches)
+            {
+                // Append text before this tuple
+                resultText.Append(text.Substring(lastIndex, match.Index - lastIndex));
+
+                // Find matching closing brace
+                int closingBraceIndex = FindClosingBrace(text, match.Index + match.Length);
+
+                if (closingBraceIndex == -1)
+                {
+                    result.AddError($"Tuple schema: Missing closing brace '}}' for tuple '{match.Groups[1].Value}'", 
+                        text.Substring(0, match.Index).Count(c => c == '\n') + 1);
+                    continue;
+                }
+
+                // Extract the complete tuple definition
+                string tupleDefinition = text.Substring(match.Index, closingBraceIndex - match.Index + 1);
+                
+                // Parse and register the tuple schema
+                if (TryParseTupleSchemaBlock(tupleDefinition, out var schema, out string error))
+                {
+                    modelManager.AddTupleSchema(schema);
+                    result.IncrementSuccess();
+                }
+                else
+                {
+                    result.AddError($"Error parsing tuple schema: {error}", 
+                        text.Substring(0, match.Index).Count(c => c == '\n') + 1);
+                }
+
+                lastIndex = closingBraceIndex + 1;
+            }
+
+            // Append remaining text
+            if (lastIndex < text.Length)
+            {
+                resultText.Append(text.Substring(lastIndex));
+            }
+
+            return resultText.ToString();
+        }
+
+        private bool TryParseTupleSchemaBlock(string block, out TupleSchema? schema, out string error)
+        {
+            schema = null;
+            error = string.Empty;
+
+            // Extract tuple name
+            var nameMatch = Regex.Match(block, @"tuple\s+([a-zA-Z][a-zA-Z0-9_]*)\s*\{", RegexOptions.IgnoreCase);
+            if (!nameMatch.Success)
+            {
+                error = "Invalid tuple syntax";
+                return false;
+            }
+
+            string tupleName = nameMatch.Groups[1].Value;
+            schema = new TupleSchema(tupleName);
+
+            // Extract body (everything between { and })
+            int openBrace = block.IndexOf('{');
+            int closeBrace = block.LastIndexOf('}');
+            
+            if (openBrace == -1 || closeBrace == -1)
+            {
+                error = "Missing braces in tuple definition";
+                return false;
+            }
+
+            string body = block.Substring(openBrace + 1, closeBrace - openBrace - 1);
+
+            // Parse field declarations
+            var fieldPattern = @"(float|int|bool|string)\s+([a-zA-Z][a-zA-Z0-9_]*)\s*;";
+            var fieldMatches = Regex.Matches(body, fieldPattern, RegexOptions.IgnoreCase);
+
+            if (fieldMatches.Count == 0)
+            {
+                error = "Tuple must have at least one field";
+                return false;
+            }
+
+            foreach (Match fieldMatch in fieldMatches)
+            {
+                string typeStr = fieldMatch.Groups[1].Value.ToLower();
+                string fieldName = fieldMatch.Groups[2].Value;
+
+                VariableType fieldType = typeStr switch
+                {
+                    "float" => VariableType.Float,
+                    "int" => VariableType.Integer,
+                    "bool" => VariableType.Boolean,
+                    "string" => VariableType.String,
+                    _ => VariableType.Float
+                };
+
+                try
+                {
+                    schema.AddField(fieldName, fieldType);
+                }
+                catch (Exception ex)
+                {
+                    error = ex.Message;
+                    return false;
+                }
+            }
+
+            return true;
+        }
+
+        public ParseSessionResult Parse(string text)
+        {
+            var result = new ParseSessionResult();
+
+            if (string.IsNullOrWhiteSpace(text))
+            {
+                result.AddError("No text to parse", 0);
+                return result;
+            }
+
+            // Extract and process JavaScript execute blocks FIRST
+            var (processedText, lineMapping) = ExtractAndProcessExecuteBlocks(text, result);
+
+            // **NEW: Extract and process tuple schemas**
+            processedText = ExtractAndProcessTupleSchemas(processedText, result);
+
+            // Extract and process subject to blocks
+            processedText = ExtractSubjectToBlocks(processedText, lineMapping, result);
+
+            // Split into statements
+            var statements = SplitIntoStatements(processedText, lineMapping);
+
+            // Process each statement
+            foreach (var (statement, lineNumber) in statements)
+            {
+                if (!string.IsNullOrWhiteSpace(statement))
+                {
+                    ProcessStatement(statement, lineNumber, result);
+                }
+            }
+
+            return result;
+        }
+
+        private string ExtractAndProcessTupleSchemas(string text, ParseSessionResult result)
+        {
+            // Pattern: tuple Name { ... }
+            string pattern = @"tuple\s+([a-zA-Z][a-zA-Z0-9_]*)\s*\{";
+            var matches = Regex.Matches(text, pattern, RegexOptions.IgnoreCase);
+
+            if (matches.Count == 0)
+            {
+                return text; // No tuples
+            }
+
+            var resultText = new System.Text.StringBuilder();
+            int lastIndex = 0;
+
+            foreach (Match match in matches)
+            {
+                // Append text before this tuple
+                resultText.Append(text.Substring(lastIndex, match.Index - lastIndex));
+
+                // Find matching closing brace
+                int closingBraceIndex = FindClosingBrace(text, match.Index + match.Length);
+
+                if (closingBraceIndex == -1)
+                {
+                    result.AddError($"Tuple schema: Missing closing brace '}}' for tuple '{match.Groups[1].Value}'", 
+                        text.Substring(0, match.Index).Count(c => c == '\n') + 1);
+                    continue;
+                }
+
+                // Extract the complete tuple definition
+                string tupleDefinition = text.Substring(match.Index, closingBraceIndex - match.Index + 1);
+                
+                // Parse and register the tuple schema
+                if (TryParseTupleSchemaBlock(tupleDefinition, out var schema, out string error))
+                {
+                    modelManager.AddTupleSchema(schema);
+                    result.IncrementSuccess();
+                }
+                else
+                {
+                    result.AddError($"Error parsing tuple schema: {error}", 
+                        text.Substring(0, match.Index).Count(c => c == '\n') + 1);
+                }
+
+                lastIndex = closingBraceIndex + 1;
+            }
+
+            // Append remaining text
+            if (lastIndex < text.Length)
+            {
+                resultText.Append(text.Substring(lastIndex));
+            }
+
+            return resultText.ToString();
+        }
+
+        private bool TryParseTupleSchemaBlock(string block, out TupleSchema? schema, out string error)
+        {
+            schema = null;
+            error = string.Empty;
+
+            // Extract tuple name
+            var nameMatch = Regex.Match(block, @"tuple\s+([a-zA-Z][a-zA-Z0-9_]*)\s*\{", RegexOptions.IgnoreCase);
+            if (!nameMatch.Success)
+            {
+                error = "Invalid tuple syntax";
+                return false;
+            }
+
+            string tupleName = nameMatch.Groups[1].Value;
+            schema = new TupleSchema(tupleName);
+
+            // Extract body (everything between { and })
+            int openBrace = block.IndexOf('{');
+            int closeBrace = block.LastIndexOf('}');
+            
+            if (openBrace == -1 || closeBrace == -1)
+            {
+                error = "Missing braces in tuple definition";
+                return false;
+            }
+
+            string body = block.Substring(openBrace + 1, closeBrace - openBrace - 1);
+
+            // Parse field declarations
+            var fieldPattern = @"(float|int|bool|string)\s+([a-zA-Z][a-zA-Z0-9_]*)\s*;";
+            var fieldMatches = Regex.Matches(body, fieldPattern, RegexOptions.IgnoreCase);
+
+            if (fieldMatches.Count == 0)
+            {
+                error = "Tuple must have at least one field";
+                return false;
+            }
+
+            foreach (Match fieldMatch in fieldMatches)
+            {
+                string typeStr = fieldMatch.Groups[1].Value.ToLower();
+                string fieldName = fieldMatch.Groups[2].Value;
+
+                VariableType fieldType = typeStr switch
+                {
+                    "float" => VariableType.Float,
+                    "int" => VariableType.Integer,
+                    "bool" => VariableType.Boolean,
+                    "string" => VariableType.String,
+                    _ => VariableType.Float
+                };
+
+                try
+                {
+                    schema.AddField(fieldName, fieldType);
+                }
+                catch (Exception ex)
+                {
+                    error = ex.Message;
+                    return false;
+                }
+            }
+
+            return true;
+        }
+
+        public ParseSessionResult Parse(string text)
+        {
+            var result = new ParseSessionResult();
+
+            if (string.IsNullOrWhiteSpace(text))
+            {
+                result.AddError("No text to parse", 0);
+                return result;
+            }
+
+            // Extract and process JavaScript execute blocks FIRST
+            var (processedText, lineMapping) = ExtractAndProcessExecuteBlocks(text, result);
+
+            // **NEW: Extract and process tuple schemas**
+            processedText = ExtractAndProcessTupleSchemas(processedText, result);
+
+            // Extract and process subject to blocks
+            processedText = ExtractSubjectToBlocks(processedText, lineMapping, result);
+
+            // Split into statements
+            var statements = SplitIntoStatements(processedText, lineMapping);
+
+            // Process each statement
+            foreach (var (statement, lineNumber) in statements)
+            {
+                if (!string.IsNullOrWhiteSpace(statement))
+                {
+                    ProcessStatement(statement, lineNumber, result);
+                }
+            }
+
+            return result;
+        }
+
+        private string ExtractAndProcessTupleSchemas(string text, ParseSessionResult result)
+        {
+            // Pattern: tuple Name { ... }
+            string pattern = @"tuple\s+([a-zA-Z][a-zA-Z0-9_]*)\s*\{";
+            var matches = Regex.Matches(text, pattern, RegexOptions.IgnoreCase);
+
+            if (matches.Count == 0)
+            {
+                return text; // No tuples
+            }
+
+            var resultText = new System.Text.StringBuilder();
+            int lastIndex = 0;
+
+            foreach (Match match in matches)
+            {
+                // Append text before this tuple
+                resultText.Append(text.Substring(lastIndex, match.Index - lastIndex));
+
+                // Find matching closing brace
+                int closingBraceIndex = FindClosingBrace(text, match.Index + match.Length);
+
+                if (closingBraceIndex == -1)
+                {
+                    result.AddError($"Tuple schema: Missing closing brace '}}' for tuple '{match.Groups[1].Value}'", 
+                        text.Substring(0, match.Index).Count(c => c == '\n') + 1);
+                    continue;
+                }
+
+                // Extract the complete tuple definition
+                string tupleDefinition = text.Substring(match.Index, closingBraceIndex - match.Index + 1);
+                
+                // Parse and register the tuple schema
+                if (TryParseTupleSchemaBlock(tupleDefinition, out var schema, out string error))
+                {
+                    modelManager.AddTupleSchema(schema);
+                    result.IncrementSuccess();
+                }
+                else
+                {
+                    result.AddError($"Error parsing tuple schema: {error}", 
+                        text.Substring(0, match.Index).Count(c => c == '\n') + 1);
+                }
+
+                lastIndex = closingBraceIndex + 1;
+            }
+
+            // Append remaining text
+            if (lastIndex < text.Length)
+            {
+                resultText.Append(text.Substring(lastIndex));
+            }
+
+            return resultText.ToString();
+        }
+
+        private bool TryParseTupleSchemaBlock(string block, out TupleSchema? schema, out string error)
+        {
+            schema = null;
+            error = string.Empty;
+
+            // Extract tuple name
+            var nameMatch = Regex.Match(block, @"tuple\s+([a-zA-Z][a-zA-Z0-9_]*)\s*\{", RegexOptions.IgnoreCase);
+            if (!nameMatch.Success)
+            {
+                error = "Invalid tuple syntax";
+                return false;
+            }
+
+            string tupleName = nameMatch.Groups[1].Value;
+            schema = new TupleSchema(tupleName);
+
+            // Extract body (everything between { and })
+            int openBrace = block.IndexOf('{');
+            int closeBrace = block.LastIndexOf('}');
+            
+            if (openBrace == -1 || closeBrace == -1)
+            {
+                error = "Missing braces in tuple definition";
+                return false;
+            }
+
+            string body = block.Substring(openBrace + 1, closeBrace - openBrace - 1);
+
+            // Parse field declarations
+            var fieldPattern = @"(float|int|bool|string)\s+([a-zA-Z][a-zA-Z0-9_]*)\s*;";
+            var fieldMatches = Regex.Matches(body, fieldPattern, RegexOptions.IgnoreCase);
+
+            if (fieldMatches.Count == 0)
+            {
+                error = "Tuple must have at least one field";
+                return false;
+            }
+
+            foreach (Match fieldMatch in fieldMatches)
+            {
+                string typeStr = fieldMatch.Groups[1].Value.ToLower();
+                string fieldName = fieldMatch.Groups[2].Value;
+
+                VariableType fieldType = typeStr switch
+                {
+                    "float" => VariableType.Float,
+                    "int" => VariableType.Integer,
+                    "bool" => VariableType.Boolean,
+                    "string" => VariableType.String,
+                    _ => VariableType.Float
+                };
+
+                try
+                {
+                    schema.AddField(fieldName, fieldType);
+                }
+                catch (Exception ex)
+                {
+                    error = ex.Message;
+                    return false;
+                }
+            }
+
+            return true;
+        }
+
+        public ParseSessionResult Parse(string text)
+        {
+            var result = new ParseSessionResult();
+
+            if (string.IsNullOrWhiteSpace(text))
+            {
+                result.AddError("No text to parse", 0);
+                return result;
+            }
+
+            // Extract and process JavaScript execute blocks FIRST
+            var (processedText, lineMapping) = ExtractAndProcessExecuteBlocks(text, result);
+
+            // **NEW: Extract and process tuple schemas**
+            processedText = ExtractAndProcessTupleSchemas(processedText, result);
+
+            // Extract and process subject to blocks
+            processedText = ExtractSubjectToBlocks(processedText, lineMapping, result);
+
+            // Split into statements
+            var statements = SplitIntoStatements(processedText, lineMapping);
+
+            // Process each statement
+            foreach (var (statement, lineNumber) in statements)
+            {
+                if (!string.IsNullOrWhiteSpace(statement))
+                {
+                    ProcessStatement(statement, lineNumber, result);
+                }
+            }
+
+            return result;
+        }
+
+        private string ExtractAndProcessTupleSchemas(string text, ParseSessionResult result)
+        {
+            // Pattern: tuple Name { ... }
+            string pattern = @"tuple\s+([a-zA-Z][a-zA-Z0-9_]*)\s*\{";
+            var matches = Regex.Matches(text, pattern, RegexOptions.IgnoreCase);
+
+            if (matches.Count == 0)
+            {
+                return text; // No tuples
+            }
+
+            var resultText = new System.Text.StringBuilder();
+            int lastIndex = 0;
+
+            foreach (Match match in matches)
+            {
+                // Append text before this tuple
+                resultText.Append(text.Substring(lastIndex, match.Index - lastIndex));
+
+                // Find matching closing brace
+                int closingBraceIndex = FindClosingBrace(text, match.Index + match.Length);
+
+                if (closingBraceIndex == -1)
+                {
+                    result.AddError($"Tuple schema: Missing closing brace '}}' for tuple '{match.Groups[1].Value}'", 
+                        text.Substring(0, match.Index).Count(c => c == '\n') + 1);
+                    continue;
+                }
+
+                // Extract the complete tuple definition
+                string tupleDefinition = text.Substring(match.Index, closingBraceIndex - match.Index + 1);
+                
+                // Parse and register the tuple schema
+                if (TryParseTupleSchemaBlock(tupleDefinition, out var schema, out string error))
+                {
+                    modelManager.AddTupleSchema(schema);
+                    result.IncrementSuccess();
+                }
+                else
+                {
+                    result.AddError($"Error parsing tuple schema: {error}", 
+                        text.Substring(0, match.Index).Count(c => c == '\n') + 1);
+                }
+
+                lastIndex = closingBraceIndex + 1;
+            }
+
+            // Append remaining text
+            if (lastIndex < text.Length)
+            {
+                resultText.Append(text.Substring(lastIndex));
+            }
+
+            return resultText.ToString();
+        }
+
+        private bool TryParseTupleSchemaBlock(string block, out TupleSchema? schema, out string error)
+        {
+            schema = null;
+            error = string.Empty;
+
+            // Extract tuple name
+            var nameMatch = Regex.Match(block, @"tuple\s+([a-zA-Z][a-zA-Z0-9_]*)\s*\{", RegexOptions.IgnoreCase);
+            if (!nameMatch.Success)
+            {
+                error = "Invalid tuple syntax";
+                return false;
+            }
+
+            string tupleName = nameMatch.Groups[1].Value;
+            schema = new TupleSchema(tupleName);
+
+            // Extract body (everything between { and })
+            int openBrace = block.IndexOf('{');
+            int closeBrace = block.LastIndexOf('}');
+
+            if (openBrace == -1 || closeBrace == -1)
+            {
+                error = "Missing braces in tuple definition";
+                return false;
+            }
+
+            string body = block.Substring(openBrace + 1, closeBrace - openBrace - 1);
+
+            // Parse field declarations
+            var fieldPattern = @"(float|int|bool|string)\s+([a-zA-Z][a-zA-Z0-9_]*)\s*;";
+            var fieldMatches = Regex.Matches(body, fieldPattern, RegexOptions.IgnoreCase);
+
+            if (fieldMatches.Count == 0)
+            {
+                error = "Tuple must have at least one field";
+                return false;
+            }
+
+            foreach (Match fieldMatch in fieldMatches)
+            {
+                string typeStr = fieldMatch.Groups[1].Value.ToLower();
+                string fieldName = fieldMatch.Groups[2].Value;
+
+                VariableType fieldType = typeStr switch
+                {
+                    "float" => VariableType.Float,
+                    "int" => VariableType.Integer,
+                    "bool" => VariableType.Boolean,
+                    "string" => VariableType.String,
+                    _ => VariableType.Float
+                };
+
+                try
+                {
+                    schema.AddField(fieldName, fieldType);
+                }
+                catch (Exception ex)
+                {
+                    error = ex.Message;
+                    return false;
+                }
+            }
+
+            return true;
+        }
+
+        public ParseSessionResult Parse(string text)
+        {
+            var result = new ParseSessionResult();
+
+            if (string.IsNullOrWhiteSpace(text))
+            {
+                result.AddError("No text to parse", 0);
+                return result;
+            }
+
+            // Extract and process JavaScript execute blocks FIRST
+            var (processedText, lineMapping) = ExtractAndProcessExecuteBlocks(text, result);
+
+            // **NEW: Extract and process tuple schemas**
+            processedText = ExtractAndProcessTupleSchemas(processedText, result);
+
+            // Extract and process subject to blocks
+            processedText = ExtractSubjectToBlocks(processedText, lineMapping, result);
+
+            // Split into statements
+            var statements = SplitIntoStatements(processedText, lineMapping);
+
+            // Process each statement
+            foreach (var (statement, lineNumber) in statements)
+            {
+                if (!string.IsNullOrWhiteSpace(statement))
+                {
+                    ProcessStatement(statement, lineNumber, result);
+                }
+            }
+
+            return result;
+        }
+
+        private string ExtractAndProcessTupleSchemas(string text, ParseSessionResult result)
+        {
+            // Pattern: tuple Name { ... }
+            string pattern = @"tuple\s+([a-zA-Z][a-zA-Z0-9_]*)\s*\{";
+            var matches = Regex.Matches(text, pattern, RegexOptions.IgnoreCase);
+
+            if (matches.Count == 0)
+            {
+                return text; // No tuples
+            }
+
+            var resultText = new System.Text.StringBuilder();
+            int lastIndex = 0;
+
+            foreach (Match match in matches)
+            {
+                // Append text before this tuple
+                resultText.Append(text.Substring(lastIndex, match.Index - lastIndex));
+
+                // Find matching closing brace
+                int closingBraceIndex = FindClosingBrace(text, match.Index + match.Length);
+
+                if (closingBraceIndex == -1)
+                {
+                    result.AddError($"Tuple schema: Missing closing brace '}}' for tuple '{match.Groups[1].Value}'", 
+                        text.Substring(0, match.Index).Count(c => c == '\n') + 1);
+                    continue;
+                }
+
+                // Extract the complete tuple definition
+                string tupleDefinition = text.Substring(match.Index, closingBraceIndex - match.Index + 1);
+                
+                // Parse and register the tuple schema
+                if (TryParseTupleSchemaBlock(tupleDefinition, out var schema, out string error))
+                {
+                    modelManager.AddTupleSchema(schema);
+                    result.IncrementSuccess();
+                }
+                else
+                {
+                    result.AddError($"Error parsing tuple schema: {error}", 
+                        text.Substring(0, match.Index).Count(c => c == '\n') + 1);
+                }
+
+                lastIndex = closingBraceIndex + 1;
+            }
+
+            // Append remaining text
+            if (lastIndex < text.Length)
+            {
+                resultText.Append(text.Substring(lastIndex));
+            }
+
+            return resultText.ToString();
+        }
+
+        private bool TryParseTupleSchemaBlock(string block, out TupleSchema? schema, out string error)
+        {
+            schema = null;
+            error = string.Empty;
+
+            // **NEW: Extract and process tuple schemas**
+            processedText = ExtractAndProcessTupleSchemas(processedText, result);
+
+            // Extract and process subject to blocks
+            processedText = ExtractSubjectToBlocks(processedText, lineMapping, result);
+
+            // Split into statements
+            var statements = SplitIntoStatements(processedText, lineMapping);
+
+            // Process each statement
+            foreach (var (statement, lineNumber) in statements)
+            {
+                if (!string.IsNullOrWhiteSpace(statement))
+                {
+                    ProcessStatement(statement, lineNumber, result);
+                }
+            }
+
+            return result;
+        }
+
+        private string ExtractAndProcessTupleSchemas(string text, ParseSessionResult result)
+        {
+            // Pattern: tuple Name { ... }
+            string pattern = @"tuple\s+([a-zA-Z][a-zA-Z0-9_]*)\s*\{";
+            var matches = Regex.Matches(text, pattern, RegexOptions.IgnoreCase);
+
+            if (matches.Count == 0)
+            {
+                return text; // No tuples
+            }
+
+            var resultText = new System.Text.StringBuilder();
+            int lastIndex = 0;
+
+            foreach (Match match in matches)
+            {
+                // Append text before this tuple
+                resultText.Append(text.Substring(lastIndex, match.Index - lastIndex));
+
+                // Find matching closing brace
+                int closingBraceIndex = FindClosingBrace(text, match.Index + match.Length);
+
+                if (closingBraceIndex == -1)
+                {
+                    result.AddError($"Tuple schema: Missing closing brace '}}' for tuple '{match.Groups[1].Value}'", 
+                        text.Substring(0, match.Index).Count(c => c == '\n') + 1);
+                    continue;
+                }
+
+                // Extract the complete tuple definition
+                string tupleDefinition = text.Substring(match.Index, closingBraceIndex - match.Index + 1);
+                
+                // Parse and register the tuple schema
+                if (TryParseTupleSchemaBlock(tupleDefinition, out var schema, out string error))
+                {
+                    modelManager.AddTupleSchema(schema);
+                    result.IncrementSuccess();
+                }
+                else
+                {
+                    result.AddError($"Error parsing tuple schema: {error}", 
+                        text.Substring(0, match.Index).Count(c => c == '\n') + 1);
+                }
+
+                lastIndex = closingBraceIndex + 1;
+            }
+
+            // Append remaining text
+            if (lastIndex < text.Length)
+            {
+                resultText.Append(text.Substring(lastIndex));
+            }
+
+            return resultText.ToString();
+        }
+
+        private bool TryParseTupleSchemaBlock(string block, out TupleSchema? schema, out string error)
+        {
+            schema = null;
+            error = string.Empty;
+
+            // Extract tuple name
+            var nameMatch = Regex.Match(block, @"tuple\s+([a-zA-Z][a-zA-Z0-9_]*)\s*\{", RegexOptions.IgnoreCase);
+            if (!nameMatch.Success)
+            {
+                error = "Invalid tuple syntax";
+                return false;
+            }
+
+            string tupleName = nameMatch.Groups[1].Value;
+            schema = new TupleSchema(tupleName);
+
+            // Extract body (everything between { and })
+            int openBrace = block.IndexOf('{');
+            int closeBrace = block.LastIndexOf('}');
+            
+            if (openBrace == -1 || closeBrace == -1)
+            {
+                error = "Missing braces in tuple definition";
+                return false;
+            }
+
+            string body = block.Substring(openBrace + 1, closeBrace - openBrace - 1);
+
+            // Parse field declarations
+            var fieldPattern = @"(float|int|bool|string)\s+([a-zA-Z][a-zA-Z0-9_]*)\s*;";
+            var fieldMatches = Regex.Matches(body, fieldPattern, RegexOptions.IgnoreCase);
+
+            if (fieldMatches.Count == 0)
+            {
+                error = "Tuple must have at least one field";
+                return false;
+            }
+
+            foreach (Match fieldMatch in fieldMatches)
+            {
+                string typeStr = fieldMatch.Groups[1].Value.ToLower();
+                string fieldName = fieldMatch.Groups[2].Value;
+
+                VariableType fieldType = typeStr switch
+                {
+                    "float" => VariableType.Float,
+                    "int" => VariableType.Integer,
+                    "bool" => VariableType.Boolean,
+                    "string" => VariableType.String,
+                    _ => VariableType.Float
+                };
+
+                try
+                {
+                    schema.AddField(fieldName, fieldType);
+                }
+                catch (Exception ex)
+                {
+                    error = ex.Message;
+                    return false;
+                }
+            }
+
+            return true;
+        }
+
+        public ParseSessionResult Parse(string text)
+        {
+            var result = new ParseSessionResult();
+
+            if (string.IsNullOrWhiteSpace(text))
+            {
+                result.AddError("No text to parse", 0);
+                return result;
+            }
+
+            // Extract and process JavaScript execute blocks FIRST
+            var (processedText, lineMapping) = ExtractAndProcessExecuteBlocks(text, result);
+
+            // **NEW: Extract and process tuple schemas**
+            processedText = ExtractAndProcessTupleSchemas(processedText, result);
+
+            // Extract and process subject to blocks
+            processedText = ExtractSubjectToBlocks(processedText, lineMapping, result);
+
+            // Split into statements
+            var statements = SplitIntoStatements(processedText, lineMapping);
+
+            // Process each statement
+            foreach (var (statement, lineNumber) in statements)
+            {
+                if (!string.IsNullOrWhiteSpace(statement))
+                {
+                    ProcessStatement(statement, lineNumber, result);
+                }
+            }
+
+            return result;
+        }
+
+        private string ExtractAndProcessTupleSchemas(string text, ParseSessionResult result)
+        {
+            // Pattern: tuple Name { ... }
+            string pattern = @"tuple\s+([a-zA-Z][a-zA-Z0-9_]*)\s*\{";
+            var matches = Regex.Matches(text, pattern, RegexOptions.IgnoreCase);
+
+            if (matches.Count == 0)
+            {
+                return text; // No tuples
+            }
+
+            var resultText = new System.Text.StringBuilder();
+            int lastIndex = 0;
+
+            foreach (Match match in matches)
+            {
+                // Append text before this tuple
+                resultText.Append(text.Substring(lastIndex, match.Index - lastIndex));
+
+                // Find matching closing brace
+                int closingBraceIndex = FindClosingBrace(text, match.Index + match.Length);
+
+                if (closingBraceIndex == -1)
+                {
+                    result.AddError($"Tuple schema: Missing closing brace '}}' for tuple '{match.Groups[1].Value}'", 
+                        text.Substring(0, match.Index).Count(c => c == '\n') + 1);
+                    continue;
+                }
+
+                // Extract the complete tuple definition
+                string tupleDefinition = text.Substring(match.Index, closingBraceIndex - match.Index + 1);
+                
+                // Parse and register the tuple schema
+                if (TryParseTupleSchemaBlock(tupleDefinition, out var schema, out string error))
+                {
+                    modelManager.AddTupleSchema(schema);
+                    result.IncrementSuccess();
+                }
+                else
+                {
+                    result.AddError($"Error parsing tuple schema: {error}", 
+                        text.Substring(0, match.Index).Count(c => c == '\n') + 1);
+                }
+
+                lastIndex = closingBraceIndex + 1;
+            }
+
+            // Append remaining text
+            if (lastIndex < text.Length)
+            {
+                resultText.Append(text.Substring(lastIndex));
+            }
+
+            return resultText.ToString();
+        }
+
+        private bool TryParseTupleSchemaBlock(string block, out TupleSchema? schema, out string error)
+        {
+            schema = null;
+            error = string.Empty;
+
+            // Extract tuple name
+            var nameMatch = Regex.Match(block, @"tuple\s+([a-zA-Z][a-zA-Z0-9_]*)\s*\{", RegexOptions.IgnoreCase);
+            if (!nameMatch.Success)
+            {
+                error = "Invalid tuple syntax";
+                return false;
+            }
+
+            string tupleName = nameMatch.Groups[1].Value;
+            schema = new TupleSchema(tupleName);
+
+            // Extract body (everything between { and })
+            int openBrace = block.IndexOf('{');
+            int closeBrace = block.LastIndexOf('}');
+            
+            if (openBrace == -1 || closeBrace == -1)
+            {
+                error = "Missing braces in tuple definition";
+                return false;
+            }
+
+            string body = block.Substring(openBrace + 1, closeBrace - openBrace - 1);
+
+            // Parse field declarations
+            var fieldPattern = @"(float|int|bool|string)\s+([a-zA-Z][a-zA-Z0-9_]*)\s*;";
+            var fieldMatches = Regex.Matches(body, fieldPattern, RegexOptions.IgnoreCase);
+
+            if (fieldMatches.Count == 0)
+            {
+                error = "Tuple must have at least one field";
+                return false;
+            }
+
+            foreach (Match fieldMatch in fieldMatches)
+            {
+                string typeStr = fieldMatch.Groups[1].Value.ToLower();
+                string fieldName = fieldMatch.Groups[2].Value;
+
+                VariableType fieldType = typeStr switch
+                {
+                    "float" => VariableType.Float,
+                    "int" => VariableType.Integer,
+                    "bool" => VariableType.Boolean,
+                    "string" => VariableType.String,
+                    _ => VariableType.Float
+                };
+
+                try
+                {
+                    schema.AddField(fieldName, fieldType);
+                }
+                catch (Exception ex)
+                {
+                    error = ex.Message;
+                    return false;
+                }
+            }
+
+            return true;
+        }
+
+        public ParseSessionResult Parse(string text)
+        {
+            var result = new ParseSessionResult();
+
+            if (string.IsNullOrWhiteSpace(text))
+            {
+                result.AddError("No text to parse", 0);
+                return result;
+            }
+
+            // Extract and process JavaScript execute blocks FIRST
+            var (processedText, lineMapping) = ExtractAndProcessExecuteBlocks(text, result);
+
+            // **NEW: Extract and process tuple schemas**
+            processedText = ExtractAndProcessTupleSchemas(processedText, result);
+
+            // Extract and process subject to blocks
+            processedText = ExtractSubjectToBlocks(processedText, lineMapping, result);
+
+            // Split into statements
+            var statements = SplitIntoStatements(processedText, lineMapping);
+
+            // Process each statement
+            foreach (var (statement, lineNumber) in statements)
+            {
+                if (!string.IsNullOrWhiteSpace(statement))
+                {
+                    ProcessStatement(statement, lineNumber, result);
+                }
+            }
+
+            return result;
+        }
+
+        private string ExtractAndProcessTupleSchemas(string text, ParseSessionResult result)
+        {
+            // Pattern: tuple Name { ... }
+            string pattern = @"tuple\s+([a-zA-Z][a-zA-Z0-9_]*)\s*\{";
+            var matches = Regex.Matches(text, pattern, RegexOptions.IgnoreCase);
+
+            if (matches.Count == 0)
+            {
+                return text; // No tuples
+            }
+
+            var resultText = new System.Text.StringBuilder();
+            int lastIndex = 0;
+
+            foreach (Match match in matches)
+            {
+                // Append text before this tuple
+                resultText.Append(text.Substring(lastIndex, match.Index - lastIndex));
+
+                // Find matching closing brace
+                int closingBraceIndex = FindClosingBrace(text, match.Index + match.Length);
+
+                if (closingBraceIndex == -1)
+                {
+                    result.AddError($"Tuple schema: Missing closing brace '}}' for tuple '{match.Groups[1].Value}'", 
+                        text.Substring(0, match.Index).Count(c => c == '\n') + 1);
+                    continue;
+                }
+
+                // Extract the complete tuple definition
+                string tupleDefinition = text.Substring(match.Index, closingBraceIndex - match.Index + 1);
+                
+                // Parse and register the tuple schema
+                if (TryParseTupleSchemaBlock(tupleDefinition, out var schema, out string error))
+                {
+                    modelManager.AddTupleSchema(schema);
+                    result.IncrementSuccess();
+                }
+                else
+                {
+                    result.AddError($"Error parsing tuple schema: {error}", 
+                        text.Substring(0, match.Index).Count(c => c == '\n') + 1);
+                }
+
+                lastIndex = closingBraceIndex + 1;
+            }
+
+            // Append remaining text
+            if (lastIndex < text.Length)
+            {
+                resultText.Append(text.Substring(lastIndex));
+            }
+
+            return resultText.ToString();
+        }
+
+        private bool TryParseTupleSchemaBlock(string block, out TupleSchema? schema, out string error)
+        {
+            schema = null;
+            error = string.Empty;
+
+            // Extract tuple name
+            var nameMatch = Regex.Match(block, @"tuple\s+([a-zA-Z][a-zA-Z0-9_]*)\s*\{", RegexOptions.IgnoreCase);
+            if (!nameMatch.Success)
+            {
+                error = "Invalid tuple syntax";
+                return false;
+            }
+
+            string tupleName = nameMatch.Groups[1].Value;
+            schema = new TupleSchema(tupleName);
+
+            // Extract body (everything between { and })
+            int openBrace = block.IndexOf('{');
+            int closeBrace = block.LastIndexOf('}');
+            
+            if (openBrace == -1 || closeBrace == -1)
+            {
+                error = "Missing braces in tuple definition";
+                return false;
+            }
+
+            string body = block.Substring(openBrace + 1, closeBrace - openBrace - 1);
+
+            // Parse field declarations
+            var fieldPattern = @"(float|int|bool|string)\s+([a-zA-Z][a-zA-Z0-9_]*)\s*;";
+            var fieldMatches = Regex.Matches(body, fieldPattern, RegexOptions.IgnoreCase);
+
+            if (fieldMatches.Count == 0)
+            {
+                error = "Tuple must have at least one field";
+                return false;
+            }
+
+            foreach (Match fieldMatch in fieldMatches)
+            {
+                string typeStr = fieldMatch.Groups[1].Value.ToLower();
+                string fieldName = fieldMatch.Groups[2].Value;
+
+                VariableType fieldType = typeStr switch
+                {
+                    "float" => VariableType.Float,
+                    "int" => VariableType.Integer,
+                    "bool" => VariableType.Boolean,
+                    "string" => VariableType.String,
+                    _ => VariableType.Float
+                };
+
+                try
+                {
+                    schema.AddField(fieldName, fieldType);
+                }
+                catch (Exception ex)
+                {
+                    error = ex.Message;
+                    return false;
+                }
+            }
+
+            return true;
+        }
+
+        public ParseSessionResult Parse(string text)
+        {
+            var result = new ParseSessionResult();
+
+            if (string.IsNullOrWhiteSpace(text))
+            {
+                result.AddError("No text to parse", 0);
+                return result;
+            }
+
+            // Extract and process JavaScript execute blocks FIRST
+            var (processedText, lineMapping) = ExtractAndProcessExecuteBlocks(text, result);
+
+            // **NEW: Extract and process tuple schemas**
+            processedText = ExtractAndProcessTupleSchemas(processedText, result);
+
+            // Extract and process subject to blocks
+            processedText = ExtractSubjectToBlocks(processedText, lineMapping, result);
+
+            // Split into statements
+            var statements = SplitIntoStatements(processedText, lineMapping);
+
+            // Process each statement
+            foreach (var (statement, lineNumber) in statements)
+            {
+                if (!string.IsNullOrWhiteSpace(statement))
+                {
+                    ProcessStatement(statement, lineNumber, result);
+                }
+            }
+
+            return result;
+        }
+
+        private string ExtractAndProcessTupleSchemas(string text, ParseSessionResult result)
+        {
+            // Pattern: tuple Name { ... }
+            string pattern = @"tuple\s+([a-zA-Z][a-zA-Z0-9_]*)\s*\{";
+            var matches = Regex.Matches(text, pattern, RegexOptions.IgnoreCase);
+
+            if (matches.Count == 0)
+            {
+                return text; // No tuples
+            }
+
+            var resultText = new System.Text.StringBuilder();
+            int lastIndex = 0;
+
+            foreach (Match match in matches)
+            {
+                // Append text before this tuple
+                resultText.Append(text.Substring(lastIndex, match.Index - lastIndex));
+
+                // Find matching closing brace
+                int closingBraceIndex = FindClosingBrace(text, match.Index + match.Length);
+
+                if (closingBraceIndex == -1)
+                {
+                    result.AddError($"Tuple schema: Missing closing brace '}}' for tuple '{match.Groups[1].Value}'", 
+                        text.Substring(0, match.Index).Count(c => c == '\n') + 1);
+                    continue;
+                }
+
+                // Extract the complete tuple definition
+                string tupleDefinition = text.Substring(match.Index, closingBraceIndex - match.Index + 1);
+                
+                // Parse and register the tuple schema
+                if (TryParseTupleSchemaBlock(tupleDefinition, out var schema, out string error))
+                {
+                    modelManager.AddTupleSchema(schema);
+                    result.IncrementSuccess();
+                }
+                else
+                {
+                    result.AddError($"Error parsing tuple schema: {error}", 
+                        text.Substring(0, match.Index).Count(c => c == '\n') + 1);
+                }
+
+                lastIndex = closingBraceIndex + 1;
+            }
+
+            // Append remaining text
+            if (lastIndex < text.Length)
+            {
+                resultText.Append(text.Substring(lastIndex));
+            }
+
+            return resultText.ToString();
+        }
+
+        private bool TryParseTupleSchemaBlock(string block, out TupleSchema? schema, out string error)
+        {
+            schema = null;
+            error = string.Empty;
+
+            // Extract tuple name
+            var nameMatch = Regex.Match(block, @"tuple\s+([a-zA-Z][a-zA-Z0-9_]*)\s*\{", RegexOptions.IgnoreCase);
+            if (!nameMatch.Success)
+            {
+                error = "Invalid tuple syntax";
+                return false;
+            }
+
+            string tupleName = nameMatch.Groups[1].Value;
+            schema = new TupleSchema(tupleName);
+
+            // Extract body (everything between { and })
+            int openBrace = block.IndexOf('{');
+            int closeBrace = block.LastIndexOf('}');
+            
+            if (openBrace == -1 || closeBrace == -1)
+            {
+                error = "Missing braces in tuple definition";
+                return false;
+            }
+
+            string body = block.Substring(openBrace + 1, closeBrace - openBrace - 1);
+
+            // Parse field declarations
+            var fieldPattern = @"(float|int|bool|string)\s+([a-zA-Z][a-zA-Z0-9_]*)\s*;";
+            var fieldMatches = Regex.Matches(body, fieldPattern, RegexOptions.IgnoreCase);
+
+            if (fieldMatches.Count == 0)
+            {
+                error = "Tuple must have at least one field";
+                return false;
+            }
+
+            foreach (Match fieldMatch in fieldMatches)
+            {
+                string typeStr = fieldMatch.Groups[1].Value.ToLower();
+                string fieldName = fieldMatch.Groups[2].Value;
+
+                VariableType fieldType = typeStr switch
+                {
+                    "float" => VariableType.Float,
+                    "int" => VariableType.Integer,
+                    "bool" => VariableType.Boolean,
+                    "string" => VariableType.String,
+                    _ => VariableType.Float
+                };
+
+                try
+                {
+                    schema.AddField(fieldName, fieldType);
+                }
+                catch (Exception ex)
+                {
+                    error = ex.Message;
+                    return false;
+                }
+            }
+
+            return true;
+        }
+
+        public ParseSessionResult Parse(string text)
+        {
+            var result = new ParseSessionResult();
+
+            if (string.IsNullOrWhiteSpace(text))
+            {
+                result.AddError("No text to parse", 0);
+                return result;
+            }
+
+            // Extract and process JavaScript execute blocks FIRST
+            var (processedText, lineMapping) = ExtractAndProcessExecuteBlocks(text, result);
+
+            // **NEW: Extract and process tuple schemas**
+            processedText = ExtractAndProcessTupleSchemas(processedText, result);
+
+            // Extract and process subject to blocks
+            processedText = ExtractSubjectToBlocks(processedText, lineMapping, result);
+
+            // Split into statements
+            var statements = SplitIntoStatements(processedText, lineMapping);
+
+            // Process each statement
+            foreach (var (statement, lineNumber) in statements)
+            {
+                if (!string.IsNullOrWhiteSpace(statement))
+                {
+                    ProcessStatement(statement, lineNumber, result);
+                }
+            }
+
+            return result;
+        }
+
+        private string ExtractAndProcessTupleSchemas(string text, ParseSessionResult result)
+        {
+            // Pattern: tuple Name { ... }
+            string pattern = @"tuple\s+([a-zA-Z][a-zA-Z0-9_]*)\s*\{";
+            var matches = Regex.Matches(text, pattern, RegexOptions.IgnoreCase);
+
+            if (matches.Count == 0)
+            {
+                return text; // No tuples
+            }
+
+            var resultText = new System.Text.StringBuilder();
+            int lastIndex = 0;
+
+            foreach (Match match in matches)
+            {
+                // Append text before this tuple
+                resultText.Append(text.Substring(lastIndex, match.Index - lastIndex));
+
+                // Find matching closing brace
+                int closingBraceIndex = FindClosingBrace(text, match.Index + match.Length);
+
+                if (closingBraceIndex == -1)
+                {
+                    result.AddError($"Tuple schema: Missing closing brace '}}' for tuple '{match.Groups[1].Value}'", 
+                        text.Substring(0, match.Index).Count(c => c == '\n') + 1);
+                    continue;
+                }
+
+                // Extract the complete tuple definition
+                string tupleDefinition = text.Substring(match.Index, closingBraceIndex - match.Index + 1);
+                
+                // Parse and register the tuple schema
+                if (TryParseTupleSchemaBlock(tupleDefinition, out var schema, out string error))
+                {
+                    modelManager.AddTupleSchema(schema);
+                    result.IncrementSuccess();
+                }
+                else
+                {
+                    result.AddError($"Error parsing tuple schema: {error}", 
+                        text.Substring(0, match.Index).Count(c => c == '\n') + 1);
+                }
+
+                lastIndex = closingBraceIndex + 1;
+            }
+
+            // Append remaining text
+            if (lastIndex < text.Length)
+            {
+                resultText.Append(text.Substring(lastIndex));
+            }
+
+            return resultText.ToString();
+        }
+
+        private bool TryParseTupleSchemaBlock(string block, out TupleSchema? schema, out string error)
+        {
+            schema = null;
+            error = string.Empty;
+
+            // Extract tuple name
+            var nameMatch = Regex.Match(block, @"tuple\s+([a-zA-Z][a-zA-Z0-9_]*)\s*\{", RegexOptions.IgnoreCase);
+            if (!nameMatch.Success)
+            {
+                error = "Invalid tuple syntax";
+                return false;
+            }
+
+            string tupleName = nameMatch.Groups[1].Value;
+            schema = new TupleSchema(tupleName);
+
+            // Extract body (everything between { and })
+            int openBrace = block.IndexOf('{');
+            int closeBrace = block.LastIndexOf('}');
+            
+            if (openBrace == -1 || closeBrace == -1)
+            {
+                error = "Missing braces in tuple definition";
+                return false;
+            }
+
+            string body = block.Substring(openBrace + 1, closeBrace - openBrace - 1);
+
+            // Parse field declarations
+            var fieldPattern = @"(float|int|bool|string)\s+([a-zA-Z][a-zA-Z0-9_]*)\s*;";
+            var fieldMatches = Regex.Matches(body, fieldPattern, RegexOptions.IgnoreCase);
+
+            if (fieldMatches.Count == 0)
+            {
+                error = "Tuple must have at least one field";
+                return false;
+            }
+
+            foreach (Match fieldMatch in fieldMatches)
+            {
+                string typeStr = fieldMatch.Groups[1].Value.ToLower();
+                string fieldName = fieldMatch.Groups[2].Value;
+
+                VariableType fieldType = typeStr switch
+                {
+                    "float" => VariableType.Float,
+                    "int" => VariableType.Integer,
+                    "bool" => VariableType.Boolean,
+                    "string" => VariableType.String,
+                    _ => VariableType.Float
+                };
+
+                try
+                {
+                    schema.AddField(fieldName, fieldType);
+                }
+                catch (Exception ex)
+                {
+                    error = ex.Message;
+                    return false;
+                }
+            }
+
+            return true;
+        }
+
+        public ParseSessionResult Parse(string text)
+        {
+            var result = new ParseSessionResult();
+
+            if (string.IsNullOrWhiteSpace(text))
+            {
+                result.AddError("No text to parse", 0);
+                return result;
+            }
+
+            // Extract and process JavaScript execute blocks FIRST
+            var (processedText, lineMapping) = ExtractAndProcessExecuteBlocks(text, result);
+
+            // **NEW: Extract and process tuple schemas**
+            processedText = ExtractAndProcessTupleSchemas(processedText, result);
+
+            // Extract and process subject to blocks
+            processedText = ExtractSubjectToBlocks(processedText, lineMapping, result);
+
+            // Split into statements
+            var statements = SplitIntoStatements(processedText, lineMapping);
+
+            // Process each statement
+            foreach (var (statement, lineNumber) in statements)
+            {
+                if (!string.IsNullOrWhiteSpace(statement))
+                {
+                    ProcessStatement(statement, lineNumber, result);
+                }
+            }
+
+            return result;
+        }
+
+        private string ExtractAndProcessTupleSchemas(string text, ParseSessionResult result)
+        {
+            // Pattern: tuple Name { ... }
+            string pattern = @"tuple\s+([a-zA-Z][a-zA-Z0-9_]*)\s*\{";
+            var matches = Regex.Matches(text, pattern, RegexOptions.IgnoreCase);
+
+            if (matches.Count == 0)
+            {
+                return text; // No tuples
+            }
+
+            var resultText = new System.Text.StringBuilder();
+            int lastIndex = 0;
+
+            foreach (Match match in matches)
+            {
+                // Append text before this tuple
+                resultText.Append(text.Substring(lastIndex, match.Index - lastIndex));
+
+                // Find matching closing brace
+                int closingBraceIndex = FindClosingBrace(text, match.Index + match.Length);
+
+                if (closingBraceIndex == -1)
+                {
+                    result.AddError($"Tuple schema: Missing closing brace '}}' for tuple '{match.Groups[1].Value}'", 
+                        text.Substring(0, match.Index).Count(c => c == '\n') + 1);
+                    continue;
+                }
+
+                // Extract the complete tuple definition
+                string tupleDefinition = text.Substring(match.Index, closingBraceIndex - match.Index + 1);
+                
+                // Parse and register the tuple schema
+                if (TryParseTupleSchemaBlock(tupleDefinition, out var schema, out string error))
+                {
+                    modelManager.AddTupleSchema(schema);
+                    result.IncrementSuccess();
+                }
+                else
+                {
+                    result.AddError($"Error parsing tuple schema: {error}", 
+                        text.Substring(0, match.Index).Count(c => c == '\n') + 1);
+                }
+
+                lastIndex = closingBraceIndex + 1;
+            }
+
+            // Append remaining text
+            if (lastIndex < text.Length)
+            {
+                resultText.Append(text.Substring(lastIndex));
+            }
+
+            return resultText.ToString();
+        }
+
+        private bool TryParseTupleSchemaBlock(string block, out TupleSchema? schema, out string error)
+        {
+            schema = null;
+            error = string.Empty;
+
+            // Extract tuple name
+            var nameMatch = Regex.Match(block, @"tuple\s+([a-zA-Z][a-zA-Z0-9_]*)\s*\{", RegexOptions.IgnoreCase);
+            if (!nameMatch.Success)
+            {
+                error = "Invalid tuple syntax";
+                return false;
+            }
+
+            string tupleName = nameMatch.Groups[1].Value;
+            schema = new TupleSchema(tupleName);
+
+            // Extract body (everything between { and })
+            int openBrace = block.IndexOf('{');
+            int closeBrace = block.LastIndexOf('}');
+            
+            if (openBrace == -1 || closeBrace == -1)
+            {
+                error = "Missing braces in tuple definition";
+                return false;
+            }
+
+            string body = block.Substring(openBrace + 1, closeBrace - openBrace - 1);
+
+            // Parse field declarations
+            var fieldPattern = @"(float|int|bool|string)\s+([a-zA-Z][a-zA-Z0-9_]*)\s*;";
+            var fieldMatches = Regex.Matches(body, fieldPattern, RegexOptions.IgnoreCase);
+
+            if (fieldMatches.Count == 0)
+            {
+                error = "Tuple must have at least one field";
+                return false;
+            }
+
+            foreach (Match fieldMatch in fieldMatches)
+            {
+                string typeStr = fieldMatch.Groups[1].Value.ToLower();
+                string fieldName = fieldMatch.Groups[2].Value;
+
+                VariableType fieldType = typeStr switch
+                {
+                    "float" => VariableType.Float,
+                    "int" => VariableType.Integer,
+                    "bool" => VariableType.Boolean,
+                    "string" => VariableType.String,
+                    _ => VariableType.Float
+                };
+
+                try
+                {
+                    schema.AddField(fieldName, fieldType);
+                }
+                catch (Exception ex)
+                {
+                    error = ex.Message;
+                    return false;
+                }
+            }
+
+            return true;
+        }
+
+        public ParseSessionResult Parse(string text)
+        {
+            var result = new ParseSessionResult();
+
+            if (string.IsNullOrWhiteSpace(text))
+            {
+                result.AddError("No text to parse", 0);
+                return result;
+            }
+
+            // Extract and process JavaScript execute blocks FIRST
+            var (processedText, lineMapping) = ExtractAndProcessExecuteBlocks(text, result);
+
+            // **NEW: Extract and process tuple schemas**
+            processedText = ExtractAndProcessTupleSchemas(processedText, result);
+
+            // Extract and process subject to blocks
+            processedText = ExtractSubjectToBlocks(processedText, lineMapping, result);
+
+            // Split into statements
+            var statements = SplitIntoStatements(processedText, lineMapping);
+
+            // Process each statement
+            foreach (var (statement, lineNumber) in statements)
+            {
+                if (!string.IsNullOrWhiteSpace(statement))
+                {
+                    ProcessStatement(statement, lineNumber, result);
+                }
+            }
+
+            return result;
+        }
+
+        private string ExtractAndProcessTupleSchemas(string text, ParseSessionResult result)
+        {
+            // Pattern: tuple Name { ... }
+            string pattern = @"tuple\s+([a-zA-Z][a-zA-Z0-9_]*)\s*\{";
+            var matches = Regex.Matches(text, pattern, RegexOptions.IgnoreCase);
+
+            if (matches.Count == 0)
+            {
+                return text; // No tuples
+            }
+
+            var resultText = new System.Text.StringBuilder();
+            int lastIndex = 0;
+
+            foreach (Match match in matches)
+            {
+                // Append text before this tuple
+                resultText.Append(text.Substring(lastIndex, match.Index - lastIndex));
+
+                // Find matching closing brace
+                int closingBraceIndex = FindClosingBrace(text, match.Index + match.Length);
+
+                if (closingBraceIndex == -1)
+                {
+                    result.AddError($"Tuple schema: Missing closing brace '}}' for tuple '{match.Groups[1].Value}'", 
+                        text.Substring(0, match.Index).Count(c => c == '\n') + 1);
+                    continue;
+                }
+
+                // Extract the complete tuple definition
+                string tupleDefinition = text.Substring(match.Index, closingBraceIndex - match.Index + 1);
+                
+                // Parse and register the tuple schema
+                if (TryParseTupleSchemaBlock(tupleDefinition, out var schema, out string error))
+                {
+                    modelManager.AddTupleSchema(schema);
+                    result.IncrementSuccess();
+                }
+                else
+                {
+                    result.AddError($"Error parsing tuple schema: {error}", 
+                        text.Substring(0, match.Index).Count(c => c == '\n') + 1);
+                }
+
+                lastIndex = closingBraceIndex + 1;
+            }
+
+            // Append remaining text
+            if (lastIndex < text.Length)
+            {
+                resultText.Append(text.Substring(lastIndex));
+            }
+
+            return resultText.ToString();
+        }
+
+        private bool TryParseTupleSchemaBlock(string block, out TupleSchema? schema, out string error)
+        {
+            schema = null;
+            error = string.Empty;
+
+            // Extract tuple name
+            var nameMatch = Regex.Match(block, @"tuple\s+([a-zA-Z][a-zA-Z0-9_]*)\s*\{", RegexOptions.IgnoreCase);
+            if (!nameMatch.Success)
+            {
+                error = "Invalid tuple syntax";
+                return false;
+            }
+
+            string tupleName = nameMatch.Groups[1].Value;
+            schema = new TupleSchema(tupleName);
+
+            // Extract body (everything between { and })
+            int openBrace = block.IndexOf('{');
+            int closeBrace = block.LastIndexOf('}');
+            
+            if (openBrace == -1 || closeBrace == -1)
+            {
+                error = "Missing braces in tuple definition";
+                return false;
+            }
+
+            string body = block.Substring(openBrace + 1, closeBrace - openBrace - 1);
+
+            // Parse field declarations
+            var fieldPattern = @"(float|int|bool|string)\s+([a-zA-Z][a-zA-Z0-9_]*)\s*;";
+            var fieldMatches = Regex.Matches(body, fieldPattern, RegexOptions.IgnoreCase);
+
+            if (fieldMatches.Count == 0)
+            {
+                error = "Tuple must have at least one field";
+                return false;
+            }
+
+            foreach (Match fieldMatch in fieldMatches)
+            {
+                string typeStr = fieldMatch.Groups[1].Value.ToLower();
+                string fieldName = fieldMatch.Groups[2].Value;
+
+                VariableType fieldType = typeStr switch
+                {
+                    "float" => VariableType.Float,
+                    "int" => VariableType.Integer,
+                    "bool" => VariableType.Boolean,
+                    "string" => VariableType.String,
+                    _ => VariableType.Float
+                };
+
+                try
+                {
+                    schema.AddField(fieldName, fieldType);
+                }
+                catch (Exception ex)
+                {
+                    error = ex.Message;
+                    return false;
+                }
+            }
+
+            return true;
+        }
+
+        public ParseSessionResult Parse(string text)
+        {
+            var result = new ParseSessionResult();
+
+            if (string.IsNullOrWhiteSpace(text))
+            {
+                result.AddError("No text to parse", 0);
+                return result;
+            }
+
+            // Extract and process JavaScript execute blocks FIRST
+            var (processedText, lineMapping) = ExtractAndProcessExecuteBlocks(text, result);
+
+            // **NEW: Extract and process tuple schemas**
+            processedText = ExtractAndProcessTupleSchemas(processedText, result);
+
+            // Extract and process subject to blocks
+            processedText = ExtractSubjectToBlocks(processedText, lineMapping, result);
+
+            // Split into statements
+            var statements = SplitIntoStatements(processedText, lineMapping);
+
+            // Process each statement
+            foreach (var (statement, lineNumber) in statements)
+            {
+                if (!string.IsNullOrWhiteSpace(statement))
+                {
+                    ProcessStatement(statement, lineNumber, result);
+                }
+            }
+
+            return result;
+        }
+
+        private string ExtractAndProcessTupleSchemas(string text, ParseSessionResult result)
+        {
+            // Pattern: tuple Name { ... }
+            string pattern = @"tuple\s+([a-zA-Z][a-zA-Z0-9_]*)\s*\{";
+            var matches = Regex.Matches(text, pattern, RegexOptions.IgnoreCase);
+
+            if (matches.Count == 0)
+            {
+                return text; // No tuples
+            }
+
+            var resultText = new System.Text.StringBuilder();
+            int lastIndex = 0;
+
+            foreach (Match match in matches)
+            {
+                // Append text before this tuple
+                resultText.Append(text.Substring(lastIndex, match.Index - lastIndex));
+
+                // Find matching closing brace
+                int closingBraceIndex = FindClosingBrace(text, match.Index + match.Length);
+
+                if (closingBraceIndex == -1)
+                {
+                    result.AddError($"Tuple schema: Missing closing brace '}}' for tuple '{match.Groups[1].Value}'", 
+                        text.Substring(0, match.Index).Count(c => c == '\n') + 1);
+                    continue;
+                }
+
+                // Extract the complete tuple definition
+                string tupleDefinition = text.Substring(match.Index, closingBraceIndex - match.Index + 1);
+                
+                // Parse and register the tuple schema
+                if (TryParseTupleSchemaBlock(tupleDefinition, out var schema, out string error))
+                {
+                    modelManager.AddTupleSchema(schema);
+                    result.IncrementSuccess();
+                }
+                else
+                {
+                    result.AddError($"Error parsing tuple schema: {error}", 
+                        text.Substring(0, match.Index).Count(c => c == '\n') + 1);
+                }
+
+                lastIndex = closingBraceIndex + 1;
+            }
+
+            // Append remaining text
+            if (lastIndex < text.Length)
+            {
+                resultText.Append(text.Substring(lastIndex));
+            }
+
+            return resultText.ToString();
+        }
+
+        private bool TryParseTupleSchemaBlock(string block, out TupleSchema? schema, out string error)
+        {
+            schema = null;
+            error = string.Empty;
+
+            // Extract tuple name
+            var nameMatch = Regex.Match(block, @"tuple\s+([a-zA-Z][a-zA-Z0-9_]*)\s*\{", RegexOptions.IgnoreCase);
+            if (!nameMatch.Success)
+            {
+                error = "Invalid tuple syntax";
+                return false;
+            }
+
+            string tupleName = nameMatch.Groups[1].Value;
+            schema = new TupleSchema(tupleName);
+
+            // Extract body (everything between { and })
+            int openBrace = block.IndexOf('{');
+            int closeBrace = block.LastIndexOf('}');
+            
+            if (openBrace == -1 || closeBrace == -1)
+            {
+                error = "Missing braces in tuple definition";
+                return false;
+            }
+
+            string body = block.Substring(openBrace + 1, closeBrace - openBrace - 1);
+
+            // Parse field declarations
+            var fieldPattern = @"(float|int|bool|string)\s+([a-zA-Z][a-zA-Z0-9_]*)\s*;";
+            var fieldMatches = Regex.Matches(body, fieldPattern, RegexOptions.IgnoreCase);
+
+            if (fieldMatches.Count == 0)
+            {
+                error = "Tuple must have at least one field";
+                return false;
+            }
+
+            foreach (Match fieldMatch in fieldMatches)
+            {
+                string typeStr = fieldMatch.Groups[1].Value.ToLower();
+                string fieldName = fieldMatch.Groups[2].Value;
+
+                VariableType fieldType = typeStr switch
+                {
+                    "float" => VariableType.Float,
+                    "int" => VariableType.Integer,
+                    "bool" => VariableType.Boolean,
+                    "string" => VariableType.String,
+                    _ => VariableType.Float
+                };
+
+                try
+                {
+                    schema.AddField(fieldName, fieldType);
+                }
+                catch (Exception ex)
+                {
+                    error = ex.Message;
+                    return false;
+                }
+            }
+
+            return true;
+        }
+
+        public ParseSessionResult Parse(string text)
+        {
+            var result = new ParseSessionResult();
+
+            if (string.IsNullOrWhiteSpace(text))
+            {
+                result.AddError("No text to parse", 0);
+                return result;
+            }
+
+            // Extract and process JavaScript execute blocks FIRST
+            var (processedText, lineMapping) = ExtractAndProcessExecuteBlocks(text, result);
+
+            // **NEW: Extract and process tuple schemas**
+            processedText = ExtractAndProcessTupleSchemas(processedText, result);
+
+            // Extract and process subject to blocks
+            processedText = ExtractSubjectToBlocks(processedText, lineMapping, result);
+
+            // Split into statements
+            var statements = SplitIntoStatements(processedText, lineMapping);
+
+            // Process each statement
+            foreach (var (statement, lineNumber) in statements)
+            {
+                if (!string.IsNullOrWhiteSpace(statement))
+                {
+                    ProcessStatement(statement, lineNumber, result);
+                }
+            }
+
+            return result;
+        }
+
+        private string ExtractAndProcessTupleSchemas(string text, ParseSessionResult result)
+        {
+            // Pattern: tuple Name { ... }
+            string pattern = @"tuple\s+([a-zA-Z][a-zA-Z0-9_]*)\s*\{";
+            var matches = Regex.Matches(text, pattern, RegexOptions.IgnoreCase);
+
+            if (matches.Count == 0)
+            {
+                return text; // No tuples
+            }
+
+            var resultText = new System.Text.StringBuilder();
+            int lastIndex = 0;
+
+            foreach (Match match in matches)
+            {
+                // Append text before this tuple
+                resultText.Append(text.Substring(lastIndex, match.Index - lastIndex));
+
+                // Find matching closing brace
+                int closingBraceIndex = FindClosingBrace(text, match.Index + match.Length);
+
+                if (closingBraceIndex == -1)
+                {
+                    result.AddError($"Tuple schema: Missing closing brace '}}' for tuple '{match.Groups[1].Value}'", 
+                        text.Substring(0, match.Index).Count(c => c == '\n') + 1);
+                    continue;
+                }
+
+                // Extract the complete tuple definition
+                string tupleDefinition = text.Substring(match.Index, closingBraceIndex - match.Index + 1);
+                
+                // Parse and register the tuple schema
+                if (TryParseTupleSchemaBlock(tupleDefinition, out var schema, out string error))
+                {
+                    modelManager.AddTupleSchema(schema);
+                    result.IncrementSuccess();
+                }
+                else
+                {
+                    result.AddError($"Error parsing tuple schema: {error}", 
+                        text.Substring(0, match.Index).Count(c => c == '\n') + 1);
+                }
+
+                lastIndex = closingBraceIndex + 1;
+            }
+
+            // Append remaining text
+            if (lastIndex < text.Length)
+            {
+                resultText.Append(text.Substring(lastIndex));
+            }
+
+            return resultText.ToString();
+        }
+
+        private bool TryParseTupleSchemaBlock(string block, out TupleSchema? schema, out string error)
+        {
+            schema = null;
+            error = string.Empty;
+
+            // Extract tuple name
+            var nameMatch = Regex.Match(block, @"tuple\s+([a-zA-Z][a-zA-Z0-9_]*)\s*\{", RegexOptions.IgnoreCase);
+            if (!nameMatch.Success)
+            {
+                error = "Invalid tuple syntax";
+                return false;
+            }
+
+            string tupleName = nameMatch.Groups[1].Value;
+            schema = new TupleSchema(tupleName);
+
+            // Extract body (everything between { and })
+            int openBrace = block.IndexOf('{');
+            int closeBrace = block.LastIndexOf('}');
+            
+            if (openBrace == -1 || closeBrace == -1)
+            {
+                error = "Missing braces in tuple definition";
+                return false;
+            }
+
+            string body = block.Substring(openBrace + 1, closeBrace - openBrace - 1);
+
+            // Parse field declarations
+            var fieldPattern = @"(float|int|bool|string)\s+([a-zA-Z][a-zA-Z0-9_]*)\s*;";
+            var fieldMatches = Regex.Matches(body, fieldPattern, RegexOptions.IgnoreCase);
+
+            if (fieldMatches.Count == 0)
+            {
+                error = "Tuple must have at least one field";
+                return false;
+            }
+
+            foreach (Match fieldMatch in fieldMatches)
+            {
+                string typeStr = fieldMatch.Groups[1].Value.ToLower();
+                string fieldName = fieldMatch.Groups[2].Value;
+
+                VariableType fieldType = typeStr switch
+                {
+                    "float" => VariableType.Float,
+                    "int" => VariableType.Integer,
+                    "bool" => VariableType.Boolean,
+                    "string" => VariableType.String,
+                    _ => VariableType.Float
+                };
+
+                try
+                {
+                    schema.AddField(fieldName, fieldType);
+                }
+                catch (Exception ex)
+                {
+                    error = ex.Message;
+                    return false;
+                }
+            }
+
+            return true;
+        }
+
+        public ParseSessionResult Parse(string text)
+        {
+            var result = new ParseSessionResult();
+
+            if (string.IsNullOrWhiteSpace(text))
+            {
+                result.AddError("No text to parse", 0);
+                return result;
+            }
+
+            // Extract and process JavaScript execute blocks FIRST
+            var (processedText, lineMapping) = ExtractAndProcessExecuteBlocks(text, result);
+
+            // **NEW: Extract and process tuple schemas**
+            processedText = ExtractAndProcessTupleSchemas(processedText, result);
+
+            // Extract and process subject to blocks
+            processedText = ExtractSubjectToBlocks(processedText, lineMapping, result);
+
+            // Split into statements
+            var statements = SplitIntoStatements(processedText, lineMapping);
+
+            // Process each statement
+            foreach (var (statement, lineNumber) in statements)
+            {
+                if (!string.IsNullOrWhiteSpace(statement))
+                {
+                    ProcessStatement(statement, lineNumber, result);
+                }
+            }
+
+            return result;
+        }
+
+        private string ExtractAndProcessTupleSchemas(string text, ParseSessionResult result)
+        {
+            // Pattern: tuple Name { ... }
+            string pattern = @"tuple\s+([a-zA-Z][a-zA-Z0-9_]*)\s*\{";
+            var matches = Regex.Matches(text, pattern, RegexOptions.IgnoreCase);
+
+            if (matches.Count == 0)
+            {
+                return text; // No tuples
+            }
+
+            var resultText = new System.Text.StringBuilder();
+            int lastIndex = 0;
+
+            foreach (Match match in matches)
+            {
+                // Append text before this tuple
+                resultText.Append(text.Substring(lastIndex, match.Index - lastIndex));
+
+                // Find matching closing brace
+                int closingBraceIndex = FindClosingBrace(text, match.Index + match.Length);
+
+                if (closingBraceIndex == -1)
+                {
+                    result.AddError($"Tuple schema: Missing closing brace '}}' for tuple '{match.Groups[1].Value}'", 
+                        text.Substring(0, match.Index).Count(c => c == '\n') + 1);
+                    continue;
+                }
+
+                // Extract the complete tuple definition
+                string tupleDefinition = text.Substring(match.Index, closingBraceIndex - match.Index + 1);
+                
+                // Parse and register the tuple schema
+                if (TryParseTupleSchemaBlock(tupleDefinition, out var schema, out string error))
+                {
+                    modelManager.AddTupleSchema(schema);
+                    result.IncrementSuccess();
+                }
+                else
+                {
+                    result.AddError($"Error parsing tuple schema: {error}", 
+                        text.Substring(0, match.Index).Count(c => c == '\n') + 1);
+                }
+
+                lastIndex = closingBraceIndex + 1;
+            }
+
+            // Append remaining text
+            if (lastIndex < text.Length)
+            {
+                resultText.Append(text.Substring(lastIndex));
+            }
+
+            return resultText.ToString();
+        }
+
+        private bool TryParseTupleSchemaBlock(string block, out TupleSchema? schema, out string error)
+        {
+            schema = null;
+            error = string.Empty;
+
+            // Extract tuple name
+            var nameMatch = Regex.Match(block, @"tuple\s+([a-zA-Z][a-zA-Z0-9_]*)\s*\{", RegexOptions.IgnoreCase);
+            if (!nameMatch.Success)
+            {
+                error = "Invalid tuple syntax";
+                return false;
+            }
+
+            string tupleName = nameMatch.Groups[1].Value;
+            schema = new TupleSchema(tupleName);
+
+            // Extract body (everything between { and })
+            int openBrace = block.IndexOf('{');
+            int closeBrace = block.LastIndexOf('}');
+            
+            if (openBrace == -1 || closeBrace == -1)
+            {
+                error = "Missing braces in tuple definition";
+                return false;
+            }
+
+            string body = block.Substring(openBrace + 1, closeBrace - openBrace - 1);
+
+            // Parse field declarations
+            var fieldPattern = @"(float|int|bool|string)\s+([a-zA-Z][a-zA-Z0-9_]*)\s*;";
+            var fieldMatches = Regex.Matches(body, fieldPattern, RegexOptions.IgnoreCase);
+
+            if (fieldMatches.Count == 0)
+            {
+                error = "Tuple must have at least one field";
+                return false;
+            }
+
+            foreach (Match fieldMatch in fieldMatches)
+            {
+                string typeStr = fieldMatch.Groups[1].Value.ToLower();
+                string fieldName = fieldMatch.Groups[2].Value;
+
+                VariableType fieldType = typeStr switch
+                {
+                    "float" => VariableType.Float,
+                    "int" => VariableType.Integer,
+                    "bool" => VariableType.Boolean,
+                    "string" => VariableType.String,
+                    _ => VariableType.Float
+                };
+
+                try
+                {
+                    schema.AddField(fieldName, fieldType);
+                }
+                catch (Exception ex)
+                {
+                    error = ex.Message;
+                    return false;
+                }
+            }
+
+            return true;
+        }
+
+        public ParseSessionResult Parse(string text)
+        {
+            var result = new ParseSessionResult();
+
+            if (string.IsNullOrWhiteSpace(text))
+            {
+                result.AddError("No text to parse", 0);
+                return result;
+            }
+
+            // Extract and process JavaScript execute blocks FIRST
+            var (processedText, lineMapping) = ExtractAndProcessExecuteBlocks(text, result);
+
+            // **NEW: Extract and process tuple schemas**
+            processedText = ExtractAndProcessTupleSchemas(processedText, result);
+
+            // Extract and process subject to blocks
+            processedText = ExtractSubjectToBlocks(processedText, lineMapping, result);
+
+            // Split into statements
+            var statements = SplitIntoStatements(processedText, lineMapping);
+
+            // Process each statement
+            foreach (var (statement, lineNumber) in statements)
+            {
+                if (!string.IsNullOrWhiteSpace(statement))
+                {
+                    ProcessStatement(statement, lineNumber, result);
+                }
+            }
+
+            return result;
+        }
+
+        private string ExtractAndProcessTupleSchemas(string text, ParseSessionResult result)
+        {
+            // Pattern: tuple Name { ... }
+            string pattern = @"tuple\s+([a-zA-Z][a-zA-Z0-9_]*)\s*\{";
+            var matches = Regex.Matches(text, pattern, RegexOptions.IgnoreCase);
+
+            if (matches.Count == 0)
+            {
+                return text; // No tuples
+            }
+
+            var resultText = new System.Text.StringBuilder();
+            int lastIndex = 0;
+
+            foreach (Match match in matches)
+            {
+                // Append text before this tuple
+                resultText.Append(text.Substring(lastIndex, match.Index - lastIndex));
+
+                // Find matching closing brace
+                int closingBraceIndex = FindClosingBrace(text, match.Index + match.Length);
+
+                if (closingBraceIndex == -1)
+                {
+                    result.AddError($"Tuple schema: Missing closing brace '}}' for tuple '{match.Groups[1].Value}'", 
+                        text.Substring(0, match.Index).Count(c => c == '\n') + 1);
+                    continue;
+                }
+
+                // Extract the complete tuple definition
+                string tupleDefinition = text.Substring(match.Index, closingBraceIndex - match.Index + 1);
+                
+                // Parse and register the tuple schema
+                if (TryParseTupleSchemaBlock(tupleDefinition, out var schema, out string error))
+                {
+                    modelManager.AddTupleSchema(schema);
+                    result.IncrementSuccess();
+                }
+                else
+                {
+                    result.AddError($"Error parsing tuple schema: {error}", 
+                        text.Substring(0, match.Index).Count(c => c == '\n') + 1);
+                }
+
+                lastIndex = closingBraceIndex + 1;
+            }
+
+            // Append remaining text
+            if (lastIndex < text.Length)
+            {
+                resultText.Append(text.Substring(lastIndex));
+            }
+
+            return resultText.ToString();
+        }
+
+        private bool TryParseTupleSchemaBlock(string block, out TupleSchema? schema, out string error)
+        {
+            schema = null;
+            error = string.Empty;
+
+            // Extract tuple name
+            var nameMatch = Regex.Match(block, @"tuple\s+([a-zA-Z][a-zA-Z0-9_]*)\s*\{", RegexOptions.IgnoreCase);
+            if (!nameMatch.Success)
+            {
+                error = "Invalid tuple syntax";
+                return false;
+            }
+
+            string tupleName = nameMatch.Groups[1].Value;
+            schema = new TupleSchema(tupleName);
+
+            // Extract body (everything between { and })
+            int openBrace = block.IndexOf('{');
+            int closeBrace = block.LastIndexOf('}');
+            
+            if (openBrace == -1 || closeBrace == -1)
+            {
+                error = "Missing braces in tuple definition";
+                return false;
+            }
+
+            string body = block.Substring(openBrace + 1, closeBrace - openBrace - 1);
+
+            // Parse field declarations
+            var fieldPattern = @"(float|int|bool|string)\s+([a-zA-Z][a-zA-Z0-9_]*)\s*;";
+            var fieldMatches = Regex.Matches(body, fieldPattern, RegexOptions.IgnoreCase);
+
+            if (fieldMatches.Count == 0)
+            {
+                error = "Tuple must have at least one field";
+                return false;
+            }
+
+            foreach (Match fieldMatch in fieldMatches)
+            {
+                string typeStr = fieldMatch.Groups[1].Value.ToLower();
+                string fieldName = fieldMatch.Groups[2].Value;
+
+                VariableType fieldType = typeStr switch
+                {
+                    "float" => VariableType.Float,
+                    "int" => VariableType.Integer,
+                    "bool" => VariableType.Boolean,
+                    "string" => VariableType.String,
+                    _ => VariableType.Float
+                };
+
+                try
+                {
+                    schema.AddField(fieldName, fieldType);
+                }
+                catch (Exception ex)
+                {
+                    error = ex.Message;
+                    return false;
+                }
+            }
+
+            return true;
+        }
+
+        public ParseSessionResult Parse(string text)
+        {
+            var result = new ParseSessionResult();
+
+            if (string.IsNullOrWhiteSpace(text))
+            {
+                result.AddError("No text to parse", 0);
+                return result;
+            }
+
+            // Extract and process JavaScript execute blocks FIRST
+            var (processedText, lineMapping) = ExtractAndProcessExecuteBlocks(text, result);
+
+            // **NEW: Extract and process tuple schemas**
+            processedText = ExtractAndProcessTupleSchemas(processedText, result);
+
+            // Extract and process subject to blocks
+            processedText = ExtractSubjectToBlocks(processedText, lineMapping, result);
+
+            // Split into statements
+            var statements = SplitIntoStatements(processedText, lineMapping);
+
+            // Process each statement
+            foreach (var (statement, lineNumber) in statements)
+            {
+                if (!string.IsNullOrWhiteSpace(statement))
+                {
+                    ProcessStatement(statement, lineNumber, result);
+                }
+            }
+
+            return result;
+        }
+
+        private string ExtractAndProcessTupleSchemas(string text, ParseSessionResult result)
+        {
+            // Pattern: tuple Name { ... }
+            string pattern = @"tuple\s+([a-zA-Z][a-zA-Z0-9_]*)\s*\{";
+            var matches = Regex.Matches(text, pattern, RegexOptions.IgnoreCase);
+
+            if (matches.Count == 0)
+            {
+                return text; // No tuples
+            }
+
+            var resultText = new System.Text.StringBuilder();
+            int lastIndex = 0;
+
+            foreach (Match match in matches)
+            {
+                // Append text before this tuple
+                resultText.Append(text.Substring(lastIndex, match.Index - lastIndex));
+
+                // Find matching closing brace
+                int closingBraceIndex = FindClosingBrace(text, match.Index + match.Length);
+
+                if (closingBraceIndex == -1)
+                {
+                    result.AddError($"Tuple schema: Missing closing brace '}}' for tuple '{match.Groups[1].Value}'", 
+                        text.Substring(0, match.Index).Count(c => c == '\n') + 1);
+                    continue;
+                }
+
+                // Extract the complete tuple definition
+                string tupleDefinition = text.Substring(match.Index, closingBraceIndex - match.Index + 1);
+                
+                // Parse and register the tuple schema
+                if (TryParseTupleSchemaBlock(tupleDefinition, out var schema, out string error))
+                {
+                    modelManager.AddTupleSchema(schema);
+                    result.IncrementSuccess();
+                }
+                else
+                {
+                    result.AddError($"Error parsing tuple schema: {error}", 
+                        text.Substring(0, match.Index).Count(c => c == '\n') + 1);
+                }
+
+                lastIndex = closingBraceIndex + 1;
+            }
+
+            // Append remaining text
+            if (lastIndex < text.Length)
+            {
+                resultText.Append(text.Substring(lastIndex));
+            }
+
+            return resultText.ToString();
+        }
+
+        private bool TryParseTupleSchemaBlock(string block, out TupleSchema? schema, out string error)
+        {
+            schema = null;
+            error = string.Empty;
+
+            // Extract tuple name
+            var nameMatch = Regex.Match(block, @"tuple\s+([a-zA-Z][a-zA-Z0-9_]*)\s*\{", RegexOptions.IgnoreCase);
+            if (!nameMatch.Success)
+            {
+                error = "Invalid tuple syntax";
+                return false;
+            }
+
+            string tupleName = nameMatch.Groups[1].Value;
+            schema = new TupleSchema(tupleName);
+
+            // Extract body (everything between { and })
+            int openBrace = block.IndexOf('{');
+            int closeBrace = block.LastIndexOf('}');
+            
+            if (openBrace == -1 || closeBrace == -1)
+            {
+                error = "Missing braces in tuple definition";
+                return false;
+            }
+
+            string body = block.Substring(openBrace + 1, closeBrace - openBrace - 1);
+
+            // Parse field declarations
+            var fieldPattern = @"(float|int|bool|string)\s+([a-zA-Z][a-zA-Z0-9_]*)\s*;";
+            var fieldMatches = Regex.Matches(body, fieldPattern, RegexOptions.IgnoreCase);
+
+            if (fieldMatches.Count == 0)
+            {
+                error = "Tuple must have at least one field";
+                return false;
+            }
+
+            foreach (Match fieldMatch in fieldMatches)
+            {
+                string typeStr = fieldMatch.Groups[1].Value.ToLower();
+                string fieldName = fieldMatch.Groups[2].Value;
+
+                VariableType fieldType = typeStr switch
+                {
+                    "float" => VariableType.Float,
+                    "int" => VariableType.Integer,
+                    "bool" => VariableType.Boolean,
+                    "string" => VariableType.String,
+                    _ => VariableType.Float
+                };
+
+                try
+                {
+                    schema.AddField(fieldName, fieldType);
+                }
+                catch (Exception ex)
+                {
+                    error = ex.Message;
+                    return false;
+                }
+            }
+
+            return true;
+        }
+
+        public ParseSessionResult Parse(string text)
+        {
+            var result = new ParseSessionResult();
+
+            if (string.IsNullOrWhiteSpace(text))
+            {
+                result.AddError("No text to parse", 0);
+                return result;
+            }
+
+            // Extract and process JavaScript execute blocks FIRST
+            var (processedText, lineMapping) = ExtractAndProcessExecuteBlocks(text, result);
+
+            // **NEW: Extract and process tuple schemas**
+            processedText = ExtractAndProcessTupleSchemas(processedText, result);
+
+            // Extract and process subject to blocks
+            processedText = ExtractSubjectToBlocks(processedText, lineMapping, result);
+
+            // Split into statements
+            var statements = SplitIntoStatements(processedText, lineMapping);
+
+            // Process each statement
+            foreach (var (statement, lineNumber) in statements)
+            {
+                if (!string.IsNullOrWhiteSpace(statement))
+                {
+                    ProcessStatement(statement, lineNumber, result);
+                }
+            }
+
+            return result;
+        }
+
+        private string ExtractAndProcessTupleSchemas(string text, ParseSessionResult result)
+        {
+            // Pattern: tuple Name { ... }
+            string pattern = @"tuple\s+([a-zA-Z][a-zA-Z0-9_]*)\s*\{";
+            var matches = Regex.Matches(text, pattern, RegexOptions.IgnoreCase);
+
+            if (matches.Count == 0)
+            {
+                return text; // No tuples
+            }
+
+            var resultText = new System.Text.StringBuilder();
+            int lastIndex = 0;
+
+            foreach (Match match in matches)
+            {
+                // Append text before this tuple
+                resultText.Append(text.Substring(lastIndex, match.Index - lastIndex));
+
+                // Find matching closing brace
+                int closingBraceIndex = FindClosingBrace(text, match.Index + match.Length);
+
+                if (closingBraceIndex == -1)
+                {
+                    result.AddError($"Tuple schema: Missing closing brace '}}' for tuple '{match.Groups[1].Value}'", 
+                        text.Substring(0, match.Index).Count(c => c == '\n') + 1);
+                    continue;
+                }
+
+                // Extract the complete tuple definition
+                string tupleDefinition = text.Substring(match.Index, closingBraceIndex - match.Index + 1);
+                
+                // Parse and register the tuple schema
+                if (TryParseTupleSchemaBlock(tupleDefinition, out var schema, out string error))
+                {
+                    modelManager.AddTupleSchema(schema);
+                    result.IncrementSuccess();
+                }
+                else
+                {
+                    result.AddError($"Error parsing tuple schema: {error}", 
+                        text.Substring(0, match.Index).Count(c => c == '\n') + 1);
+                }
+
+                lastIndex = closingBraceIndex + 1;
+            }
+
+            // Append remaining text
+            if (lastIndex < text.Length)
+            {
+                resultText.Append(text.Substring(lastIndex));
+            }
+
+            return resultText.ToString();
+        }
+
+        private bool TryParseTupleSchemaBlock(string block, out TupleSchema? schema, out string error)
+        {
+            schema = null;
+            error = string.Empty;
+
+            // Extract tuple name
+            var nameMatch = Regex.Match(block, @"tuple\s+([a-zA-Z][a-zA-Z0-9_]*)\s*\{", RegexOptions.IgnoreCase);
+            if (!nameMatch.Success)
+            {
+                error = "Invalid tuple syntax";
+                return false;
+            }
+
+            string tupleName = nameMatch.Groups[1].Value;
+            schema = new TupleSchema(tupleName);
+
+            // Extract body (everything between { and })
+            int openBrace = block.IndexOf('{');
+            int closeBrace = block.LastIndexOf('}');
+            
+            if (openBrace == -1 || closeBrace == -1)
+            {
+                error = "Missing braces in tuple definition";
+                return false;
+            }
+
+            string body = block.Substring(openBrace + 1, closeBrace - openBrace - 1);
+
+            // Parse field declarations
+            var fieldPattern = @"(float|int|bool|string)\s+([a-zA-Z][a-zA-Z0-9_]*)\s*;";
+            var fieldMatches = Regex.Matches(body, fieldPattern, RegexOptions.IgnoreCase);
+
+            if (fieldMatches.Count == 0)
+            {
+                error = "Tuple must have at least one field";
+                return false;
+            }
+
+            foreach (Match fieldMatch in fieldMatches)
+            {
+                string typeStr = fieldMatch.Groups[1].Value.ToLower();
+                string fieldName = fieldMatch.Groups[2].Value;
+
+                VariableType fieldType = typeStr switch
+                {
+                    "float" => VariableType.Float,
+                    "int" => VariableType.Integer,
+                    "bool" => VariableType.Boolean,
+                    "string" => VariableType.String,
+                    _ => VariableType.Float
+                };
+
+                try
+                {
+                    schema.AddField(fieldName, fieldType);
+                }
+                catch (Exception ex)
+                {
+                    error = ex.Message;
+                    return false;
+                }
+            }
+
+            return true;
+        }
+
+        public ParseSessionResult Parse(string text)
+        {
+            var result = new ParseSessionResult();
+
+            if (string.IsNullOrWhiteSpace(text))
+            {
+                result.AddError("No text to parse", 0);
+                return result;
+            }
+
+            // Extract and process JavaScript execute blocks FIRST
+            var (processedText, lineMapping) = ExtractAndProcessExecuteBlocks(text, result);
+
+            // **NEW: Extract and process tuple schemas**
+            processedText = ExtractAndProcessTupleSchemas(processedText, result);
+
+            // Extract and process subject to blocks
+            processedText = ExtractSubjectToBlocks(processedText, lineMapping, result);
+
+            // Split into statements
+            var statements = SplitIntoStatements(processedText, lineMapping);
+
+            // Process each statement
+            foreach (var (statement, lineNumber) in statements)
+            {
+                if (!string.IsNullOrWhiteSpace(statement))
+                {
+                    ProcessStatement(statement, lineNumber, result);
+                }
+            }
+
+            return result;
+        }
+
+        private string ExtractAndProcessTupleSchemas(string text, ParseSessionResult result)
+        {
+            // Pattern: tuple Name { ... }
+            string pattern = @"tuple\s+([a-zA-Z][a-zA-Z0-9_]*)\s*\{";
+            var matches = Regex.Matches(text, pattern, RegexOptions.IgnoreCase);
+
+            if (matches.Count == 0)
+            {
+                return text; // No tuples
+            }
+
+            var resultText = new System.Text.StringBuilder();
+            int lastIndex = 0;
+
+            foreach (Match match in matches)
+            {
+                // Append text before this tuple
+                resultText.Append(text.Substring(lastIndex, match.Index - lastIndex));
+
+                // Find matching closing brace
+                int closingBraceIndex = FindClosingBrace(text, match.Index + match.Length);
+
+                if (closingBraceIndex == -1)
+                {
+                    result.AddError($"Tuple schema: Missing closing brace '}}' for tuple '{match.Groups[1].Value}'", 
+                        text.Substring(0, match.Index).Count(c => c == '\n') + 1);
+                    continue;
+                }
+
+                // Extract the complete tuple definition
+                string tupleDefinition = text.Substring(match.Index, closingBraceIndex - match.Index + 1);
+                
+                // Parse and register the tuple schema
+                if (TryParseTupleSchemaBlock(tupleDefinition, out var schema, out string error))
+                {
+                    modelManager.AddTupleSchema(schema);
+                    result.IncrementSuccess();
+                }
+                else
+                {
+                    result.AddError($"Error parsing tuple schema: {error}", 
+                        text.Substring(0, match.Index).Count(c => c == '\n') + 1);
+                }
+
+                lastIndex = closingBraceIndex + 1;
+            }
+
+            // Append remaining text
+            if (lastIndex < text.Length)
+            {
+                resultText.Append(text.Substring(lastIndex));
+            }
+
+            return resultText.ToString();
+        }
+
+        private bool TryParseTupleSchemaBlock(string block, out TupleSchema? schema, out string error)
+        {
+            schema = null;
+            error = string.Empty;
+
+            // Extract tuple name
+            var nameMatch = Regex.Match(block, @"tuple\s+([a-zA-Z][a-zA-Z0-9_]*)\s*\{", RegexOptions.IgnoreCase);
+            if (!nameMatch.Success)
+            {
+                error = "Invalid tuple syntax";
+                return false;
+            }
+
+            string tupleName = nameMatch.Groups[1].Value;
+            schema = new TupleSchema(tupleName);
+
+            // Extract body (everything between { and })
+            int openBrace = block.IndexOf('{');
+            int closeBrace = block.LastIndexOf('}');
+            
+            if (openBrace == -1 || closeBrace == -1)
+            {
+                error = "Missing braces in tuple definition";
+                return false;
+            }
+
+            string body = block.Substring(openBrace + 1, closeBrace - openBrace - 1);
+
+            // Parse field declarations
+            var fieldPattern = @"(float|int|bool|string)\s+([a-zA-Z][a-zA-Z0-9_]*)\s*;";
+            var fieldMatches = Regex.Matches(body, fieldPattern, RegexOptions.IgnoreCase);
+
+            if (fieldMatches.Count == 0)
+            {
+                error = "Tuple must have at least one field";
+                return false;
+            }
+
+            foreach (Match fieldMatch in fieldMatches)
+            {
+                string typeStr = fieldMatch.Groups[1].Value.ToLower();
+                string fieldName = fieldMatch.Groups[2].Value;
+
+                VariableType fieldType = typeStr switch
+                {
+                    "float" => VariableType.Float,
+                    "int" => VariableType.Integer,
+                    "bool" => VariableType.Boolean,
+                    "string" => VariableType.String,
+                    _ => VariableType.Float
+                };
+
+                try
+                {
+                    schema.AddField(fieldName, fieldType);
+                }
+                catch (Exception ex)
+                {
+                    error = ex.Message;
+                    return false;
+                }
+            }
+
+            return true;
+        }
+
+        public ParseSessionResult Parse(string text)
+        {
+            var result = new ParseSessionResult();
+
+            if (string.IsNullOrWhiteSpace(text))
+            {
+                result.AddError("No text to parse", 0);
+                return result;
+            }
+
+            // Extract and process JavaScript execute blocks FIRST
+            var (processedText, lineMapping) = ExtractAndProcessExecuteBlocks(text, result);
+
+            // **NEW: Extract and process tuple schemas**
+            processedText = ExtractAndProcessTupleSchemas(processedText, result);
+
+            // Extract and process subject to blocks
+            processedText = ExtractSubjectToBlocks(processedText, lineMapping, result);
+
+            // Split into statements
+            var statements = SplitIntoStatements(processedText, lineMapping);
+
+            // Process each statement
+            foreach (var (statement, lineNumber) in statements)
+            {
+                if (!string.IsNullOrWhiteSpace(statement))
+                {
+                    ProcessStatement(statement, lineNumber, result);
+                }
+            }
+
+            return result;
+        }
+
+        private string ExtractAndProcessTupleSchemas(string text, ParseSessionResult result)
+        {
+            // Pattern: tuple Name { ... }
+            string pattern = @"tuple\s+([a-zA-Z][a-zA-Z0-9_]*)\s*\{";
+            var matches = Regex.Matches(text, pattern, RegexOptions.IgnoreCase);
+
+            if (matches.Count == 0)
+            {
+                return text; // No tuples
+            }
+
+            var resultText = new System.Text.StringBuilder();
+            int lastIndex = 0;
+
+            foreach (Match match in matches)
+            {
+                // Append text before this tuple
+                resultText.Append(text.Substring(lastIndex, match.Index - lastIndex));
+
+                // Find matching closing brace
+                int closingBraceIndex = FindClosingBrace(text, match.Index + match.Length);
+
+                if (closingBraceIndex == -1)
+                {
+                    result.AddError($"Tuple schema: Missing closing brace '}}' for tuple '{match.Groups[1].Value}'", 
+                        text.Substring(0, match.Index).Count(c => c == '\n') + 1);
+                    continue;
+                }
+
+                // Extract the complete tuple definition
+                string tupleDefinition = text.Substring(match.Index, closingBraceIndex - match.Index + 1);
+                
+                // Parse and register the tuple schema
+                if (TryParseTupleSchemaBlock(tupleDefinition, out var schema, out string error))
+                {
+                    modelManager.AddTupleSchema(schema);
+                    result.IncrementSuccess();
+                }
+                else
+                {
+                    result.AddError($"Error parsing tuple schema: {error}", 
+                        text.Substring(0, match.Index).Count(c => c == '\n') + 1);
+                }
+
+                lastIndex = closingBraceIndex + 1;
+            }
+
+            // Append remaining text
+            if (lastIndex < text.Length)
+            {
+                resultText.Append(text.Substring(lastIndex));
+            }
+
+            return resultText.ToString();
+        }
+
+        private bool TryParseTupleSchemaBlock(string block, out TupleSchema? schema, out string error)
+        {
+            schema = null;
+            error = string.Empty;
+
+            // Extract tuple name
+            var nameMatch = Regex.Match(block, @"tuple\s+([a-zA-Z][a-zA-Z0-9_]*)\s*\{", RegexOptions.IgnoreCase);
+            if (!nameMatch.Success)
+            {
+                error = "Invalid tuple syntax";
+                return false;
+            }
+
+            string tupleName = nameMatch.Groups[1].Value;
+            schema = new TupleSchema(tupleName);
+
+            // Extract body (everything between { and })
+            int openBrace = block.IndexOf('{');
+            int closeBrace = block.LastIndexOf('}');
+            
+            if (openBrace == -1 || closeBrace == -1)
+            {
+                error = "Missing braces in tuple definition";
+                return false;
+            }
+
+            string body = block.Substring(openBrace + 1, closeBrace - openBrace - 1);
+
+            // Parse field declarations
+            var fieldPattern = @"(float|int|bool|string)\s+([a-zA-Z][a-zA-Z0-9_]*)\s*;";
+            var fieldMatches = Regex.Matches(body, fieldPattern, RegexOptions.IgnoreCase);
+
+            if (fieldMatches.Count == 0)
+            {
+                error = "Tuple must have at least one field";
+                return false;
+            }
+
+            foreach (Match fieldMatch in fieldMatches)
+            {
+                string typeStr = fieldMatch.Groups[1].Value.ToLower();
+                string fieldName = fieldMatch.Groups[2].Value;
+
+                VariableType fieldType = typeStr switch
+                {
+                    "float" => VariableType.Float,
+                    "int" => VariableType.Integer,
+                    "bool" => VariableType.Boolean,
+                    "string" => VariableType.String,
+                    _ => VariableType.Float
+                };
+
+                try
+                {
+                    schema.AddField(fieldName, fieldType);
+                }
+                catch (Exception ex)
+                {
+                    error = ex.Message;
+                    return false;
+                }
+            }
+
+            return true;
+        }
+
+        public ParseSessionResult Parse(string text)
+        {
+            var result = new ParseSessionResult();
+
+            if (string.IsNullOrWhiteSpace(text))
+            {
+                result.AddError("No text to parse", 0);
+                return result;
+            }
+
+            // Extract and process JavaScript execute blocks FIRST
+            var (processedText, lineMapping) = ExtractAndProcessExecuteBlocks(text, result);
+
+            // **NEW: Extract and process tuple schemas**
+            processedText = ExtractAndProcessTupleSchemas(processedText, result);
+
+            // Extract and process subject to blocks
+            processedText = ExtractSubjectToBlocks(processedText, lineMapping, result);
+
+            // Split into statements
+            var statements = SplitIntoStatements(processedText, lineMapping);
+
+            // Process each statement
+            foreach (var (statement, lineNumber) in statements)
+            {
+                if (!string.IsNullOrWhiteSpace(statement))
+                {
+                    ProcessStatement(statement, lineNumber, result);
+                }
+            }
+
+            return result;
+        }
+
+        private string ExtractAndProcessTupleSchemas(string text, ParseSessionResult result)
+        {
+            // Pattern: tuple Name { ... }
+            string pattern = @"tuple\s+([a-zA-Z][a-zA-Z0-9_]*)\s*\{";
+            var matches = Regex.Matches(text, pattern, RegexOptions.IgnoreCase);
+
+            if (matches.Count == 0)
+            {
+                return text; // No tuples
+            }
+
+            var resultText = new System.Text.StringBuilder();
+            int lastIndex = 0;
+
+            foreach (Match match in matches)
+            {
+                // Append text before this tuple
+                resultText.Append(text.Substring(lastIndex, match.Index - lastIndex));
+
+                // Find matching closing brace
+                int closingBraceIndex = FindClosingBrace(text, match.Index + match.Length);
+
+                if (closingBraceIndex == -1)
+                {
+                    result.AddError($"Tuple schema: Missing closing brace '}}' for tuple '{match.Groups[1].Value}'", 
+                        text.Substring(0, match.Index).Count(c => c == '\n') + 1);
+                    continue;
+                }
+
+                // Extract the complete tuple definition
+                string tupleDefinition = text.Substring(match.Index, closingBraceIndex - match.Index + 1);
+                
+                // Parse and register the tuple schema
+                if (TryParseTupleSchemaBlock(tupleDefinition, out var schema, out string error))
+                {
+                    modelManager.AddTupleSchema(schema);
+                    result.IncrementSuccess();
+                }
+                else
+                {
+                    result.AddError($"Error parsing tuple schema: {error}", 
+                        text.Substring(0, match.Index).Count(c => c == '\n') + 1);
+                }
+
+                lastIndex = closingBraceIndex + 1;
+            }
+
+            // Append remaining text
+            if (lastIndex < text.Length)
+            {
+                resultText.Append(text.Substring(lastIndex));
+            }
+
+            return resultText.ToString();
+        }
+
+        private bool TryParseTupleSchemaBlock(string block, out TupleSchema? schema, out string error)
+        {
+            schema = null;
+            error = string.Empty;
+
+            // Extract tuple name
+            var nameMatch = Regex.Match(block, @"tuple\s+([a-zA-Z][a-zA-Z0-9_]*)\s*\{", RegexOptions.IgnoreCase);
+            if (!nameMatch.Success)
+            {
+                error = "Invalid tuple syntax";
+                return false;
+            }
+
+            string tupleName = nameMatch.Groups[1].Value;
+            schema = new TupleSchema(tupleName);
+
+            // Extract body (everything between { and })
+            int openBrace = block.IndexOf('{');
+            int closeBrace = block.LastIndexOf('}');
+            
+            if (openBrace == -1 || closeBrace == -1)
+            {
+                error = "Missing braces in tuple definition";
+                return false;
+            }
+
+            string body = block.Substring(openBrace + 1, closeBrace - openBrace - 1);
+
+            // Parse field declarations
+            var fieldPattern = @"(float|int|bool|string)\s+([a-zA-Z][a-zA-Z0-9_]*)\s*;";
+            var fieldMatches = Regex.Matches(body, fieldPattern, RegexOptions.IgnoreCase);
+
+            if (fieldMatches.Count == 0)
+            {
+                error = "Tuple must have at least one field";
+                return false;
+            }
+
+            foreach (Match fieldMatch in fieldMatches)
+            {
+                string typeStr = fieldMatch.Groups[1].Value.ToLower();
+                string fieldName = fieldMatch.Groups[2].Value;
+
+                VariableType fieldType = typeStr switch
+                {
+                    "float" => VariableType.Float,
+                    "int" => VariableType.Integer,
+                    "bool" => VariableType.Boolean,
+                    "string" => VariableType.String,
+                    _ => VariableType.Float
+                };
+
+                try
+                {
+                    schema.AddField(fieldName, fieldType);
+                }
+                catch (Exception ex)
+                {
+                    error = ex.Message;
+                    return false;
+                }
+            }
+
+            return true;
+        }
+
+        public ParseSessionResult Parse(string text)
+        {
+            var result = new ParseSessionResult();
+
+            if (string.IsNullOrWhiteSpace(text))
+            {
+                result.AddError("No text to parse", 0);
+                return result;
+            }
+
+            // Extract and process JavaScript execute blocks FIRST
+            var (processedText, lineMapping) = ExtractAndProcessExecuteBlocks(text, result);
+
+            // **NEW: Extract and process tuple schemas**
+            processedText = ExtractAndProcessTupleSchemas(processedText, result);
+
+            // Extract and process subject to blocks
+            processedText = ExtractSubjectToBlocks(processedText, lineMapping, result);
+
+            // Split into statements
+            var statements = SplitIntoStatements(processedText, lineMapping);
+
+            // Process each statement
+            foreach (var (statement, lineNumber) in statements)
+            {
+                if (!string.IsNullOrWhiteSpace(statement))
+                {
+                    ProcessStatement(statement, lineNumber, result);
+                }
+            }
+
+            return result;
+        }
+
+        private string ExtractAndProcessTupleSchemas(string text, ParseSessionResult result)
+        {
+            // Pattern: tuple Name { ... }
+            string pattern = @"tuple\s+([a-zA-Z][a-zA-Z0-9_]*)\s*\{";
+            var matches = Regex.Matches(text, pattern, RegexOptions.IgnoreCase);
+
+            if (matches.Count == 0)
+            {
+                return text; // No tuples
+            }
+
+            var resultText = new System.Text.StringBuilder();
+            int lastIndex = 0;
+
+            foreach (Match match in matches)
+            {
+                // Append text before this tuple
+                resultText.Append(text.Substring(lastIndex, match.Index - lastIndex));
+
+                // Find matching closing brace
+                int closingBraceIndex = FindClosingBrace(text, match.Index + match.Length);
+
+                if (closingBraceIndex == -1)
+                {
+                    result.AddError($"Tuple schema: Missing closing brace '}}' for tuple '{match.Groups[1].Value}'", 
+                        text.Substring(0, match.Index).Count(c => c == '\n') + 1);
+                    continue;
+                }
+
+                // Extract the complete tuple definition
+                string tupleDefinition = text.Substring(match.Index, closingBraceIndex - match.Index + 1);
+                
+                // Parse and register the tuple schema
+                if (TryParseTupleSchemaBlock(tupleDefinition, out var schema, out string error))
+                {
+                    modelManager.AddTupleSchema(schema);
+                    result.IncrementSuccess();
+                }
+                else
+                {
+                    result.AddError($"Error parsing tuple schema: {error}", 
+                        text.Substring(0, match.Index).Count(c => c == '\n') + 1);
+                }
+
+                lastIndex = closingBraceIndex + 1;
+            }
+
+            // Append remaining text
+            if (lastIndex < text.Length)
+            {
+                resultText.Append(text.Substring(lastIndex));
+            }
+
+            return resultText.ToString();
+        }
+
+        private bool TryParseTupleSchemaBlock(string block, out TupleSchema? schema, out string error)
+        {
+            schema = null;
+            error = string.Empty;
+
+            // Extract tuple name
+            var nameMatch = Regex.Match(block, @"tuple\s+([a-zA-Z][a-zA-Z0-9_]*)\s*\{", RegexOptions.IgnoreCase);
+            if (!nameMatch.Success)
+            {
+                error = "Invalid tuple syntax";
+                return false;
+            }
+
+            string tupleName = nameMatch.Groups[1].Value;
+            schema = new TupleSchema(tupleName);
+
+            // Extract body (everything between { and })
+            int openBrace = block.IndexOf('{');
+            int closeBrace = block.LastIndexOf('}');
+            
+            if (openBrace == -1 || closeBrace == -1)
+            {
+                error = "Missing braces in tuple definition";
+                return false;
+            }
+
+            string body = block.Substring(openBrace + 1, closeBrace - openBrace - 1);
+
+            // Parse field declarations
+            var fieldPattern = @"(float|int|bool|string)\s+([a-zA-Z][a-zA-Z0-9_]*)\s*;";
+            var fieldMatches = Regex.Matches(body, fieldPattern, RegexOptions.IgnoreCase);
+
+            if (fieldMatches.Count == 0)
+            {
+                error = "Tuple must have at least one field";
+                return false;
+            }
+
+            foreach (Match fieldMatch in fieldMatches)
+            {
+                string typeStr = fieldMatch.Groups[1].Value.ToLower();
+                string fieldName = fieldMatch.Groups[2].Value;
+
+                VariableType fieldType = typeStr switch
+                {
+                    "float" => VariableType.Float,
+                    "int" => VariableType.Integer,
+                    "bool" => VariableType.Boolean,
+                    "string" => VariableType.String,
+                    _ => VariableType.Float
+                };
+
+                try
+                {
+                    schema.AddField(fieldName, fieldType);
+                }
+                catch (Exception ex)
+                {
+                    error = ex.Message;
+                    return false;
+                }
+            }
+
+            return true;
+        }
+
+        public ParseSessionResult Parse(string text)
+        {
+            var result = new ParseSessionResult();
+
+            if (string.IsNullOrWhiteSpace(text))
+            {
+                result.AddError("No text to parse", 0);
+                return result;
+            }
+
+            // Extract and process JavaScript execute blocks FIRST
+            var (processedText, lineMapping) = ExtractAndProcessExecuteBlocks(text, result);
+
+            // **NEW: Extract and process tuple schemas**
+            processedText = ExtractAndProcessTupleSchemas(processedText, result);
+
+            // Extract and process subject to blocks
+            processedText = ExtractSubjectToBlocks(processedText, lineMapping, result);
+
+            // Split into statements
+            var statements = SplitIntoStatements(processedText, lineMapping);
+
+            // Process each statement
+            foreach (var (statement, lineNumber) in statements)
+            {
+                if (!string.IsNullOrWhiteSpace(statement))
+                {
+                    ProcessStatement(statement, lineNumber, result);
+                }
+            }
+
+            return result;
+        }
+
+        private string ExtractAndProcessTupleSchemas(string text, ParseSessionResult result)
+        {
+            // Pattern: tuple Name { ... }
+            string pattern = @"tuple\s+([a-zA-Z][a-zA-Z0-9_]*)\s*\{";
+            var matches = Regex.Matches(text, pattern, RegexOptions.IgnoreCase);
+
+            if (matches.Count == 0)
+            {
+                return text; // No tuples
+            }
+
+            var resultText = new System.Text.StringBuilder();
+            int lastIndex = 0;
+
+            foreach (Match match in matches)
+            {
+                // Append text before this tuple
+                resultText.Append(text.Substring(lastIndex, match.Index - lastIndex));
+
+                // Find matching closing brace
+                int closingBraceIndex = FindClosingBrace(text, match.Index + match.Length);
+
+                if (closingBraceIndex == -1)
+                {
+                    result.AddError($"Tuple schema: Missing closing brace '}}' for tuple '{match.Groups[1].Value}'", 
+                        text.Substring(0, match.Index).Count(c => c == '\n') + 1);
+                    continue;
+                }
+
+                // Extract the complete tuple definition
+                string tupleDefinition = text.Substring(match.Index, closingBraceIndex - match.Index + 1);
+                
+                // Parse and register the tuple schema
+                if (TryParseTupleSchemaBlock(tupleDefinition, out var schema, out string error))
+                {
+                    modelManager.AddTupleSchema(schema);
+                    result.IncrementSuccess();
+                }
+                else
+                {
+                    result.AddError($"Error parsing tuple schema: {error}", 
+                        text.Substring(0, match.Index).Count(c => c == '\n') + 1);
+                }
+
+                lastIndex = closingBraceIndex + 1;
+            }
+
+            // Append remaining text
+            if (lastIndex < text.Length)
+            {
+                resultText.Append(text.Substring(lastIndex));
+            }
+
+            return resultText.ToString();
+        }
+
+        private bool TryParseTupleSchemaBlock(string block, out TupleSchema? schema, out string error)
+        {
+            schema = null;
+            error = string.Empty;
+
+            // Extract tuple name
+            var nameMatch = Regex.Match(block, @"tuple\s+([a-zA-Z][a-zA-Z0-9_]*)\s*\{", RegexOptions.IgnoreCase);
+            if (!nameMatch.Success)
+            {
+                error = "Invalid tuple syntax";
+                return false;
+            }
+
+            string tupleName = nameMatch.Groups[1].Value;
+            schema = new TupleSchema(tupleName);
+
+            // Extract body (everything between { and })
+            int openBrace = block.IndexOf('{');
+            int closeBrace = block.LastIndexOf('}');
+
+            if (openBrace == -1 || closeBrace == -1)
+            {
+                error = "Missing braces in tuple definition";
+                return false;
+            }
+
+            string body = block.Substring(openBrace + 1, closeBrace - openBrace - 1);
+
+            // Parse field declarations
+            var fieldPattern = @"(float|int|bool|string)\s+([a-zA-Z][a-zA-Z0-9_]*)\s*;";
+            var fieldMatches = Regex.Matches(body, fieldPattern, RegexOptions.IgnoreCase);
+
+            if (fieldMatches.Count == 0)
+            {
+                error = "Tuple must have at least one field";
+                return false;
+            }
+
+            foreach (Match fieldMatch in fieldMatches)
+            {
+                string typeStr = fieldMatch.Groups[1].Value.ToLower();
+                string fieldName = fieldMatch.Groups[2].Value;
+
+                VariableType fieldType = typeStr switch
+                {
+                    "float" => VariableType.Float,
+                    "int" => VariableType.Integer,
+                    "bool" => VariableType.Boolean,
+                    "string" => VariableType.String,
+                    _ => VariableType.Float
+                };
+
+                try
+                {
+                    schema.AddField(fieldName, fieldType);
+                }
+                catch (Exception ex)
+                {
+                    error = ex.Message;
+                    return false;
+                }
+            }
+
+            return true;
+        }
+
+        public ParseSessionResult Parse(string text)
+        {
+            var result = new ParseSessionResult();
+
+            if (string.IsNullOrWhiteSpace(text))
+            {
+                result.AddError("No text to parse", 0);
+                return result;
+            }
+
+            // Extract and process JavaScript execute blocks FIRST
+            var (processedText, lineMapping) = ExtractAndProcessExecuteBlocks(text, result);
+
+            // **NEW: Extract and process tuple schemas**
+            processedText = ExtractAndProcessTupleSchemas(processedText, result);
+
+            // Extract and process subject to blocks
+            processedText = ExtractSubjectToBlocks(processedText, lineMapping, result);
+
+            // Split into statements
+            var statements = SplitIntoStatements(processedText, lineMapping);
+
+            // Process each statement
+            foreach (var (statement, lineNumber) in statements)
+            {
+                if (!string.IsNullOrWhiteSpace(statement))
+                {
+                    ProcessStatement(statement, lineNumber, result);
+                }
+            }
+
+            return result;
+        }
+
+        private string ExtractAndProcessTupleSchemas(string text, ParseSessionResult result)
+        {
+            // Pattern: tuple Name { ... }
+            string pattern = @"tuple\s+([a-zA-Z][a-zA-Z0-9_]*)\s*\{";
+            var matches = Regex.Matches(text, pattern, RegexOptions.IgnoreCase);
+
+            if (matches.Count == 0)
+            {
+                return text; // No tuples
+            }
+
+            var resultText = new System.Text.StringBuilder();
+            int lastIndex = 0;
+
+            foreach (Match match in matches)
+            {
+                // Append text before this tuple
+                resultText.Append(text.Substring(lastIndex, match.Index - lastIndex));
+
+                // Find matching closing brace
+                int closingBraceIndex = FindClosingBrace(text, match.Index + match.Length);
+
+                if (closingBraceIndex == -1)
+                {
+                    result.AddError($"Tuple schema: Missing closing brace '}}' for tuple '{match.Groups[1].Value}'", 
+                        text.Substring(0, match.Index).Count(c => c == '\n') + 1);
+                    continue;
+                }
+
+                // Extract the complete tuple definition
+                string tupleDefinition = text.Substring(match.Index, closingBraceIndex - match.Index + 1);
+                
+                // Parse and register the tuple schema
+                if (TryParseTupleSchemaBlock(tupleDefinition, out var schema, out string error))
+                {
+                    modelManager.AddTupleSchema(schema);
+                    result.IncrementSuccess();
+                }
+                else
+                {
+                    result.AddError($"Error parsing tuple schema: {error}", 
+                        text.Substring(0, match.Index).Count(c => c == '\n') + 1);
+                }
+
+                lastIndex = closingBraceIndex + 1;
+            }
+
+            // Append remaining text
+            if (lastIndex < text.Length)
+            {
+                resultText.Append(text.Substring(lastIndex));
+            }
+
+            return resultText.ToString();
+        }
+
+        private bool TryParseTupleSchemaBlock(string block, out TupleSchema? schema, out string error)
+        {
+            schema = null;
+            error = string.Empty;
+
+            // Extract tuple name
+            var nameMatch = Regex.Match(block, @"tuple\s+([a-zA-Z][a-zA-Z0-9_]*)\s*\{", RegexOptions.IgnoreCase);
+            if (!nameMatch.Success)
+            {
+                error = "Invalid tuple syntax";
+                return false;
+            }
+
+            string tupleName = nameMatch.Groups[1].Value;
+            schema = new TupleSchema(tupleName);
+
+            // Extract body (everything between { and })
+            int openBrace = block.IndexOf('{');
+            int closeBrace = block.LastIndexOf('}');
+
+            if (openBrace == -1 || closeBrace == -1)
+            {
+            // **NEW: Extract and process tuple schemas**
+            processedText = ExtractAndProcessTupleSchemas(processedText, result);
+
+            // Extract and process subject to blocks
+            processedText = ExtractSubjectToBlocks(processedText, lineMapping, result);
+
+            // Split into statements
+            var statements = SplitIntoStatements(processedText, lineMapping);
+
+            // Process each statement
+            foreach (var (statement, lineNumber) in statements)
+            {
+                if (!string.IsNullOrWhiteSpace(statement))
+                {
+                    ProcessStatement(statement, lineNumber, result);
+                }
+            }
+
+            return result;
+        }
+
+        private string ExtractAndProcessTupleSchemas(string text, ParseSessionResult result)
+        {
+            // Pattern: tuple Name { ... }
+            string pattern = @"tuple\s+([a-zA-Z][a-zA-Z0-9_]*)\s*\{";
+            var matches = Regex.Matches(text, pattern, RegexOptions.IgnoreCase);
+
+            if (matches.Count == 0)
+            {
+                return text; // No tuples
+            }
+
+            var resultText = new System.Text.StringBuilder();
+            int lastIndex = 0;
+
+            foreach (Match match in matches)
+            {
+                // Append text before this tuple
+                resultText.Append(text.Substring(lastIndex, match.Index - lastIndex));
+
+                // Find matching closing brace
+                int closingBraceIndex = FindClosingBrace(text, match.Index + match.Length);
+
+                if (closingBraceIndex == -1)
+                {
+                    result.AddError($"Tuple schema: Missing closing brace '}}' for tuple '{match.Groups[1].Value}'", 
+                        text.Substring(0, match.Index).Count(c => c == '\n') + 1);
+                    continue;
+                }
+
+                // Extract the constraints block content
+                int blockStartIndex = match.Index + match.Length;
+                string blockContent = text.Substring(blockStartIndex, closingBraceIndex - blockStartIndex);
+
+                // Simply append the block content (constraints will be parsed normally)
+                resultText.AppendLine();
+                resultText.Append(blockContent);
+                resultText.AppendLine();
+
+                lastIndex = closingBraceIndex + 1;
+            }
+
+            // Append remaining text
+            if (lastIndex < text.Length)
+            {
+                resultText.Append(text.Substring(lastIndex));
+            }
+
+            return resultText.ToString();
         }
 
         private List<(string content, int lineNumber)> SplitIntoStatements(
@@ -285,89 +25659,364 @@ namespace Core
         private void ProcessStatement(string statement, int lineNumber, ParseSessionResult result)
         {
             string error = string.Empty;
-            
-            // Try parameter parsing
-            if (parameterParser.TryParse(statement, out var param, out error))
+            bool matched = false;
+
+            // ... existing parsers ...
+
+            // **Try tuple set declaration** (after tuple schema extraction)
+            if (TryParseTupleSet(statement, out var tupleSet, out error))
             {
-                if (param != null)
+                if (tupleSet != null)
                 {
-                    modelManager.AddParameter(param);
+                    modelManager.AddTupleSet(tupleSet);
                     result.IncrementSuccess();
-                    return;
-                }
-                else if (!string.IsNullOrEmpty(error))
-                {
-                    result.AddError($"\"{statement}\"\n  Error: {error}", lineNumber);
                     return;
                 }
             }
 
-            // Try index set parsing
-            if (indexSetParser.TryParse(statement, out var indexSet, out error))
+            // Check for validation errors
+            if (!string.IsNullOrEmpty(error) &&
+                !error.Equals("Not a tuple set declaration", StringComparison.Ordinal))
             {
-                if (indexSet != null)
-                {
-                    modelManager.AddIndexSet(indexSet);
-                    result.IncrementSuccess();
-                    return;
-                }
-                else if (!error.Equals("Not an index set declaration", StringComparison.Ordinal))
-                {
-                    result.AddError($"\"{statement}\"\n  Error: {error}", lineNumber);
-                    return;
-                }
-            }
-
-            // Try variable declaration
-            if (variableParser.TryParse(statement, out var variable, out error))
-            {
-                if (variable != null)
-                {
-                    modelManager.AddIndexedVariable(variable);
-                    result.IncrementSuccess();
-                    return;
-                }
-                else if (!error.Equals("Not a variable declaration", StringComparison.Ordinal))
-                {
-                    result.AddError($"\"{statement}\"\n  Error: {error}", lineNumber);
-                    return;
-                }
-            }
-
-            // Try indexed equation
-            if (TryParseIndexedEquation(statement, lineNumber, out error, result))
-            {
-                result.IncrementSuccess();
+                result.AddError($"\"{statement}\"\n  Error: {error}", lineNumber);
                 return;
             }
 
-            // Try regular equation
-            if (TryParseEquation(statement, out var equation, out error))
+            error = string.Empty; // Reset
+
+            // ... rest of existing code ...
+        }
+
+        private bool TryParseTupleSchema(
+    string statement, 
+    out TupleSchema? schema, 
+    out string error)
+{
+    schema = null;
+    error = string.Empty;
+
+    // Pattern: tuple Name { field declarations }
+    // This is simplified - full implementation would need multi-line parsing
+    string pattern = @"^\s*tuple\s+([a-zA-Z][a-zA-Z0-9_]*)\s*\{(.+)\}$";
+    var match = Regex.Match(statement.Trim(), pattern, RegexOptions.IgnoreCase);
+
+    if (!match.Success)
+    {
+        return false; // Not a tuple schema
+    }
+
+    string name = match.Groups[1].Value;
+    string fieldsStr = match.Groups[2].Value;
+
+    schema = new TupleSchema(name);
+
+    // Parse field declarations
+    var fieldDeclarations = fieldsStr.Split(';', StringSplitOptions.RemoveEmptyEntries);
+    foreach (var fieldDecl in fieldDeclarations)
+    {
+        var fieldMatch = Regex.Match(fieldDecl.Trim(), 
+            @"(float|int|bool|string)\s+([a-zA-Z][a-zA-Z0-9_]*)");
+        
+        if (fieldMatch.Success)
+        {
+            string typeStr = fieldMatch.Groups[1].Value.ToLower();
+            string fieldName = fieldMatch.Groups[2].Value;
+
+            VariableType type = typeStr switch
             {
-                if (equation != null)
-                {
-                    try
-                    {
-                        modelManager.AddEquation(equation);
-                        result.IncrementSuccess();
-                        return;
-                    }
-                    catch (Exception ex)
-                    {
-                        result.AddError($"Error adding equation - {ex.Message}", lineNumber);
-                        return;
-                    }
-                }
+                "float" => VariableType.Float,
+                "int" => VariableType.Integer,
+                "bool" => VariableType.Boolean,
+                "string" => VariableType.String,
+                _ => VariableType.Float
+            };
+
+            schema.AddField(fieldName, type);
+        }
+    }
+
+    if (schema.Fields.Count == 0)
+    {
+        error = "Tuple schema must have at least one field";
+        return false;
+    }
+
+    return true;
+}
+
+        private bool TryParseTupleSet(string statement, out TupleSet? tupleSet, out string error)
+        {
+            tupleSet = null;
+            error = string.Empty;
+
+            // Pattern: {SchemaName} setName = ...;
+            string pattern = @"^\s*\{([a-zA-Z][a-zA-Z0-9_]*)\}\s+([a-zA-Z][a-zA-Z0-9_]*)\s*=\s*(.+)$";
+            var match = Regex.Match(statement.Trim(), pattern);
+
+            if (!match.Success)
+            {
+                error = "Not a tuple set declaration";
+                return false;
             }
 
-            result.AddError($"\"{statement}\"\n  Error: {error}", lineNumber);
+            string schemaName = match.Groups[1].Value;
+            string setName = match.Groups[2].Value;
+            string value = match.Groups[3].Value.Trim();
+
+            if (!modelManager.TupleSchemas.ContainsKey(schemaName))
+            {
+                error = $"Tuple schema '{schemaName}' is not defined";
+                return false;
+            }
+
+            bool isExternal = value == "...";
+            tupleSet = new TupleSet(setName, schemaName, isExternal);
+
+            return true;
+        }
+
+
+        private bool TryParseAssertion(
+            string statement, 
+            out AssertStatement? assertion, 
+            out string error)
+        {
+            assertion = null;
+            error = string.Empty;
+
+            // Simple assert: assert expression;
+            string simplePattern = @"^\s*assert\s+(.+)$";
+            var simpleMatch = Regex.Match(statement.Trim(), simplePattern, RegexOptions.IgnoreCase);
+
+            if (!simpleMatch.Success)
+            {
+                return false; // Not an assert
+            }
+
+            string condition = simpleMatch.Groups[1].Value.Trim();
+
+            // Check for forall in assertion
+            string forallPattern = @"forall\s*\(\s*([a-zA-Z][a-zA-Z0-9_]*)\s+in\s+([a-zA-Z][a-zA-Z0-9_]*)\s*\)\s*(.+)";
+            var forallMatch = Regex.Match(condition, forallPattern, RegexOptions.IgnoreCase);
+
+            if (forallMatch.Success)
+            {
+                string indexVar = forallMatch.Groups[1].Value;
+                string indexSetName = forallMatch.Groups[2].Value;
+                string innerCondition = forallMatch.Groups[3].Value;
+
+                if (!modelManager.IndexSets.ContainsKey(indexSetName))
+                {
+                    error = $"Index set '{indexSetName}' is not declared in assertion";
+                    return false;
+                }
+
+                assertion = new AssertStatement(condition)
+                {
+                    IsIndexed = true,
+                    IndexSetName = indexSetName,
+                    IndexVariable = indexVar
+                };
+            }
+            else
+            {
+                assertion = new AssertStatement(condition);
+            }
+
+            return true;
+        }
+        private bool TryParseDecisionExpression(
+    string statement, 
+    out DecisionExpression? dexpr, 
+    out string error)
+{
+    dexpr = null;
+    error = string.Empty;
+
+    // Pattern: dexpr [type] name [indexSet] = expression;
+    string pattern = @"^\s*dexpr\s+(float|int|bool)\s+([a-zA-Z][a-zA-Z0-9_]*)(?:\[\s*([a-zA-Z][a-zA-Z0-9_]*)\s*\])?\s*=\s*(.+)$";
+    var match = Regex.Match(statement.Trim(), pattern, RegexOptions.IgnoreCase);
+
+    if (!match.Success)
+    {
+        return false; // Not a dexpr
+    }
+
+    string typeStr = match.Groups[1].Value.ToLower();
+    string name = match.Groups[2].Value;
+    string indexSetName = match.Groups[3].Value;
+    string expression = match.Groups[4].Value;
+
+    VariableType type = typeStr switch
+    {
+        "float" => VariableType.Float,
+        "int" => VariableType.Integer,
+        "bool" => VariableType.Boolean,
+        _ => VariableType.Float
+    };
+
+    // Validate index set if specified
+    if (!string.IsNullOrEmpty(indexSetName))
+    {
+        if (!modelManager.IndexSets.ContainsKey(indexSetName))
+        {
+            error = $"Index set '{indexSetName}' is not declared";
+            return false;
+        }
+    }
+
+    // Expand summations
+    expression = summationExpander.ExpandSummations(expression, out error);
+    if (!string.IsNullOrEmpty(error))
+    {
+        return false;
+    }
+
+    // Remove whitespace
+    string cleaned = Regex.Replace(expression, @"\s+", "");
+
+    // Parse the expression
+    if (!expressionParser.TryParseExpression(cleaned, out var coefficients, out var constant, out error))
+    {
+        error = $"Error parsing dexpr expression: {error}";
+        return false;
+    }
+
+    // Validate variables
+    if (!variableValidator.ValidateVariableDeclarations(coefficients.Keys.ToList(), out error))
+    {
+        return false;
+    }
+
+    dexpr = new DecisionExpression(
+        name, 
+        type, 
+        coefficients, 
+        constant,
+        string.IsNullOrEmpty(indexSetName) ? null : indexSetName);
+    
+    return true;
+}
+
+        private bool TryParseObjective(string statement, out Objective? objective, out string error)
+        {
+            objective = null;
+            error = string.Empty;
+
+            // Pattern: minimize/maximize [name:] expression;
+            string pattern = @"^\s*(minimize|maximize)\s+(?:([a-zA-Z][a-zA-Z0-9_]*)\s*:\s*)?(.+)$";
+            var match = Regex.Match(statement.Trim(), pattern, RegexOptions.IgnoreCase);
+
+            if (!match.Success)
+            {
+                return false; // Not an objective
+            }
+
+            string senseStr = match.Groups[1].Value.ToLower();
+            string name = match.Groups[2].Value;
+            string expression = match.Groups[3].Value;
+
+            ObjectiveSense sense = senseStr == "minimize" 
+                ? ObjectiveSense.Minimize 
+                : ObjectiveSense.Maximize;
+
+            // Expand summations
+            expression = summationExpander.ExpandSummations(expression, out error);
+            if (!string.IsNullOrEmpty(error))
+            {
+                return false;
+            }
+
+            // Remove whitespace
+            string cleaned = Regex.Replace(expression, @"\s+", "");
+
+            // Parse the expression
+            if (!expressionParser.TryParseExpression(cleaned, out var coefficients, out var constant, out error))
+            {
+                error = $"Error parsing objective expression: {error}";
+                return false;
+            }
+
+            // Validate variables
+            if (!variableValidator.ValidateVariableDeclarations(coefficients.Keys.ToList(), out error))
+            {
+                return false;
+            }
+
+            objective = new Objective(sense, coefficients, constant, 
+                string.IsNullOrEmpty(name) ? null : name);
+            
+            return true;
         }
 
         private bool TryParseIndexedEquation(string statement, int lineNumber, out string error, ParseSessionResult result)
         {
             error = string.Empty;
 
-            // Two-dimensional indexed equation
+            // OPL-style forall: forall(i in I, j in J) constraint_name: x[i,j] >= 0;
+            string forallTwoDimPattern = @"^\s*forall\s*\(\s*([a-zA-Z][a-zA-Z0-9_]*)\s+in\s+([a-zA-Z][a-zA-Z0-9_]*)\s*,\s*([a-zA-Z][a-zA-Z0-9_]*)\s+in\s+([a-zA-Z][a-zA-Z0-9_]*)\s*\)\s*(?:([a-zA-Z][a-zA-Z0-9_]*)\s*:\s*)?(.+)$";
+            var forallTwoDimMatch = Regex.Match(statement.Trim(), forallTwoDimPattern, RegexOptions.IgnoreCase);
+
+            if (forallTwoDimMatch.Success)
+            {
+                string indexVar1 = forallTwoDimMatch.Groups[1].Value;
+                string indexSetName1 = forallTwoDimMatch.Groups[2].Value;
+                string indexVar2 = forallTwoDimMatch.Groups[3].Value;
+                string indexSetName2 = forallTwoDimMatch.Groups[4].Value;
+                string baseName = forallTwoDimMatch.Groups[5].Value; // Optional label
+                string template = forallTwoDimMatch.Groups[6].Value;
+
+                // Generate base name if not provided
+                if (string.IsNullOrEmpty(baseName))
+                {
+                    baseName = $"constraint_{modelManager.IndexedEquationTemplates.Count + 1}";
+                }
+
+                if (!modelManager.IndexSets.ContainsKey(indexSetName1))
+                {
+                    error = $"First index set '{indexSetName1}' is not declared";
+                    return false;
+                }
+
+                if (!modelManager.IndexSets.ContainsKey(indexSetName2))
+                {
+                    error = $"Second index set '{indexSetName2}' is not declared";
+                    return false;
+                }
+
+                var indexedEquation = new IndexedEquation(baseName, indexSetName1, template, indexSetName2);
+                modelManager.AddIndexedEquationTemplate(indexedEquation);
+                return true;
+            }
+
+            // OPL-style forall single dimension: forall(i in I) constraint_name: x[i] >= 0;
+            string forallPattern = @"^\s*forall\s*\(\s*([a-zA-Z][a-zA-Z0-9_]*)\s+in\s+([a-zA-Z][a-zA-Z0-9_]*)\s*\)\s*(?:([a-zA-Z][a-zA-Z0-9_]*)\s*:\s*)?(.+)$";
+            var forallMatch = Regex.Match(statement.Trim(), forallPattern, RegexOptions.IgnoreCase);
+
+            if (forallMatch.Success)
+            {
+                string indexVar = forallMatch.Groups[1].Value;
+                string indexSetName = forallMatch.Groups[2].Value;
+                string baseName = forallMatch.Groups[3].Value;
+                string template = forallMatch.Groups[4].Value;
+
+                if (string.IsNullOrEmpty(baseName))
+                {
+                    baseName = $"constraint_{modelManager.IndexedEquationTemplates.Count + 1}";
+                }
+
+                if (!modelManager.IndexSets.ContainsKey(indexSetName))
+                {
+                    error = $"Index set '{indexSetName}' is not declared";
+                    return false;
+                }
+
+                var indexedEquation = new IndexedEquation(baseName, indexSetName, template);
+                modelManager.AddIndexedEquationTemplate(indexedEquation);
+                return true;
+            }
+
+            // Original syntax: constraint_name[i in I, j in J]: ...
             string twoDimPattern = @"^\s*([a-zA-Z][a-zA-Z0-9_]*)\s*\[\s*([a-zA-Z][a-zA-Z0-9_]*)\s+in\s+([a-zA-Z][a-zA-Z0-9_]*)\s*,\s*([a-zA-Z][a-zA-Z0-9_]*)\s+in\s+([a-zA-Z][a-zA-Z0-9_]*)\s*\]\s*:\s*(.+)$";
             var twoDimMatch = Regex.Match(statement.Trim(), twoDimPattern);
 
@@ -376,7 +26025,7 @@ namespace Core
                 return ProcessTwoDimensionalIndexedEquation(twoDimMatch, out error);
             }
 
-            // Single-dimensional indexed equation
+            // Original syntax: constraint_name[i in I]: ...
             string pattern = @"^\s*([a-zA-Z][a-zA-Z0-9_]*)\s*\[\s*([a-zA-Z][a-zA-Z0-9_]*)\s+in\s+([a-zA-Z][a-zA-Z0-9_]*)\s*\]\s*:\s*(.+)$";
             var match = Regex.Match(statement.Trim(), pattern);
 

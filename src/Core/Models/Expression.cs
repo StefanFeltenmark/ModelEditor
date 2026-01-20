@@ -335,6 +335,67 @@ namespace Core.Models
         }
     }
 
+    /// <summary>
+    /// Represents accessing a field from a tuple instance
+    /// Example: productData[i].cost
+    /// </summary>
+    public class TupleFieldAccessExpression : Expression
+    {
+        public string TupleSetName { get; }
+        public int Index { get; }
+        public string FieldName { get; }
+
+        public TupleFieldAccessExpression(string tupleSetName, int index, string fieldName)
+        {
+            TupleSetName = tupleSetName;
+            Index = index;
+            FieldName = fieldName;
+        }
+
+        public override double Evaluate(ModelManager modelManager)
+        {
+            if (!modelManager.TupleSets.TryGetValue(TupleSetName, out var tupleSet))
+            {
+                throw new InvalidOperationException($"Tuple set '{TupleSetName}' not found");
+            }
+
+            if (Index < 1 || Index > tupleSet.Instances.Count)
+            {
+                throw new InvalidOperationException($"Tuple index {Index} out of range for set '{TupleSetName}'");
+            }
+
+            var instance = tupleSet.Instances[Index - 1]; // 1-based indexing
+            var value = instance.GetValue(FieldName);
+
+            if (value == null)
+            {
+                throw new InvalidOperationException($"Field '{FieldName}' not found in tuple");
+            }
+
+            return Convert.ToDouble(value);
+        }
+
+        public override string ToString() => $"{TupleSetName}[{Index}].{FieldName}";
+
+        public override bool IsConstant => true; // Tuple data is constant
+
+        public override Expression Simplify(ModelManager? modelManager = null)
+        {
+            if (modelManager != null)
+            {
+                try
+                {
+                    return new ConstantExpression(Evaluate(modelManager));
+                }
+                catch
+                {
+                    // If evaluation fails, return as-is
+                }
+            }
+            return this;
+        }
+    }
+
     public enum BinaryOperator
     {
         Add,

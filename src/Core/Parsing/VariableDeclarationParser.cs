@@ -20,141 +20,172 @@ namespace Core.Parsing
             variable = null;
             error = string.Empty;
 
-            // Try two-dimensional indexed variable
-            if (TryParseTwoDimensionalVariable(statement, out variable, out error))
+            // OPL-style: dvar float+ x[I] in 0..100;
+            // Your style: var float x[I] in 0..100;
+            
+            // Pattern for 2D variables with OPL syntax
+            string twoDimPattern = @"^\s*(dvar|var)\s+(?:(float|int|bool)([+]?)\s+)?([a-zA-Z][a-zA-Z0-9_]*)\s*\[\s*([a-zA-Z][a-zA-Z0-9_]*)\s*,\s*([a-zA-Z][a-zA-Z0-9_]*)\s*\](?:\s+in\s+(.+))?$";
+            var twoDimMatch = Regex.Match(statement.Trim(), twoDimPattern);
+
+            if (twoDimMatch.Success)
             {
-                return variable != null || !error.Equals("Not a variable declaration");
-            }
+                string keyword = twoDimMatch.Groups[1].Value; // "dvar" or "var"
+                string typeStr = twoDimMatch.Groups[2].Value;
+                string domainQualifier = twoDimMatch.Groups[3].Value; // "+" for non-negative
+                string varName = twoDimMatch.Groups[4].Value;
+                string indexSetName1 = twoDimMatch.Groups[5].Value;
+                string indexSetName2 = twoDimMatch.Groups[6].Value;
+                string boundsStr = twoDimMatch.Groups[7].Value;
 
-            // Try single-dimensional indexed variable
-            if (TryParseSingleDimensionalVariable(statement, out variable, out error))
-            {
-                return variable != null || !error.Equals("Not a variable declaration");
-            }
-
-            // Try scalar variable
-            return TryParseScalarVariable(statement, out variable, out error);
-        }
-
-        private bool TryParseTwoDimensionalVariable(string statement, out IndexedVariable? variable, out string error)
-        {
-            variable = null;
-            error = string.Empty;
-
-            string pattern = @"^\s*var\s+(?:(float|int|bool)\s+)?([a-zA-Z][a-zA-Z0-9_]*)\s*\[\s*([a-zA-Z][a-zA-Z0-9_]*)\s*,\s*([a-zA-Z][a-zA-Z0-9_]*)\s*\](?:\s+in\s+(.+))?$";
-            var match = Regex.Match(statement.Trim(), pattern);
-
-            if (!match.Success)
-            {
-                error = "Not a variable declaration";
-                return false;
-            }
-
-            string typeStr = match.Groups[1].Value;
-            string varName = match.Groups[2].Value;
-            string indexSetName1 = match.Groups[3].Value;
-            string indexSetName2 = match.Groups[4].Value;
-            string boundsStr = match.Groups[5].Value;
-
-            VariableType varType = ParseVariableType(typeStr);
-
-            if (!modelManager.IndexSets.ContainsKey(indexSetName1))
-            {
-                error = $"First index set '{indexSetName1}' is not declared";
-                return false;
-            }
-
-            if (!modelManager.IndexSets.ContainsKey(indexSetName2))
-            {
-                error = $"Second index set '{indexSetName2}' is not declared";
-                return false;
-            }
-
-            double? lower = null, upper = null;
-            if (!string.IsNullOrEmpty(boundsStr))
-            {
-                if (!TryParseBounds(boundsStr, out lower, out upper, out error))
+                VariableType varType = VariableType.Float;
+                if (!string.IsNullOrEmpty(typeStr))
                 {
+                    varType = typeStr.ToLower() switch
+                    {
+                        "float" => VariableType.Float,
+                        "int" => VariableType.Integer,
+                        "bool" => VariableType.Boolean,
+                        _ => VariableType.Float
+                    };
+                }
+
+                // Validate index sets
+                if (!modelManager.IndexSets.ContainsKey(indexSetName1))
+                {
+                    error = $"First index set '{indexSetName1}' is not declared";
                     return false;
                 }
-            }
 
-            variable = new IndexedVariable(varName, indexSetName1, varType, indexSetName2, lower, upper);
-            return true;
-        }
-
-        private bool TryParseSingleDimensionalVariable(string statement, out IndexedVariable? variable, out string error)
-        {
-            variable = null;
-            error = string.Empty;
-
-            string pattern = @"^\s*var\s+(?:(float|int|bool)\s+)?([a-zA-Z][a-zA-Z0-9_]*)\s*\[\s*([a-zA-Z][a-zA-Z0-9_]*)\s*\](?:\s+in\s+(.+))?$";
-            var match = Regex.Match(statement.Trim(), pattern);
-
-            if (!match.Success)
-            {
-                error = "Not a variable declaration";
-                return false;
-            }
-
-            string typeStr = match.Groups[1].Value;
-            string varName = match.Groups[2].Value;
-            string indexSetName = match.Groups[3].Value;
-            string boundsStr = match.Groups[4].Value;
-
-            VariableType varType = ParseVariableType(typeStr);
-
-            if (!modelManager.IndexSets.ContainsKey(indexSetName))
-            {
-                error = $"Index set '{indexSetName}' is not declared";
-                return true; // ← Changed from false to true - it IS a variable declaration, just invalid
-            }
-
-            double? lower = null, upper = null;
-            if (!string.IsNullOrEmpty(boundsStr))
-            {
-                if (!TryParseBounds(boundsStr, out lower, out upper, out error))
+                if (!modelManager.IndexSets.ContainsKey(indexSetName2))
                 {
-                    return true; // ← Also return true here - it's a variable declaration with invalid bounds
-                }
-            }
-
-            variable = new IndexedVariable(varName, indexSetName, varType, null, lower, upper);
-            return true;
-        }
-
-        private bool TryParseScalarVariable(string statement, out IndexedVariable? variable, out string error)
-        {
-            variable = null;
-            error = string.Empty;
-
-            string pattern = @"^\s*var\s+(?:(float|int|bool)\s+)?([a-zA-Z][a-zA-Z0-9_]*)(?:\s+in\s+(.+))?$";
-            var match = Regex.Match(statement.Trim(), pattern);
-
-            if (!match.Success)
-            {
-                error = "Not a variable declaration";
-                return false;
-            }
-
-            string typeStr = match.Groups[1].Value;
-            string varName = match.Groups[2].Value;
-            string boundsStr = match.Groups[3].Value;
-
-            VariableType varType = ParseVariableType(typeStr);
-
-            double? lower = null, upper = null;
-            if (!string.IsNullOrEmpty(boundsStr))
-            {
-                if (!TryParseBounds(boundsStr, out lower, out upper, out error))
-                {
+                    error = $"Second index set '{indexSetName2}' is not declared";
                     return false;
                 }
+
+                double? lower = null, upper = null;
+                
+                // Handle domain qualifier (e.g., float+ means >= 0)
+                if (domainQualifier == "+")
+                {
+                    lower = 0;
+                }
+
+                // Parse explicit bounds if provided
+                if (!string.IsNullOrEmpty(boundsStr))
+                {
+                    if (!TryParseBounds(boundsStr, out var explicitLower, out var explicitUpper, out error))
+                    {
+                        return false;
+                    }
+                    
+                    // Explicit bounds override domain qualifier
+                    lower = explicitLower;
+                    upper = explicitUpper;
+                }
+
+                variable = new IndexedVariable(varName, indexSetName1, varType, indexSetName2, lower, upper);
+                return true;
             }
 
-            // Scalar variables use empty string for IndexSetName
-            variable = new IndexedVariable(varName, string.Empty, varType, null, lower, upper);
-            return true;
+            // Single-dimensional pattern with OPL support
+            string indexedPattern = @"^\s*(dvar|var)\s+(?:(float|int|bool)([+]?)\s+)?([a-zA-Z][a-zA-Z0-9_]*)\s*\[\s*([a-zA-Z][a-zA-Z0-9_]*)\s*\](?:\s+in\s+(.+))?$";
+            var indexedMatch = Regex.Match(statement.Trim(), indexedPattern);
+
+            if (indexedMatch.Success)
+            {
+                string keyword = indexedMatch.Groups[1].Value;
+                string typeStr = indexedMatch.Groups[2].Value;
+                string domainQualifier = indexedMatch.Groups[3].Value;
+                string varName = indexedMatch.Groups[4].Value;
+                string indexSetName = indexedMatch.Groups[5].Value;
+                string boundsStr = indexedMatch.Groups[6].Value;
+
+                VariableType varType = VariableType.Float;
+                if (!string.IsNullOrEmpty(typeStr))
+                {
+                    varType = typeStr.ToLower() switch
+                    {
+                        "float" => VariableType.Float,
+                        "int" => VariableType.Integer,
+                        "bool" => VariableType.Boolean,
+                        _ => VariableType.Float
+                    };
+                }
+
+                if (!modelManager.IndexSets.ContainsKey(indexSetName))
+                {
+                    error = $"Index set '{indexSetName}' is not declared";
+                    return false;
+                }
+
+                double? lower = null, upper = null;
+                
+                if (domainQualifier == "+")
+                {
+                    lower = 0;
+                }
+
+                if (!string.IsNullOrEmpty(boundsStr))
+                {
+                    if (!TryParseBounds(boundsStr, out var explicitLower, out var explicitUpper, out error))
+                    {
+                        return false;
+                    }
+                    lower = explicitLower;
+                    upper = explicitUpper;
+                }
+
+                variable = new IndexedVariable(varName, indexSetName, varType, null, lower, upper);
+                return true;
+            }
+
+            // Scalar variable with OPL support
+            string scalarPattern = @"^\s*(dvar|var)\s+(?:(float|int|bool)([+]?)\s+)?([a-zA-Z][a-zA-Z0-9_]*)(?:\s+in\s+(.+))?$";
+            var scalarMatch = Regex.Match(statement.Trim(), scalarPattern);
+
+            if (scalarMatch.Success)
+            {
+                string keyword = scalarMatch.Groups[1].Value;
+                string typeStr = scalarMatch.Groups[2].Value;
+                string domainQualifier = scalarMatch.Groups[3].Value;
+                string varName = scalarMatch.Groups[4].Value;
+                string boundsStr = scalarMatch.Groups[5].Value;
+
+                VariableType varType = VariableType.Float;
+                if (!string.IsNullOrEmpty(typeStr))
+                {
+                    varType = typeStr.ToLower() switch
+                    {
+                        "float" => VariableType.Float,
+                        "int" => VariableType.Integer,
+                        "bool" => VariableType.Boolean,
+                        _ => VariableType.Float
+                    };
+                }
+
+                double? lower = null, upper = null;
+                
+                if (domainQualifier == "+")
+                {
+                    lower = 0;
+                }
+
+                if (!string.IsNullOrEmpty(boundsStr))
+                {
+                    if (!TryParseBounds(boundsStr, out var explicitLower, out var explicitUpper, out error))
+                    {
+                        return false;
+                    }
+                    lower = explicitLower;
+                    upper = explicitUpper;
+                }
+
+                variable = new IndexedVariable(varName, string.Empty, varType, null, lower, upper);
+                return true;
+            }
+
+            error = "Not a variable declaration";
+            return false;
         }
 
         private VariableType ParseVariableType(string typeStr)

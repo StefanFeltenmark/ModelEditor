@@ -32,7 +32,12 @@ namespace Core.Parsing
             }
 
             // Try scalar parameter: type name = value
-            return TryParseScalarParameter(statement, out parameter, out error);
+            if (TryParseScalarParameter(statement, out parameter, out error))
+            {
+                return parameter != null || !string.IsNullOrEmpty(error);
+            }
+            error = "Invalid parameter declaration syntax";
+            return false;
         }
 
         private bool TryParseTwoDimensionalParameter(string statement, out Parameter? parameter, out string error)

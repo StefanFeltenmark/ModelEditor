@@ -14,6 +14,19 @@ namespace Core
         public Dictionary<string, LinearEquation> LabeledEquations { get; } = new Dictionary<string, LinearEquation>();
         public List<LinearEquation> Equations { get; } = new List<LinearEquation>();
 
+        public Objective? Objective { get; set; }
+
+        public Dictionary<string, DecisionExpression> DecisionExpressions { get; } = 
+            new Dictionary<string, DecisionExpression>();
+
+        public List<AssertStatement> Assertions { get; } = new List<AssertStatement>();
+
+        public Dictionary<string, TupleSchema> TupleSchemas { get; } = 
+            new Dictionary<string, TupleSchema>();
+    
+        public Dictionary<string, TupleSet> TupleSets { get; } = 
+            new Dictionary<string, TupleSet>();
+
         public void AddParameter(Parameter parameter)
         {
             if (Parameters.ContainsKey(parameter.Name))
@@ -63,6 +76,37 @@ namespace Core
             }
         }
 
+        public void SetObjective(Objective objective)
+        {
+            Objective = objective;
+        }
+
+        public void AddDecisionExpression(DecisionExpression dexpr)
+        {
+            if (DecisionExpressions.ContainsKey(dexpr.Name))
+            {
+                throw new InvalidOperationException($"Decision expression '{dexpr.Name}' is already defined");
+            }
+            
+            DecisionExpressions[dexpr.Name] = dexpr;
+        }
+
+        public void AddAssertion(AssertStatement assertion)
+        {
+            Assertions.Add(assertion);
+        }
+
+        public void ValidateAssertions()
+        {
+            foreach (var assertion in Assertions)
+            {
+                if (!assertion.Validate(this, out string error))
+                {
+                    throw new InvalidOperationException($"Assertion failed: {error}");
+                }
+            }
+        }
+
         public void Clear()
         {
             Parameters.Clear();
@@ -71,6 +115,13 @@ namespace Core
             IndexedEquationTemplates.Clear();
             LabeledEquations.Clear();
             Equations.Clear();
+            Objective = null; 
+            DecisionExpressions.Clear();
+            Assertions.Clear(); 
+            TupleSchemas.Clear();
+            TupleSets.Clear();
+            TupleSchemas.Clear();
+            TupleSets.Clear();
         }
 
         public string GenerateParseResultsReport()
@@ -264,8 +315,6 @@ namespace Core
                 .FirstOrDefault(eq => eq.BaseName == baseName && eq.Index == index1 && eq.SecondIndex == index2);
         }
 
-      
-
         public double GetIndexedVariableCoefficient(LinearEquation equation, string variableName, int index)
         {
             // For indexed variables, the actual variable name is baseName + index (e.g., "x1", "x2")
@@ -282,6 +331,30 @@ namespace Core
                 var (coefficients, _) = equation.Evaluate(this);
                 return coefficients.TryGetValue(fullVariableName, out double value) ? value : 0.0;
             }
+        }
+
+        public void AddTupleSchema(TupleSchema schema)
+        {
+            if (TupleSchemas.ContainsKey(schema.Name))
+            {
+                throw new InvalidOperationException($"Tuple schema '{schema.Name}' is already defined");
+            }
+            TupleSchemas[schema.Name] = schema;
+        }
+    
+        public void AddTupleSet(TupleSet tupleSet)
+        {
+            if (!TupleSchemas.ContainsKey(tupleSet.SchemaName))
+            {
+                throw new InvalidOperationException($"Tuple schema '{tupleSet.SchemaName}' is not defined");
+            }
+        
+            if (TupleSets.ContainsKey(tupleSet.Name))
+            {
+                throw new InvalidOperationException($"Tuple set '{tupleSet.Name}' is already defined");
+            }
+        
+            TupleSets[tupleSet.Name] = tupleSet;
         }
     }
 }
