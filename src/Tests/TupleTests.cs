@@ -133,9 +133,7 @@ namespace Tests
                 
                 dvar float+ production[Products];
                 
-                maximize profit:
-                    sum(p in Products) 
-                        (productData[p].price - productData[p].cost) * production[p];
+                maximize sum(p in Products) (productData[p].price - productData[p].cost) * production[p];
                 
                 forall(p in Products)
                     minProduction:

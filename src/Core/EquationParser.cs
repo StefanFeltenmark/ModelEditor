@@ -38,6 +38,11 @@ namespace Core
             variableValidator = new VariableValidator(manager);
         }
 
+        public ModelManager GetModelManager()
+        {
+            return modelManager;
+        }
+
         public ParseSessionResult Parse(string text)
         {
             var result = new ParseSessionResult();
@@ -50,6 +55,12 @@ namespace Core
 
             // Extract and process JavaScript execute blocks FIRST
             var (processedText, lineMapping) = ExtractAndProcessExecuteBlocks(text, result);
+
+            // **NEW: Extract and process tuple schemas**
+            processedText = ExtractAndProcessTupleSchemas(processedText, result);
+
+            // Extract and process subject to blocks
+            processedText = ExtractSubjectToBlocks(processedText, lineMapping, result);
 
             // Split into statements
             var statements = SplitIntoStatements(processedText, lineMapping);
@@ -64,6 +75,128 @@ namespace Core
             }
 
             return result;
+        }
+
+        private string ExtractAndProcessTupleSchemas(string text, ParseSessionResult result)
+        {
+            // Pattern: tuple Name { ... }
+            string pattern = @"tuple\s+([a-zA-Z][a-zA-Z0-9_]*)\s*\{";
+            var matches = Regex.Matches(text, pattern, RegexOptions.IgnoreCase);
+
+            if (matches.Count == 0)
+            {
+                return text; // No tuples
+            }
+
+            var resultText = new System.Text.StringBuilder();
+            int lastIndex = 0;
+
+            foreach (Match match in matches)
+            {
+                // Append text before this tuple
+                resultText.Append(text.Substring(lastIndex, match.Index - lastIndex));
+
+                // Find matching closing brace
+                int closingBraceIndex = FindClosingBrace(text, match.Index + match.Length);
+
+                if (closingBraceIndex == -1)
+                {
+                    result.AddError($"Tuple schema: Missing closing brace '}}' for tuple '{match.Groups[1].Value}'", 
+                        text.Substring(0, match.Index).Count(c => c == '\n') + 1);
+                    continue;
+                }
+
+                // Extract the complete tuple definition
+                string tupleDefinition = text.Substring(match.Index, closingBraceIndex - match.Index + 1);
+                
+                // Parse and register the tuple schema
+                if (TryParseTupleSchemaBlock(tupleDefinition, out var schema, out string error))
+                {
+                    modelManager.AddTupleSchema(schema);
+                    result.IncrementSuccess();
+                }
+                else
+                {
+                    result.AddError($"Error parsing tuple schema: {error}", 
+                        text.Substring(0, match.Index).Count(c => c == '\n') + 1);
+                }
+
+                lastIndex = closingBraceIndex + 1;
+            }
+
+            // Append remaining text
+            if (lastIndex < text.Length)
+            {
+                resultText.Append(text.Substring(lastIndex));
+            }
+
+            return resultText.ToString();
+        }
+
+        private bool TryParseTupleSchemaBlock(string block, out TupleSchema? schema, out string error)
+        {
+            schema = null;
+            error = string.Empty;
+
+            // Extract tuple name
+            var nameMatch = Regex.Match(block, @"tuple\s+([a-zA-Z][a-zA-Z0-9_]*)\s*\{", RegexOptions.IgnoreCase);
+            if (!nameMatch.Success)
+            {
+                error = "Invalid tuple syntax";
+                return false;
+            }
+
+            string tupleName = nameMatch.Groups[1].Value;
+            schema = new TupleSchema(tupleName);
+
+            // Extract body (everything between { and })
+            int openBrace = block.IndexOf('{');
+            int closeBrace = block.LastIndexOf('}');
+            
+            if (openBrace == -1 || closeBrace == -1)
+            {
+                error = "Missing braces in tuple definition";
+                return false;
+            }
+
+            string body = block.Substring(openBrace + 1, closeBrace - openBrace - 1);
+
+            // Parse field declarations
+            var fieldPattern = @"(float|int|bool|string)\s+([a-zA-Z][a-zA-Z0-9_]*)\s*;";
+            var fieldMatches = Regex.Matches(body, fieldPattern, RegexOptions.IgnoreCase);
+
+            if (fieldMatches.Count == 0)
+            {
+                error = "Tuple must have at least one field";
+                return false;
+            }
+
+            foreach (Match fieldMatch in fieldMatches)
+            {
+                string typeStr = fieldMatch.Groups[1].Value.ToLower();
+                string fieldName = fieldMatch.Groups[2].Value;
+
+                VariableType fieldType = typeStr switch
+                {
+                    "float" => VariableType.Float,
+                    "int" => VariableType.Integer,
+                    "bool" => VariableType.Boolean,
+                    "string" => VariableType.String,
+                    _ => VariableType.Float
+                };
+
+                try
+                {
+                    schema.AddField(fieldName, fieldType);
+                }
+                catch (Exception ex)
+                {
+                    error = ex.Message;
+                    return false;
+                }
+            }
+
+            return true;
         }
 
         private List<(string content, int lineNumber)> SplitIntoStatements(
@@ -287,16 +420,24 @@ namespace Core
             string error = string.Empty;
             bool matched = false;
             
-            // Try parameter parsing FIRST (handles: int x = 5, float y = 2.5 * 4, string z = "text")
-            if (parameterParser.TryParse(statement,out Parameter param, out error))
+            // Try parameter parsing
+            if (parameterParser.TryParse(statement, out Parameter param, out error))
             {
-                modelManager.AddParameter(param);
-                result.IncrementSuccess();
-                return;
+                if (param != null)
+                {
+                    modelManager.AddParameter(param);
+                    result.IncrementSuccess();
+                    return;
+                }
+                else
+                {
+                    result.AddError($"\"{statement}\"\n  Error: {error}", lineNumber);
+                    return;
+                }
             }
 
-            // Try index set parsing (handles: range I = 1..10)
-            matched =  indexSetParser.TryParse(statement, out var indexSet, out error);
+            // Try index set parsing
+            matched = indexSetParser.TryParse(statement, out var indexSet, out error);
             if (matched)
             {
                 if (indexSet != null)
@@ -307,13 +448,11 @@ namespace Core
                 }
                 else
                 {
-                    // Pattern matched but validation failed
                     result.AddError($"\"{statement}\"\n  Error: {error}", lineNumber);
                     return;
                 }
             }
             
-            // Check for validation errors (pattern matched but failed validation)
             if (!string.IsNullOrEmpty(error) && 
                 !error.Equals("Not an index set declaration", StringComparison.Ordinal))
             {
@@ -321,9 +460,9 @@ namespace Core
                 return;
             }
             
-            error = string.Empty; // Reset
+            error = string.Empty;
 
-            // Try variable declaration (handles: var float x[I])
+            // Try variable declaration
             matched = variableParser.TryParse(statement, out var variable, out error);
             if (matched)
             {
@@ -335,13 +474,11 @@ namespace Core
                 }
                 else
                 {
-                    // Pattern matched but validation failed
                     result.AddError($"\"{statement}\"\n  Error: {error}", lineNumber);
                     return;
                 }
             }
             
-            // Check for validation errors (pattern matched but failed validation)
             if (!string.IsNullOrEmpty(error) && 
                 !error.Equals("Not a variable declaration", StringComparison.Ordinal))
             {
@@ -349,16 +486,36 @@ namespace Core
                 return;
             }
             
-            error = string.Empty; // Reset
+            error = string.Empty;
 
-            // Try indexed equation (handles: name[i in I]: x[i] + y[i] == 10)
+            // **NEW: Try tuple set declaration**
+            if (TryParseTupleSet(statement, out var tupleSet, out error))
+            {
+                if (tupleSet != null)
+                {
+                    modelManager.AddTupleSet(tupleSet);
+                    result.IncrementSuccess();
+                    return;
+                }
+            }
+            
+            // Check for validation errors
+            if (!string.IsNullOrEmpty(error) && 
+                !error.Equals("Not a tuple set declaration", StringComparison.Ordinal))
+            {
+                result.AddError($"\"{statement}\"\n  Error: {error}", lineNumber);
+                return;
+            }
+            
+            error = string.Empty;
+
+            // Try indexed equation
             if (TryParseIndexedEquation(statement, lineNumber, out error, result))
             {
                 result.IncrementSuccess();
                 return;
             }
             
-            // Check for validation errors
             if (!string.IsNullOrEmpty(error) && 
                 !error.Equals("Not an indexed equation declaration", StringComparison.Ordinal))
             {
@@ -366,9 +523,9 @@ namespace Core
                 return;
             }
             
-            error = string.Empty; // Reset
+            error = string.Empty;
 
-            // Try regular equation (handles: 2*x + 3*y == 10)
+            // Try regular equation
             if (TryParseEquation(statement, out var equation, out error))
             {
                 if (equation != null)
@@ -387,20 +544,116 @@ namespace Core
                 }
             }
 
-            // Nothing matched - report error or provide generic message
+            // Nothing matched
             if (string.IsNullOrEmpty(error))
             {
-                error = "Unknown statement type. Expected: parameter, index set, variable, or equation declaration";
+                error = "Unknown statement type. Expected: parameter, index set, variable, tuple set, or equation declaration";
             }
             
             result.AddError($"\"{statement}\"\n  Error: {error}", lineNumber);
+        }
+
+        // Add this method to parse tuple sets
+        private bool TryParseTupleSet(string statement, out TupleSet? tupleSet, out string error)
+        {
+            tupleSet = null;
+            error = string.Empty;
+
+            // Pattern: {SchemaName} setName = ...;
+            string pattern = @"^\s*\{([a-zA-Z][a-zA-Z0-9_]*)\}\s+([a-zA-Z][a-zA-Z0-9_]*)\s*=\s*(.+)$";
+            var match = Regex.Match(statement.Trim(), pattern);
+
+            if (!match.Success)
+            {
+                error = "Not a tuple set declaration";
+                return false;
+            }
+
+            string schemaName = match.Groups[1].Value;
+            string setName = match.Groups[2].Value;
+            string value = match.Groups[3].Value.Trim();
+
+            if (!modelManager.TupleSchemas.ContainsKey(schemaName))
+            {
+                error = $"Tuple schema '{schemaName}' is not defined";
+                return false;
+            }
+
+            bool isExternal = value == "...";
+            tupleSet = new TupleSet(setName, schemaName, isExternal);
+
+            return true;
         }
 
         private bool TryParseIndexedEquation(string statement, int lineNumber, out string error, ParseSessionResult result)
         {
             error = string.Empty;
 
-            // Two-dimensional indexed equation
+            // OPL-style forall: forall(i in I, j in J) [label:] expression
+            // More flexible pattern to handle labels and whitespace better
+            string forallTwoDimPattern = @"^\s*forall\s*\(\s*([a-zA-Z][a-zA-Z0-9_]*)\s+in\s+([a-zA-Z][a-zA-Z0-9_]*)\s*,\s*([a-zA-Z][a-zA-Z0-9_]*)\s+in\s+([a-zA-Z][a-zA-Z0-9_]*)\s*\)\s*(?:([a-zA-Z][a-zA-Z0-9_]*)\s*:\s*)?(.+)$";
+            var forallTwoDimMatch = Regex.Match(statement.Trim(), forallTwoDimPattern, RegexOptions.IgnoreCase | RegexOptions.Singleline);
+
+            if (forallTwoDimMatch.Success)
+            {
+                string indexVar1 = forallTwoDimMatch.Groups[1].Value;
+                string indexSetName1 = forallTwoDimMatch.Groups[2].Value;
+                string indexVar2 = forallTwoDimMatch.Groups[3].Value;
+                string indexSetName2 = forallTwoDimMatch.Groups[4].Value;
+                string baseName = forallTwoDimMatch.Groups[5].Value;
+                string template = forallTwoDimMatch.Groups[6].Value.Trim();
+
+                if (string.IsNullOrEmpty(baseName))
+                {
+                    baseName = $"constraint_{modelManager.IndexedEquationTemplates.Count + 1}";
+                }
+
+                if (!modelManager.IndexSets.ContainsKey(indexSetName1))
+                {
+                    error = $"First index set '{indexSetName1}' is not declared";
+                    return false;
+                }
+
+                if (!modelManager.IndexSets.ContainsKey(indexSetName2))
+                {
+                    error = $"Second index set '{indexSetName2}' is not declared";
+                    return false;
+                }
+
+                var indexedEquation = new IndexedEquation(baseName, indexSetName1, template, indexSetName2);
+                modelManager.AddIndexedEquationTemplate(indexedEquation);
+                return true;
+            }
+
+            // OPL-style forall single dimension: forall(i in I) [label:] expression
+            // More flexible pattern - handles whitespace and optional label
+            string forallPattern = @"^\s*forall\s*\(\s*([a-zA-Z][a-zA-Z0-9_]*)\s+in\s+([a-zA-Z][a-zA-Z0-9_]*)\s*\)\s*(?:([a-zA-Z][a-zA-Z0-9_]*)\s*:\s*)?(.+)$";
+            var forallMatch = Regex.Match(statement.Trim(), forallPattern, RegexOptions.IgnoreCase | RegexOptions.Singleline);
+
+            if (forallMatch.Success)
+            {
+                string indexVar = forallMatch.Groups[1].Value;
+                string indexSetName = forallMatch.Groups[2].Value;
+                string baseName = forallMatch.Groups[3].Value.Trim();
+                string template = forallMatch.Groups[4].Value.Trim();
+
+                if (string.IsNullOrEmpty(baseName))
+                {
+                    baseName = $"constraint_{modelManager.IndexedEquationTemplates.Count + 1}";
+                }
+
+                if (!modelManager.IndexSets.ContainsKey(indexSetName))
+                {
+                    error = $"Index set '{indexSetName}' is not declared";
+                    return false;
+                }
+
+                var indexedEquation = new IndexedEquation(baseName, indexSetName, template);
+                modelManager.AddIndexedEquationTemplate(indexedEquation);
+                return true;
+            }
+
+            // Original bracket notation: constraint[i in I, j in J]: ...
             string twoDimPattern = @"^\s*([a-zA-Z][a-zA-Z0-9_]*)\s*\[\s*([a-zA-Z][a-zA-Z0-9_]*)\s+in\s+([a-zA-Z][a-zA-Z0-9_]*)\s*,\s*([a-zA-Z][a-zA-Z0-9_]*)\s+in\s+([a-zA-Z][a-zA-Z0-9_]*)\s*\]\s*:\s*(.+)$";
             var twoDimMatch = Regex.Match(statement.Trim(), twoDimPattern);
 
@@ -409,7 +662,7 @@ namespace Core
                 return ProcessTwoDimensionalIndexedEquation(twoDimMatch, out error);
             }
 
-            // Single-dimensional indexed equation
+            // Original bracket notation: constraint[i in I]: ...
             string pattern = @"^\s*([a-zA-Z][a-zA-Z0-9_]*)\s*\[\s*([a-zA-Z][a-zA-Z0-9_]*)\s+in\s+([a-zA-Z][a-zA-Z0-9_]*)\s*\]\s*:\s*(.+)$";
             var match = Regex.Match(statement.Trim(), pattern);
 
@@ -470,6 +723,143 @@ namespace Core
             modelManager.AddIndexedEquationTemplate(indexedEquation);
 
             return true;
+        }
+
+        public void ExpandIndexedEquations(ParseSessionResult result)
+        {
+            foreach (var indexedEquation in modelManager.IndexedEquationTemplates.Values)
+            {
+                if (indexedEquation.IsTwoDimensional)
+                {
+                    ExpandTwoDimensionalEquation(indexedEquation, result);
+                }
+                else
+                {
+                    ExpandSingleDimensionalEquation(indexedEquation, result);
+                }
+            }
+        }
+
+        private void ExpandTwoDimensionalEquation(IndexedEquation indexedEquation, ParseSessionResult result)
+        {
+            var indexSet1 = modelManager.IndexSets[indexedEquation.IndexSetName];
+            var indexSet2 = modelManager.IndexSets[indexedEquation.SecondIndexSetName!];
+
+            string indexVar1 = indexedEquation.IndexSetName.ToLower();
+            string indexVar2 = indexedEquation.SecondIndexSetName!.ToLower();
+
+            foreach (int index1 in indexSet1.GetIndices())
+            {
+                foreach (int index2 in indexSet2.GetIndices())
+                {
+                    string expandedEquation = summationExpander.ExpandEquationTemplate(
+                        indexedEquation.Template, indexVar1, index1);
+                    expandedEquation = summationExpander.ExpandEquationTemplate(
+                        expandedEquation, indexVar2, index2);
+
+                    if (TryParseEquation(expandedEquation, out var eq, out var eqError))
+                    {
+                        if (eq != null)
+                        {
+                            eq.BaseName = indexedEquation.BaseName;
+                            eq.Index = index1;
+                            eq.SecondIndex = index2;
+                            modelManager.AddEquation(eq);
+                            result.IncrementSuccess();
+                        }
+                    }
+                    else
+                    {
+                        result.AddError(
+                            $"Error expanding equation '{indexedEquation.BaseName}[{index1},{index2}]': {eqError}", 
+                            0);
+                    }
+                }
+            }
+        }
+
+        private void ExpandSingleDimensionalEquation(IndexedEquation indexedEquation, ParseSessionResult result)
+        {
+            var indexSet = modelManager.IndexSets[indexedEquation.IndexSetName];
+            string indexVar = indexedEquation.IndexSetName.ToLower();
+
+            foreach (int index in indexSet.GetIndices())
+            {
+                string expandedEquation = summationExpander.ExpandEquationTemplate(
+                    indexedEquation.Template, indexVar, index);
+                
+                if (TryParseEquation(expandedEquation, out var eq, out var eqError))
+                {
+                    if (eq != null)
+                    {
+                        eq.BaseName = indexedEquation.BaseName;
+                        eq.Index = index;
+                        modelManager.AddEquation(eq);
+                        result.IncrementSuccess();
+                    }
+                }
+                else
+                {
+                    result.AddError(
+                        $"Error expanding equation '{indexedEquation.BaseName}[{index}]': {eqError}", 
+                        0);
+                }
+            }
+        }
+
+        private string ExtractSubjectToBlocks(
+            string text, 
+            Dictionary<int, int> lineMapping, 
+            ParseSessionResult result)
+        {
+            // Pattern to match: subject to { ... }
+            string pattern = @"subject\s+to\s*\{";
+            var matches = Regex.Matches(text, pattern, RegexOptions.IgnoreCase | RegexOptions.Singleline);
+
+            if (matches.Count == 0)
+            {
+                return text; // No subject to blocks
+            }
+
+            var resultText = new System.Text.StringBuilder();
+            int lastIndex = 0;
+
+            foreach (Match match in matches)
+            {
+                // Append text before this block
+                resultText.Append(text.Substring(lastIndex, match.Index - lastIndex));
+
+                // Find matching closing brace
+                int closingBraceIndex = FindClosingBrace(text, match.Index + match.Length);
+
+                if (closingBraceIndex == -1)
+                {
+                    result.AddError("Subject to block: Missing closing brace '}'", 
+                        text.Substring(0, match.Index).Count(c => c == '\n') + 1);
+                    lastIndex = match.Index + match.Length;
+                    continue;
+                }
+
+                // Extract the constraints block content
+                int blockStartIndex = match.Index + match.Length;
+                string blockContent = text.Substring(blockStartIndex, closingBraceIndex - blockStartIndex);
+
+                // Simply append the block content (constraints will be parsed normally)
+                // The "subject to" is just syntactic sugar for grouping - we extract the contents
+                resultText.AppendLine();
+                resultText.Append(blockContent);
+                resultText.AppendLine();
+
+                lastIndex = closingBraceIndex + 1;
+            }
+
+            // Append remaining text
+            if (lastIndex < text.Length)
+            {
+                resultText.Append(text.Substring(lastIndex));
+            }
+
+            return resultText.ToString();
         }
 
         private bool TryParseEquation(string equation, out LinearEquation? result, out string error)
@@ -683,90 +1073,6 @@ namespace Core
 
             return finalCoefficients;
         }
-
-        public void ExpandIndexedEquations(ParseSessionResult result)
-        {
-            foreach (var indexedEquation in modelManager.IndexedEquationTemplates.Values)
-            {
-                if (indexedEquation.IsTwoDimensional)
-                {
-                    ExpandTwoDimensionalEquation(indexedEquation, result);
-                }
-                else
-                {
-                    ExpandSingleDimensionalEquation(indexedEquation, result);
-                }
-            }
-        }
-
-        private void ExpandTwoDimensionalEquation(IndexedEquation indexedEquation, ParseSessionResult result)
-        {
-            var indexSet1 = modelManager.IndexSets[indexedEquation.IndexSetName];
-            var indexSet2 = modelManager.IndexSets[indexedEquation.SecondIndexSetName!];
-
-            string indexVar1 = indexedEquation.IndexSetName.ToLower();
-            string indexVar2 = indexedEquation.SecondIndexSetName!.ToLower();
-
-            foreach (int index1 in indexSet1.GetIndices())
-            {
-                foreach (int index2 in indexSet2.GetIndices())
-                {
-                    string expandedEquation = summationExpander.ExpandEquationTemplate(
-                        indexedEquation.Template, indexVar1, index1);
-                    expandedEquation = summationExpander.ExpandEquationTemplate(
-                        expandedEquation, indexVar2, index2);
-
-                    if (TryParseEquation(expandedEquation, out var eq, out var eqError))
-                    {
-                        if (eq != null)
-                        {
-                            eq.BaseName = indexedEquation.BaseName;
-                            eq.Index = index1;
-                            eq.SecondIndex = index2;
-                            modelManager.AddEquation(eq);
-                            result.IncrementSuccess();
-                        }
-                    }
-                    else
-                    {
-                        result.AddError(
-                            $"Error expanding equation '{indexedEquation.BaseName}[{index1},{index2}]': {eqError}", 
-                            0);
-                    }
-                }
-            }
-        }
-
-        private void ExpandSingleDimensionalEquation(IndexedEquation indexedEquation, ParseSessionResult result)
-        {
-            var indexSet = modelManager.IndexSets[indexedEquation.IndexSetName];
-            string indexVar = indexedEquation.IndexSetName.ToLower();
-
-            foreach (int index in indexSet.GetIndices())
-            {
-                string expandedEquation = summationExpander.ExpandEquationTemplate(
-                    indexedEquation.Template, indexVar, index);
-                
-                if (TryParseEquation(expandedEquation, out var eq, out var eqError))
-                {
-                    if (eq != null)
-                    {
-                        eq.BaseName = indexedEquation.BaseName;
-                        eq.Index = index;
-                        modelManager.AddEquation(eq);
-                        result.IncrementSuccess();
-                    }
-                }
-                else
-                {
-                    result.AddError(
-                        $"Error expanding equation '{indexedEquation.BaseName}[{index}]': {eqError}", 
-                        0);
-                }
-            }
-        }
-
-        public ModelManager GetModelManager() => modelManager;
     }
 
     public class ParseSessionResult

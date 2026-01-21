@@ -118,6 +118,13 @@ namespace Core
                 return;
             }
 
+            // Try tuple data: setName = { <field1, field2, ...>, <...>, ... };
+            if (TryParseTupleData(statement, out error))
+            {
+                result.IncrementSuccess();
+                return;
+            }
+
             result.AddError($"\"{statement}\"\n  Error: {error}", lineNumber);
         }
 
@@ -241,7 +248,7 @@ namespace Core
             // Validate row count
             if (rows.Count != indices1.Count)
             {
-                error = $"Parameter '{param.Name}' expects {indices1.Count} rows (index set '{param.IndexSetName}' range: {indexSet1.StartIndex}..{indexSet1.EndIndex}), but {rows.Count} were provided";
+                error = $"Parameter '{param.Name}' expects {indices1.Count} rows (index set '{indexSet1.Name}' range: {indexSet1.StartIndex}..{indexSet1.EndIndex}), but {rows.Count} were provided";
                 return false;
             }
 
@@ -612,40 +619,146 @@ namespace Core
             return true;
         }
 
+        // Add this method to parse tuple data
+        private bool TryParseTupleData(string statement, out string error)
+        {
+            error = string.Empty;
+
+            // Pattern: setName = { <field1, field2, ...>, <...>, ... };
+            var setMatch = Regex.Match(statement, @"^([a-zA-Z][a-zA-Z0-9_]*)\s*=\s*\{(.+)\}$");
+            
+            if (!setMatch.Success)
+            {
+                return false;
+            }
+
+            string setName = setMatch.Groups[1].Value;
+            string tupleData = setMatch.Groups[2].Value;
+
+            // Find the tuple set
+            if (!modelManager.TupleSets.TryGetValue(setName, out var tupleSet))
+            {
+                error = $"Tuple set '{setName}' is not declared";
+                return false;
+            }
+
+            // Get the schema
+            if (!modelManager.TupleSchemas.TryGetValue(tupleSet.SchemaName, out var schema))
+            {
+                error = $"Tuple schema '{tupleSet.SchemaName}' is not found";
+                return false;
+            }
+
+            // Parse tuple instances: <v1, v2, v3>, <v1, v2, v3>, ...
+            var tuplePattern = @"<([^>]+)>";
+            var tupleMatches = Regex.Matches(tupleData, tuplePattern);
+
+            foreach (Match tupleMatch in tupleMatches)
+            {
+                string instanceData = tupleMatch.Groups[1].Value;
+                var values = instanceData.Split(',').Select(v => v.Trim()).ToArray();
+
+                if (values.Length != schema.Fields.Count)
+                {
+                    error = $"Tuple instance has {values.Length} values but schema '{schema.Name}' requires {schema.Fields.Count} fields";
+                    return false;
+                }
+
+                var instance = new TupleInstance(schema.Name);
+                int fieldIndex = 0;
+
+                foreach (var field in schema.Fields)
+                {
+                    string fieldName = field.Key;
+                    VariableType fieldType = field.Value;
+                    string valueStr = values[fieldIndex++];
+
+                    object parsedValue = ParseTupleValue(valueStr, fieldType, out string parseError);
+                    
+                    if (!string.IsNullOrEmpty(parseError))
+                    {
+                        error = $"Error parsing field '{fieldName}': {parseError}";
+                        return false;
+                    }
+
+                    instance.SetValue(fieldName, parsedValue);
+                }
+
+                tupleSet.AddInstance(instance);
+            }
+
+            return true;
+        }
+
+        private object ParseTupleValue(string valueStr, VariableType type, out string error)
+        {
+            error = string.Empty;
+
+            try
+            {
+                return type switch
+                {
+                    VariableType.String => valueStr.Trim('"'),
+                    VariableType.Integer => int.Parse(valueStr),
+                    VariableType.Float => double.Parse(valueStr, System.Globalization.CultureInfo.InvariantCulture),
+                    VariableType.Boolean => bool.Parse(valueStr),
+                    _ => throw new InvalidOperationException($"Unknown type: {type}")
+                };
+            }
+            catch (Exception ex)
+            {
+                error = ex.Message;
+                return null!;
+            }
+        }
+
         private object? ParseValueForType(string valueStr, ParameterType type, out string error)
         {
             error = string.Empty;
+            valueStr = valueStr.Trim();
 
             try
             {
                 switch (type)
                 {
                     case ParameterType.Integer:
-                        if (int.TryParse(valueStr, NumberStyles.Integer, CultureInfo.InvariantCulture, out int intVal))
-                            return intVal;
-                        error = $"Expected integer value, got '{valueStr}'";
-                        return null;
+                        if (int.TryParse(valueStr, out int intValue))
+                        {
+                            return intValue;
+                        }
+                        else
+                        {
+                            error = $"Cannot parse '{valueStr}' as integer";
+                            return null;
+                        }
 
                     case ParameterType.Float:
-                        if (double.TryParse(valueStr, NumberStyles.Float, CultureInfo.InvariantCulture, out double floatVal))
-                            return floatVal;
-                        error = $"Expected float value, got '{valueStr}'";
-                        return null;
+                        if (double.TryParse(valueStr, NumberStyles.Float, CultureInfo.InvariantCulture, out double floatValue))
+                        {
+                            return floatValue;
+                        }
+                        else
+                        {
+                            error = $"Cannot parse '{valueStr}' as float";
+                            return null;
+                        }
 
                     case ParameterType.String:
+                        // Remove quotes if present
                         if (valueStr.StartsWith("\"") && valueStr.EndsWith("\""))
+                        {
                             return valueStr.Substring(1, valueStr.Length - 2);
-                        error = $"Expected quoted string, got '{valueStr}'";
-                        return null;
+                        }
+                        return valueStr;
 
                     default:
-                        error = $"Unknown parameter type: {type}";
+                        error = $"Unsupported parameter type: {type}";
                         return null;
                 }
             }
             catch (Exception ex)
             {
-                error = $"Error parsing value: {ex.Message}";
+                error = $"Error parsing value '{valueStr}': {ex.Message}";
                 return null;
             }
         }

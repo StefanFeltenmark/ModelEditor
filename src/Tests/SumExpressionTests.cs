@@ -239,7 +239,7 @@ namespace Tests
                 range I = 1..3;
                 var float x[I];
                 
-                total: sum(i in I) x[i] + 50 == 100;
+                sum(i in I) x[i] + 50 == 100;
             ";
             
             var manager = CreateModelManager();

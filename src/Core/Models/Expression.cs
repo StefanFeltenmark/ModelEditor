@@ -361,7 +361,7 @@ namespace Core.Models
 
             if (Index < 1 || Index > tupleSet.Instances.Count)
             {
-                throw new InvalidOperationException($"Tuple index {Index} out of range for set '{TupleSetName}'");
+                throw new InvalidOperationException($"Tuple index {Index} out of range for set '{TupleSetName}' (size: {tupleSet.Instances.Count})");
             }
 
             var instance = tupleSet.Instances[Index - 1]; // 1-based indexing
@@ -369,7 +369,7 @@ namespace Core.Models
 
             if (value == null)
             {
-                throw new InvalidOperationException($"Field '{FieldName}' not found in tuple");
+                throw new InvalidOperationException($"Field '{FieldName}' not found in tuple '{TupleSetName}'");
             }
 
             return Convert.ToDouble(value);
