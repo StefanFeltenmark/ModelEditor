@@ -37,7 +37,7 @@ namespace Tests
                 // Index set
                 range I = 1..T; // Period indices
                 // Variables
-                var x; // Decision variable
+                dvar float x; // Decision variable
             ";
 
             // Act

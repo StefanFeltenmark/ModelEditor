@@ -643,9 +643,9 @@ namespace Core
             }
 
             // Get the schema
-            if (!modelManager.TupleSchemas.TryGetValue(tupleSet.SchemaName, out var schema))
+            if (!modelManager.TupleSchemas.TryGetValue(tupleSet.Name, out var schema))
             {
-                error = $"Tuple schema '{tupleSet.SchemaName}' is not found";
+                error = $"Tuple schema '{tupleSet.Name}' is not found";
                 return false;
             }
 

@@ -439,8 +439,8 @@ namespace Core
             }
 
             // Try index set parsing
-            matched = indexSetParser.TryParse(statement, out var indexSet, out error);
-            if (matched)
+            
+            if (indexSetParser.TryParse(statement, out var indexSet, out error))
             {
                 if (indexSet != null)
                 {
@@ -454,19 +454,18 @@ namespace Core
                     return;
                 }
             }
-            
-            if (!string.IsNullOrEmpty(error) && 
-                !error.Equals("Not an tuple set declaration", StringComparison.Ordinal))
+
+            if (!string.IsNullOrEmpty(error) &&
+                !error.Equals("Not an index set declaration", StringComparison.Ordinal))
             {
                 result.AddError($"\"{statement}\"\n  Error: {error}", lineNumber);
                 return;
             }
-            
+
             error = string.Empty;
 
             // Try variable declaration
-            matched = variableParser.TryParse(statement, out var variable, out error);
-            if (matched)
+            if (variableParser.TryParse(statement, out var variable, out error))
             {
                 if (variable != null)
                 {
@@ -480,23 +479,28 @@ namespace Core
                     return;
                 }
             }
-            
-            if (!string.IsNullOrEmpty(error) && 
+
+            if (!string.IsNullOrEmpty(error) &&
                 !error.Equals("Not a variable declaration", StringComparison.Ordinal))
             {
                 result.AddError($"\"{statement}\"\n  Error: {error}", lineNumber);
                 return;
             }
-            
+
             error = string.Empty;
 
-            // **NEW: Try tuple set declaration**
+            // Try tuple set declaration**
             if (TryParseTupleSet(statement, out var tupleSet, out error))
             {
                 if (tupleSet != null)
                 {
                     modelManager.AddTupleSet(tupleSet);
                     result.IncrementSuccess();
+                    return;
+                }
+                else
+                {
+                    result.AddError($"\"{statement}\"\n  Error: {error}", lineNumber);
                     return;
                 }
             }
@@ -582,7 +586,7 @@ namespace Core
             }
 
             bool isExternal = value == "...";
-            tupleSet = new TupleSet(setName, schemaName, isExternal);
+            tupleSet = new TupleSet(setName, 2, isExternal);
 
             return true;
         }

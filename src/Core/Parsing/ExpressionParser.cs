@@ -53,7 +53,7 @@ namespace Core.Parsing
                     if (modelManager.TupleSets.TryGetValue(setName, out var tupleSet))
                     {
                         // Validate field exists in schema
-                        if (modelManager.TupleSchemas.TryGetValue(tupleSet.SchemaName, out var schema))
+                        if (modelManager.TupleSchemas.TryGetValue(tupleSet.Name, out var schema))
                         {
                             if (!schema.Fields.ContainsKey(fieldName))
                             {
@@ -173,8 +173,9 @@ namespace Core.Parsing
 
                 // **STEP 4: Parse coefficients and variables**
                 // Pattern: coefficient * variable or just variable
-                string patternWithMultiply = @"([+-]?[\d.]+|__PARAM\d+__|__TUPLE\d+__)\*([a-zA-Z][a-zA-Z0-9_]*)";
-                string patternImplicit = @"([+-]?[\d.]*|__PARAM\d+__|__TUPLE\d+__)([a-zA-Z][a-zA-Z0-9_]*)";
+                //string patternWithMultiply = @"([+-]?[\d.]+|__PARAM\d+__|__TUPLE\d+__)\*([a-zA-Z][a-zA-Z0-9_]*)";
+                string patternWithMultiply = @"(\([^()]+\)|[+-]?[\d.]+|__PARAM\d+__|__TUPLE\d+__)\*([a-zA-Z][a-zA-Z0-9_]*)";
+                
 
                 bool foundVariables = false;
                 var processedIndices = new HashSet<int>();
@@ -240,6 +241,7 @@ namespace Core.Parsing
                 string remainingExpression = remainingChars.ToString();
 
                 // Process implicit multiplication
+                string patternImplicit = @"([+-]?[\d.]*|__PARAM\d+__|__TUPLE\d+__)([a-zA-Z][a-zA-Z0-9_]*)";
                 MatchCollection implicitMatches = Regex.Matches(remainingExpression, patternImplicit);
                 foreach (Match match in implicitMatches)
                 {
@@ -290,7 +292,9 @@ namespace Core.Parsing
                 // **NEW: Extract constant terms**
                 // Pattern to find standalone numbers (not followed by variables)
                 // This captures things like: +50, -30, 100
-                string constantPattern = @"(?:^|(?<=[+\-]))([+-]?\d+\.?\d*)(?![a-zA-Z_*])";
+                //string constantPattern = @"(?:^|(?<=[+\-]))([+-]?\d+\.?\d*)(?![a-zA-Z_*])";
+                //string constantPattern = @"(?:^|(?<=[+\-]))([+-]?(?:\d+\.\d+|\d+))(?![a-zA-Z_*])";
+                string constantPattern = @"(?:^|(?<=[+\-]))(\d+\.\d+|\d+(?!\.\d))(?![a-zA-Z_*])";
                 var constantMatches = Regex.Matches(expression, constantPattern);
                 
                 var constantTerms = new List<Expression>();
