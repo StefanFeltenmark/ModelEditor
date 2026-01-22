@@ -24,8 +24,7 @@ namespace Core
         public Dictionary<string, TupleSchema> TupleSchemas { get; } = 
             new Dictionary<string, TupleSchema>();
     
-        public Dictionary<string, TupleSet> TupleSets { get; } = 
-            new Dictionary<string, TupleSet>();
+        public Dictionary<string, TupleSet> TupleSets { get; private set; } = new Dictionary<string, TupleSet>();
 
         public void AddParameter(Parameter parameter)
         {
@@ -111,10 +110,11 @@ namespace Core
         {
             Parameters.Clear();
             IndexSets.Clear();
+            TupleSets.Clear();
             IndexedVariables.Clear();
-            IndexedEquationTemplates.Clear();
-            LabeledEquations.Clear();
             Equations.Clear();
+            LabeledEquations.Clear();
+            IndexedEquationTemplates.Clear();
             Objective = null; 
             DecisionExpressions.Clear();
             Assertions.Clear(); 
@@ -126,142 +126,41 @@ namespace Core
 
         public string GenerateParseResultsReport()
         {
-            var result = new System.Text.StringBuilder();
+            var sb = new System.Text.StringBuilder();
+            sb.AppendLine("=== Parse Results ===\n");
             
-            result.AppendLine($"=== Parse Results ===\n");
+            sb.AppendLine($"Parameters: {Parameters.Count}");
+            foreach (var param in Parameters.Values)
+            {
+                sb.AppendLine($"  - {param}");
+            }
             
-            // Show parameters
-            if (Parameters.Count > 0)
+            sb.AppendLine($"\nIndex Sets: {IndexSets.Count}");
+            foreach (var indexSet in IndexSets.Values)
             {
-                result.AppendLine($"Parameters ({Parameters.Count}):");
-                foreach (var param in Parameters.Values)
-                {
-                    result.AppendLine($"  {param}");
-                }
-                result.AppendLine();
+                sb.AppendLine($"  - {indexSet}");
             }
-
-            // Show index sets
-            if (IndexSets.Count > 0)
+            
+            // Add tuple sets
+            sb.AppendLine($"\nTuple Sets: {TupleSets.Count}");
+            foreach (var tupleSet in TupleSets.Values)
             {
-                result.AppendLine($"Index Sets ({IndexSets.Count}):");
-                foreach (var indexSet in IndexSets.Values)
-                {
-                    result.AppendLine($"  range {indexSet}");
-                }
-                result.AppendLine();
+                sb.AppendLine($"  - {tupleSet}");
             }
-
-            // Show variable declarations
-            if (IndexedVariables.Count > 0)
+            
+            sb.AppendLine($"\nVariables: {IndexedVariables.Count}");
+            foreach (var variable in IndexedVariables.Values)
             {
-                result.AppendLine($"Indexed Variables ({IndexedVariables.Count}):");
-                foreach (var variable in IndexedVariables.Values)
-                {
-                    string typeStr = variable.Type switch
-                    {
-                        VariableType.Float => "float",
-                        VariableType.Integer => "int",
-                        VariableType.Boolean => "bool",
-                        _ => "float"
-                    };
-
-                    // Check if this is a scalar variable (no index set)
-                    if (variable.IsScalar)
-                    {
-                        result.AppendLine($"  var {typeStr} {variable.BaseName} → Scalar variable");
-                    }
-                    else if (variable.IsTwoDimensional)
-                    {
-                        var indexSet1 = IndexSets[variable.IndexSetName];
-                        var indexSet2 = IndexSets[variable.SecondIndexSetName!];
-                        result.AppendLine($"  {variable} → Type: {typeStr}, Expands to: {variable.BaseName}[{indexSet1.StartIndex}..{indexSet1.EndIndex},{indexSet2.StartIndex}..{indexSet2.EndIndex}]");
-                    }
-                    else
-                    {
-                        var indexSet = IndexSets[variable.IndexSetName];
-                        result.AppendLine($"  {variable} → Type: {typeStr}, Expands to: {variable.BaseName}[{indexSet.StartIndex}]..{variable.BaseName}[{indexSet.EndIndex}]");
-                    }
-                }
-                result.AppendLine();
+                sb.AppendLine($"  - {variable}");
             }
-
-            // Show indexed equation templates
-            if (IndexedEquationTemplates.Count > 0)
+            
+            sb.AppendLine($"\nEquations: {Equations.Count}");
+            foreach (var equation in Equations)
             {
-                result.AppendLine($"Indexed Equation Templates ({IndexedEquationTemplates.Count}):");
-                foreach (var template in IndexedEquationTemplates.Values)
-                {
-                    if (template.IsTwoDimensional)
-                    {
-                        var indexSet1 = IndexSets[template.IndexSetName];
-                        var indexSet2 = IndexSets[template.SecondIndexSetName!];
-                        result.AppendLine($"  {template}");
-                        result.AppendLine($"    → Expands to {indexSet1.Count * indexSet2.Count} equations");
-                    }
-                    else
-                    {
-                        var indexSet = IndexSets[template.IndexSetName];
-                        result.AppendLine($"  {template}");
-                        result.AppendLine($"    → Expands to {indexSet.Count} equations");
-                    }
-                }
-                result.AppendLine();
+                sb.AppendLine($"  - {equation}");
             }
-
-            // Show labeled equations
-            if (LabeledEquations.Count > 0)
-            {
-                result.AppendLine($"Labeled Equations ({LabeledEquations.Count}):");
-                foreach (var kvp in LabeledEquations)
-                {
-                    result.AppendLine($"  {kvp.Key}: {kvp.Value}");
-                }
-                result.AppendLine();
-            }
-
-            // Show equations
-            if (Equations.Count > 0)
-            {
-                int equationCount = Equations.Count(eq => !eq.IsInequality());
-                int inequalityCount = Equations.Count(eq => eq.IsInequality());
-                int labeledCount = Equations.Count(eq => !string.IsNullOrEmpty(eq.Label));
-                int indexedCount = Equations.Count(eq => eq.Index.HasValue);
-                
-                result.AppendLine($"All Equations & Inequalities ({Equations.Count}):");
-                result.AppendLine($"  Equations: {equationCount}");
-                result.AppendLine($"  Inequalities: {inequalityCount}");
-                result.AppendLine($"  Labeled: {labeledCount}");
-                result.AppendLine($"  Indexed: {indexedCount}\n");
-
-                for (int i = 0; i < Equations.Count; i++)
-                {
-                    var eq = Equations[i];
-                    result.AppendLine($"{i + 1}. {eq}");
-                    result.AppendLine($"   Type: {(eq.IsInequality() ? "Inequality" : "Equation")}");
-                    result.AppendLine($"   Operator: {eq.GetOperatorSymbol()}");
-                    if (!string.IsNullOrEmpty(eq.Label))
-                    {
-                        result.AppendLine($"   Label: {eq.Label}");
-                    }
-                    if (eq.Index.HasValue)
-                    {
-                        if (eq.SecondIndex.HasValue)
-                        {
-                            result.AppendLine($"   Indices: [{eq.Index.Value},{eq.SecondIndex.Value}] (Base: {eq.BaseName})");
-                        }
-                        else
-                        {
-                            result.AppendLine($"   Index: {eq.Index.Value} (Base: {eq.BaseName})");
-                        }
-                    }
-                    result.AppendLine($"   Variables: {string.Join(", ", eq.GetVariables())}");
-                    result.AppendLine($"   Constant: {eq.Constant}");
-                    result.AppendLine();
-                }
-            }
-
-            return result.ToString();
+            
+            return sb.ToString();
         }
 
         public Parameter? GetParameter(string name)
@@ -344,16 +243,10 @@ namespace Core
     
         public void AddTupleSet(TupleSet tupleSet)
         {
-            if (!TupleSchemas.ContainsKey(tupleSet.SchemaName))
-            {
-                throw new InvalidOperationException($"Tuple schema '{tupleSet.SchemaName}' is not defined");
-            }
-        
             if (TupleSets.ContainsKey(tupleSet.Name))
             {
-                throw new InvalidOperationException($"Tuple set '{tupleSet.Name}' is already defined");
+                throw new InvalidOperationException($"Tuple set '{tupleSet.Name}' already exists");
             }
-        
             TupleSets[tupleSet.Name] = tupleSet;
         }
     }

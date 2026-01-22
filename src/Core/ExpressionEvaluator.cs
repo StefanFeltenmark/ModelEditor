@@ -108,6 +108,116 @@ namespace Core
                 ErrorMessage = $"Cannot evaluate float expression: {expression}" 
             };
         }
+
+        /// <summary>
+        /// Evaluates a boolean expression with comparison operators
+        /// Examples: "5 < 10", "x == y", "a != b", "10 >= 5"
+        /// </summary>
+        public bool EvaluateBooleanExpression(string expression)
+        {
+            if (string.IsNullOrWhiteSpace(expression))
+                return false;
+
+            expression = expression.Trim();
+
+            // Check for comparison operators in order of precedence (longest first to avoid conflicts)
+            if (expression.Contains("=="))
+            {
+                var parts = expression.Split(new[] { "==" }, StringSplitOptions.None);
+                if (parts.Length == 2)
+                {
+                    var left = EvaluateFloatExpression(parts[0].Trim());
+                    var right = EvaluateFloatExpression(parts[1].Trim());
+                    
+                    if (left.IsSuccess && right.IsSuccess)
+                    {
+                        return Math.Abs(left.Value - right.Value) < 1e-10;
+                    }
+                }
+            }
+            else if (expression.Contains("!="))
+            {
+                var parts = expression.Split(new[] { "!=" }, StringSplitOptions.None);
+                if (parts.Length == 2)
+                {
+                    var left = EvaluateFloatExpression(parts[0].Trim());
+                    var right = EvaluateFloatExpression(parts[1].Trim());
+                    
+                    if (left.IsSuccess && right.IsSuccess)
+                    {
+                        return Math.Abs(left.Value - right.Value) >= 1e-10;
+                    }
+                }
+            }
+            else if (expression.Contains("<="))
+            {
+                var parts = expression.Split(new[] { "<=" }, StringSplitOptions.None);
+                if (parts.Length == 2)
+                {
+                    var left = EvaluateFloatExpression(parts[0].Trim());
+                    var right = EvaluateFloatExpression(parts[1].Trim());
+                    
+                    if (left.IsSuccess && right.IsSuccess)
+                    {
+                        return left.Value <= right.Value + 1e-10; // Add epsilon for floating point comparison
+                    }
+                }
+            }
+            else if (expression.Contains(">="))
+            {
+                var parts = expression.Split(new[] { ">=" }, StringSplitOptions.None);
+                if (parts.Length == 2)
+                {
+                    var left = EvaluateFloatExpression(parts[0].Trim());
+                    var right = EvaluateFloatExpression(parts[1].Trim());
+                    
+                    if (left.IsSuccess && right.IsSuccess)
+                    {
+                        return left.Value >= right.Value - 1e-10; // Subtract epsilon for floating point comparison
+                    }
+                }
+            }
+            else if (expression.Contains("<"))
+            {
+                var parts = expression.Split('<');
+                if (parts.Length == 2)
+                {
+                    var left = EvaluateFloatExpression(parts[0].Trim());
+                    var right = EvaluateFloatExpression(parts[1].Trim());
+                    
+                    if (left.IsSuccess && right.IsSuccess)
+                    {
+                        return left.Value < right.Value;
+                    }
+                }
+            }
+            else if (expression.Contains(">"))
+            {
+                var parts = expression.Split('>');
+                if (parts.Length == 2)
+                {
+                    var left = EvaluateFloatExpression(parts[0].Trim());
+                    var right = EvaluateFloatExpression(parts[1].Trim());
+                    
+                    if (left.IsSuccess && right.IsSuccess)
+                    {
+                        return left.Value > right.Value;
+                    }
+                }
+            }
+            else
+            {
+                // No comparison operator - try to evaluate as a numeric expression
+                // Non-zero is true, zero is false
+                var result = EvaluateFloatExpression(expression);
+                if (result.IsSuccess)
+                {
+                    return Math.Abs(result.Value) >= 1e-10;
+                }
+            }
+
+            return false;
+        }
     }
 
     public class EvaluationResult<T>

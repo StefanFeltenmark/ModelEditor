@@ -59,7 +59,7 @@ namespace Tests
             
             var tupleSet = manager.TupleSets["products"];
             Assert.NotNull(tupleSet);
-            Assert.Equal("Product", tupleSet.SchemaName);
+            Assert.Equal("Product", tupleSet.Name);
             Assert.True(tupleSet.IsExternal);
         }
 
@@ -76,7 +76,7 @@ namespace Tests
             manager.AddTupleSchema(schema);
             
             // Setup tuple set with data
-            var tupleSet = new TupleSet("products", "Product", false);
+            var tupleSet = new TupleSet("products", 2, false);
             var instance1 = new TupleInstance("Product");
             instance1.SetValue("cost", 10.0);
             instance1.SetValue("price", 15.0);

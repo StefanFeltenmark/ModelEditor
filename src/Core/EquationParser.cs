@@ -1,4 +1,4 @@
-﻿using Core.Models;
+using Core.Models;
 using Core.Parsing;
 using System.Text.RegularExpressions;
 
@@ -16,6 +16,7 @@ namespace Core
         // Specialized parsers
         private readonly ParameterParser parameterParser;
         private readonly IndexSetParser indexSetParser;
+        private readonly TupleSetParser tupleSetParser;
         private readonly VariableDeclarationParser variableParser;
         private readonly ExpressionParser expressionParser;
         private readonly SummationExpander summationExpander;
@@ -31,6 +32,7 @@ namespace Core
             // Initialize specialized parsers
             parameterParser = new ParameterParser(manager, evaluator);
             indexSetParser = new IndexSetParser(manager, evaluator);
+            tupleSetParser = new TupleSetParser(manager, evaluator);
             variableParser = new VariableDeclarationParser(manager, evaluator);
             expressionParser = new ExpressionParser(manager);
             summationExpander = new SummationExpander(manager);
@@ -454,7 +456,7 @@ namespace Core
             }
             
             if (!string.IsNullOrEmpty(error) && 
-                !error.Equals("Not an index set declaration", StringComparison.Ordinal))
+                !error.Equals("Not an tuple set declaration", StringComparison.Ordinal))
             {
                 result.AddError($"\"{statement}\"\n  Error: {error}", lineNumber);
                 return;
