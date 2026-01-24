@@ -59,7 +59,7 @@ namespace Tests
             
             var tupleSet = manager.TupleSets["products"];
             Assert.NotNull(tupleSet);
-            Assert.Equal("Product", tupleSet.Name);
+            Assert.Equal("products", tupleSet.Name);
             Assert.True(tupleSet.IsExternal);
         }
 
@@ -76,7 +76,7 @@ namespace Tests
             manager.AddTupleSchema(schema);
             
             // Setup tuple set with data
-            var tupleSet = new TupleSet("products", 2, false);
+            var tupleSet = new TupleSet("products", "Product", false);
             var instance1 = new TupleInstance("Product");
             instance1.SetValue("cost", 10.0);
             instance1.SetValue("price", 15.0);
@@ -135,9 +135,11 @@ namespace Tests
                 
                 maximize sum(p in Products) (productData[p].price - productData[p].cost) * production[p];
                 
+                subject to{
                 forall(p in Products)
                     minProduction:
                         production[p] >= productData[p].minProd;
+                }
             ";
 
             // Act

@@ -1,133 +1,171 @@
 namespace Core.Models
 {
     /// <summary>
-    /// Represents a set of tuples for complex indexing
+    /// Represents a set of structured tuples compatible with OPL syntax
     /// </summary>
     public class TupleSet
     {
         public string Name { get; }
-        public int Dimension { get; }
-        public List<Tuple<int, int>> TwoDimensionalTuples { get; }
-        public List<Tuple<int, int, int>> ThreeDimensionalTuples { get; }
+        public string SchemaName { get; }
         public bool IsExternal { get; }
-        
-        // Add this property for structured tuple instances
         public List<TupleInstance> Instances { get; }
         
         /// <summary>
-        /// Creates a 2D tuple set
+        /// Creates a tuple set based on a schema
         /// </summary>
-        public TupleSet(string name, List<Tuple<int, int>> tuples)
+        /// <param name="name">Name of the tuple set</param>
+        /// <param name="schemaName">Name of the tuple schema this set uses</param>
+        /// <param name="isExternal">Whether data is loaded from external file</param>
+        public TupleSet(string name, string schemaName, bool isExternal = false)
         {
-            Name = name;
-            Dimension = 2;
-            TwoDimensionalTuples = tuples ?? new List<Tuple<int, int>>();
-            ThreeDimensionalTuples = new List<Tuple<int, int, int>>();
-            Instances = new List<TupleInstance>();
-            IsExternal = false;
-        }
-        
-        /// <summary>
-        /// Creates a 3D tuple set
-        /// </summary>
-        public TupleSet(string name, List<Tuple<int, int, int>> tuples)
-        {
-            Name = name;
-            Dimension = 3;
-            TwoDimensionalTuples = new List<Tuple<int, int>>();
-            ThreeDimensionalTuples = tuples ?? new List<Tuple<int, int, int>>();
-            Instances = new List<TupleInstance>();
-            IsExternal = false;
-        }
-        
-        /// <summary>
-        /// Creates an external tuple set (data loaded from file)
-        /// </summary>
-        public TupleSet(string name, int dimension, bool isExternal = true)
-        {
-            Name = name;
-            Dimension = dimension;
-            TwoDimensionalTuples = new List<Tuple<int, int>>();
-            ThreeDimensionalTuples = new List<Tuple<int, int, int>>();
-            Instances = new List<TupleInstance>();
+            Name = name ?? throw new ArgumentNullException(nameof(name));
+            SchemaName = schemaName ?? throw new ArgumentNullException(nameof(schemaName));
             IsExternal = isExternal;
+            Instances = new List<TupleInstance>();
         }
         
-        public int Count => Dimension == 2 ? TwoDimensionalTuples.Count : ThreeDimensionalTuples.Count;
+        /// <summary>
+        /// Number of tuple instances in this set
+        /// </summary>
+        public int Count => Instances.Count;
         
-        public bool Contains(int val1, int val2)
-        {
-            if (Dimension != 2)
-                throw new InvalidOperationException("This is not a 2D tuple set");
-            return TwoDimensionalTuples.Contains(Tuple.Create(val1, val2));
-        }
-        
-        public bool Contains(int val1, int val2, int val3)
-        {
-            if (Dimension != 3)
-                throw new InvalidOperationException("This is not a 3D tuple set");
-            return ThreeDimensionalTuples.Contains(Tuple.Create(val1, val2, val3));
-        }
-        
-        public void AddTuple(int val1, int val2)
-        {
-            if (Dimension != 2)
-                throw new InvalidOperationException("This is not a 2D tuple set");
-            if (!TwoDimensionalTuples.Contains(Tuple.Create(val1, val2)))
-            {
-                TwoDimensionalTuples.Add(Tuple.Create(val1, val2));
-            }
-        }
-        
-        public void AddTuple(int val1, int val2, int val3)
-        {
-            if (Dimension != 3)
-                throw new InvalidOperationException("This is not a 3D tuple set");
-            if (!ThreeDimensionalTuples.Contains(Tuple.Create(val1, val2, val3)))
-            {
-                ThreeDimensionalTuples.Add(Tuple.Create(val1, val2, val3));
-            }
-        }
-        
-        public IEnumerable<Tuple<int, int>> GetTwoDimensionalTuples()
-        {
-            if (Dimension != 2)
-                throw new InvalidOperationException("This is not a 2D tuple set");
-            return TwoDimensionalTuples;
-        }
-        
-        public IEnumerable<Tuple<int, int, int>> GetThreeDimensionalTuples()
-        {
-            if (Dimension != 3)
-                throw new InvalidOperationException("This is not a 3D tuple set");
-            return ThreeDimensionalTuples;
-        }
-        
+        /// <summary>
+        /// Adds a tuple instance to the set
+        /// </summary>
         public void AddInstance(TupleInstance instance)
         {
             if (instance == null)
                 throw new ArgumentNullException(nameof(instance));
             
+            if (instance.SchemaName != SchemaName)
+                throw new InvalidOperationException(
+                    $"Cannot add instance of schema '{instance.SchemaName}' to tuple set expecting schema '{SchemaName}'");
+            
             Instances.Add(instance);
+        }
+        
+        /// <summary>
+        /// Gets a tuple instance by index (0-based)
+        /// </summary>
+        public TupleInstance this[int index]
+        {
+            get
+            {
+                if (index < 0 || index >= Instances.Count)
+                    throw new IndexOutOfRangeException($"Index {index} is out of range for tuple set '{Name}' (count: {Instances.Count})");
+                return Instances[index];
+            }
+        }
+        
+        /// <summary>
+        /// Checks if a tuple instance with matching field values exists
+        /// </summary>
+        public bool Contains(params object[] fieldValues)
+        {
+            foreach (var instance in Instances)
+            {
+                bool allMatch = true;
+                int fieldIndex = 0;
+                
+                foreach (var field in instance.Fields)
+                {
+                    if (fieldIndex >= fieldValues.Length)
+                    {
+                        allMatch = false;
+                        break;
+                    }
+                    
+                    var instanceValue = field.Value;
+                    var searchValue = fieldValues[fieldIndex++];
+                    
+                    if (!Equals(instanceValue, searchValue))
+                    {
+                        allMatch = false;
+                        break;
+                    }
+                }
+                
+                if (allMatch && fieldIndex == fieldValues.Length)
+                    return true;
+            }
+            
+            return false;
+        }
+        
+        /// <summary>
+        /// Clears all instances from the set
+        /// </summary>
+        public void Clear()
+        {
+            Instances.Clear();
         }
         
         public override string ToString()
         {
             if (IsExternal && Count == 0)
             {
-                return $"{Name} (external {Dimension}D tuple set - not loaded)";
+                return $"{{{SchemaName}}} {Name} = ... (external data - not loaded)";
             }
             
-            if (Dimension == 2)
+            if (Count == 0)
             {
-                var tupleStrings = TwoDimensionalTuples.Select(t => $"({t.Item1},{t.Item2})");
-                return $"{Name} = {{{string.Join(", ", tupleStrings)}}}";
+                return $"{{{SchemaName}}} {Name} = {{}}";
             }
-            else
+            
+            var tupleStrings = Instances.Select(instance => 
             {
-                var tupleStrings = ThreeDimensionalTuples.Select(t => $"({t.Item1},{t.Item2},{t.Item3})");
-                return $"{Name} = {{{string.Join(", ", tupleStrings)}}}";
+                var values = instance.Fields.Select(v => 
+                {
+                    if (v.Value is string s)
+                        return $"\"{s}\"";
+                    else if (v.Value is double d)
+                        return d.ToString(System.Globalization.CultureInfo.InvariantCulture);
+                    else
+                        return v.Value?.ToString() ?? "null";
+                });
+                return $"<{string.Join(", ", values)}>";
+            });
+            
+            return $"{{{SchemaName}}} {Name} = {{{string.Join(", ", tupleStrings)}}}";
+        }
+
+        /// <summary>
+        /// Finds a tuple instance by its key values (requires the schema to be provided)
+        /// </summary>
+        /// <param name="schema">The tuple schema defining the keys</param>
+        /// <param name="keyValues">Values for the key fields in order</param>
+        /// <returns>The matching tuple instance, or null if not found</returns>
+        public TupleInstance? FindByKey(TupleSchema schema, params object[] keyValues)
+        {
+            if (schema == null)
+                throw new ArgumentNullException(nameof(schema));
+            
+            if (keyValues.Length != schema.KeyFields.Count)
+                throw new ArgumentException(
+                    $"Expected {schema.KeyFields.Count} key values but got {keyValues.Length}");
+            
+            // Find matching instance
+            foreach (var instance in Instances)
+            {
+                bool allMatch = true;
+                for (int i = 0; i < schema.KeyFields.Count; i++)
+                {
+                    var keyField = schema.KeyFields[i];
+                    var instanceValue = instance.GetValue(keyField);
+                    var searchValue = keyValues[i];
+                    
+                    if (!Equals(instanceValue, searchValue))
+                    {
+                        allMatch = false;
+                        break;
+                    }
+                }
+                
+                if (allMatch)
+                    return instance;
             }
+            
+            return null;
         }
     }
 }

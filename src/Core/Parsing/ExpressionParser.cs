@@ -36,6 +36,49 @@ namespace Core.Parsing
                 var tokenCounter = 0;
                 var tokenMap = new Dictionary<string, Expression>();
 
+                // **STEP 0: Replace item() expressions**
+                // Pattern: item(setName, <key1, key2, ...>).fieldName or just item(setName, <key1, key2>)
+                string itemPattern = @"item\s*\(\s*([a-zA-Z][a-zA-Z0-9_]*)\s*,\s*<([^>]+)>\s*\)(?:\.([a-zA-Z][a-zA-Z0-9_]*))?";
+
+                expression = Regex.Replace(expression, itemPattern, m =>
+                {
+                    string setName = m.Groups[1].Value;
+                    string keyValuesStr = m.Groups[2].Value;
+                    string fieldName = m.Groups[3].Value; // May be empty
+
+                    // Parse key values
+                    var keyValues = ParseItemKeyValues(keyValuesStr, out string parseError);
+                    if (keyValues == null)
+                    {
+                        throw new Exception($"Error parsing item() key values: {parseError}");
+                    }
+
+                    // Validate tuple set exists
+                    if (!modelManager.TupleSets.TryGetValue(setName, out var tupleSet))
+                    {
+                        throw new Exception($"Tuple set '{setName}' not found");
+                    }
+
+                    // Create item expression
+                    var itemExpr = new ItemExpression(setName, keyValues);
+
+                    Expression resultExpr;
+                    if (!string.IsNullOrEmpty(fieldName))
+                    {
+                        // Field access: item(...).field
+                        resultExpr = new ItemFieldAccessExpression(itemExpr, fieldName);
+                    }
+                    else
+                    {
+                        // Just item(...) without field access
+                        resultExpr = itemExpr;
+                    }
+
+                    string token = $"__ITEM{tokenCounter++}__";
+                    tokenMap[token] = resultExpr;
+                    return token;
+                });
+
                 // **STEP 1: Replace tuple field access FIRST (before parameter substitution)**
                 // Pattern: tupleSet[index].fieldName
                 string tupleAccessPattern = @"([a-zA-Z][a-zA-Z0-9_]*)\[(\d+)\]\.([a-zA-Z][a-zA-Z0-9_]*)";
@@ -193,7 +236,35 @@ namespace Core.Parsing
                     foundVariables = true;
 
                     Expression coeffExpr;
-                    if (tokenMap.TryGetValue(coeffStr, out var tokenExpr))
+    
+                    // **NEW: Handle parenthesized expressions**
+                    if (coeffStr.StartsWith("(") && coeffStr.EndsWith(")"))
+                    {
+                        string parenContent = coeffStr.Substring(1, coeffStr.Length - 2);
+                        
+                        // Check if it contains tokens (parameters or tuples)
+                        if (parenContent.Contains("__PARAM") || parenContent.Contains("__TUPLE"))
+                        {
+                            coeffExpr = ParseTokenizedExpression(parenContent, tokenMap, out error);
+                            if (coeffExpr == null)
+                            {
+                                error = $"Could not parse coefficient expression '{coeffStr}' for variable '{variable}': {error}";
+                                return false;
+                            }
+                        }
+                        else
+                        {
+                            // Pure numeric expression - evaluate it
+                            var evalResult = evaluator.EvaluateFloatExpression(parenContent);
+                            if (!evalResult.IsSuccess)
+                            {
+                                error = $"Could not evaluate coefficient expression '{coeffStr}' for variable '{variable}': {evalResult.ErrorMessage}";
+                                return false;
+                            }
+                            coeffExpr = new ConstantExpression(evalResult.Value);
+                        }
+                    }
+                    else if (tokenMap.TryGetValue(coeffStr, out var tokenExpr))
                     {
                         coeffExpr = tokenExpr;
                     }
@@ -821,5 +892,15 @@ namespace Core.Parsing
             }
             return sb.ToString();
         }
-    }
-}
+
+        private List<object>? ParseItemKeyValues(string keyValuesStr, out string error)
+        {
+            error = string.Empty;
+            var keyValues = new List<object>();
+    
+            // Split by commas, respecting quotes
+            var values = SplitByCommaRespectingQuotes(keyValuesStr);
+    
+            foreach (var valueStr in values)
+            {
+       

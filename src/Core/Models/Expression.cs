@@ -396,6 +396,102 @@ namespace Core.Models
         }
     }
 
+    /// <summary>
+    /// Represents an item() lookup expression for tuples
+    /// Example: item(Products, <1, "Widget">)
+    /// </summary>
+    public class ItemExpression : Expression
+    {
+        public string TupleSetName { get; }
+        public List<object> KeyValues { get; }
+        
+        public ItemExpression(string tupleSetName, List<object> keyValues)
+        {
+            TupleSetName = tupleSetName;
+            KeyValues = keyValues ?? new List<object>();
+        }
+        
+        public override double Evaluate(ModelManager modelManager)
+        {
+            throw new InvalidOperationException(
+                "item() expressions return tuple instances, not numeric values. Use field access instead.");
+        }
+        
+        /// <summary>
+        /// Gets the tuple instance referenced by this item expression
+        /// </summary>
+        public TupleInstance? GetTupleInstance(ModelManager modelManager)
+        {
+            if (!modelManager.TupleSets.TryGetValue(TupleSetName, out var tupleSet))
+                throw new InvalidOperationException($"Tuple set '{TupleSetName}' not found");
+            
+            if (!modelManager.TupleSchemas.TryGetValue(tupleSet.SchemaName, out var schema))
+                throw new InvalidOperationException($"Tuple schema '{tupleSet.SchemaName}' not found");
+            
+            return tupleSet.FindByKey(schema, KeyValues.ToArray());
+        }
+        
+        public override string ToString() => 
+            $"item({TupleSetName}, <{string.Join(", ", KeyValues)}>)";
+        
+        public override bool IsConstant => true;
+        
+        public override Expression Simplify(ModelManager? modelManager = null) => this;
+    }
+
+    /// <summary>
+    /// Represents accessing a field from an item() expression
+    /// Example: item(Products, <1>).price
+    /// </summary>
+    public class ItemFieldAccessExpression : Expression
+    {
+        public ItemExpression ItemExpression { get; }
+        public string FieldName { get; }
+        
+        public ItemFieldAccessExpression(ItemExpression itemExpr, string fieldName)
+        {
+            ItemExpression = itemExpr;
+            FieldName = fieldName;
+        }
+        
+        public override double Evaluate(ModelManager modelManager)
+        {
+            var instance = ItemExpression.GetTupleInstance(modelManager);
+            
+            if (instance == null)
+                throw new InvalidOperationException(
+                    $"No tuple found for {ItemExpression}");
+            
+            var value = instance.GetValue(FieldName);
+            
+            if (value == null)
+                throw new InvalidOperationException(
+                    $"Field '{FieldName}' not found in tuple");
+            
+            return Convert.ToDouble(value);
+        }
+        
+        public override string ToString() => $"{ItemExpression}.{FieldName}";
+        
+        public override bool IsConstant => true;
+        
+        public override Expression Simplify(ModelManager? modelManager = null)
+        {
+            if (modelManager != null)
+            {
+                try
+                {
+                    return new ConstantExpression(Evaluate(modelManager));
+                }
+                catch
+                {
+                    // If evaluation fails, return as-is
+                }
+            }
+            return this;
+        }
+    }
+
     public enum BinaryOperator
     {
         Add,

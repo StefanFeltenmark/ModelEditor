@@ -12,7 +12,7 @@ namespace Core
         private readonly ModelManager modelManager;
         private readonly ExpressionEvaluator evaluator;
         private readonly JavaScriptEvaluator jsEvaluator;
-        
+
         // Specialized parsers
         private readonly ParameterParser parameterParser;
         private readonly IndexSetParser indexSetParser;
@@ -28,7 +28,7 @@ namespace Core
             modelManager = manager;
             evaluator = new ExpressionEvaluator(manager);
             jsEvaluator = new JavaScriptEvaluator(manager);
-            
+
             // Initialize specialized parsers
             parameterParser = new ParameterParser(manager, evaluator);
             indexSetParser = new IndexSetParser(manager, evaluator);
@@ -103,14 +103,14 @@ namespace Core
 
                 if (closingBraceIndex == -1)
                 {
-                    result.AddError($"Tuple schema: Missing closing brace '}}' for tuple '{match.Groups[1].Value}'", 
+                    result.AddError($"Tuple schema: Missing closing brace '}}' for tuple '{match.Groups[1].Value}'",
                         text.Substring(0, match.Index).Count(c => c == '\n') + 1);
                     continue;
                 }
 
                 // Extract the complete tuple definition
                 string tupleDefinition = text.Substring(match.Index, closingBraceIndex - match.Index + 1);
-                
+
                 // Parse and register the tuple schema
                 if (TryParseTupleSchemaBlock(tupleDefinition, out var schema, out string error))
                 {
@@ -119,9 +119,64 @@ namespace Core
                 }
                 else
                 {
-                    result.AddError($"Error parsing tuple schema: {error}", 
+                    result.AddError($"Error parsing tuple schema: {error}",
                         text.Substring(0, match.Index).Count(c => c == '\n') + 1);
                 }
+
+                lastIndex = closingBraceIndex + 1;
+            }
+
+            // Append remaining text
+            if (lastIndex < text.Length)
+            {
+                resultText.Append(text.Substring(lastIndex));
+            }
+
+            return resultText.ToString();
+        }
+
+        private string ExtractSubjectToBlocks(
+            string text,
+            Dictionary<int, int> lineMapping,
+            ParseSessionResult result)
+        {
+            // Pattern to match: subject to { ... }
+            string pattern = @"subject\s+to\s*\{";
+            var matches = Regex.Matches(text, pattern, RegexOptions.IgnoreCase | RegexOptions.Singleline);
+
+            if (matches.Count == 0)
+            {
+                return text; // No subject to blocks
+            }
+
+            var resultText = new System.Text.StringBuilder();
+            int lastIndex = 0;
+
+            foreach (Match match in matches)
+            {
+                // Append text before this block
+                resultText.Append(text.Substring(lastIndex, match.Index - lastIndex));
+
+                // Find matching closing brace
+                int closingBraceIndex = FindClosingBrace(text, match.Index + match.Length);
+
+                if (closingBraceIndex == -1)
+                {
+                    result.AddError("Subject to block: Missing closing brace '}'",
+                        text.Substring(0, match.Index).Count(c => c == '\n') + 1);
+                    lastIndex = match.Index + match.Length;
+                    continue;
+                }
+
+                // Extract the constraints block content
+                int blockStartIndex = match.Index + match.Length;
+                string blockContent = text.Substring(blockStartIndex, closingBraceIndex - blockStartIndex);
+
+                // Simply append the block content (constraints will be parsed normally)
+                // The "subject to" is just syntactic sugar for grouping - we extract the contents
+                resultText.AppendLine();
+                resultText.Append(blockContent);
+                resultText.AppendLine();
 
                 lastIndex = closingBraceIndex + 1;
             }
@@ -154,7 +209,7 @@ namespace Core
             // Extract body (everything between { and })
             int openBrace = block.IndexOf('{');
             int closeBrace = block.LastIndexOf('}');
-            
+
             if (openBrace == -1 || closeBrace == -1)
             {
                 error = "Missing braces in tuple definition";
@@ -163,8 +218,8 @@ namespace Core
 
             string body = block.Substring(openBrace + 1, closeBrace - openBrace - 1);
 
-            // Parse field declarations
-            var fieldPattern = @"(float|int|bool|string)\s+([a-zA-Z][a-zA-Z0-9_]*)\s*;";
+            // Parse field declarations with optional "key" keyword
+            var fieldPattern = @"(key\s+)?(float|int|bool|string)\s+([a-zA-Z][a-zA-Z0-9_]*)\s*;";
             var fieldMatches = Regex.Matches(body, fieldPattern, RegexOptions.IgnoreCase);
 
             if (fieldMatches.Count == 0)
@@ -175,8 +230,9 @@ namespace Core
 
             foreach (Match fieldMatch in fieldMatches)
             {
-                string typeStr = fieldMatch.Groups[1].Value.ToLower();
-                string fieldName = fieldMatch.Groups[2].Value;
+                bool isKey = !string.IsNullOrWhiteSpace(fieldMatch.Groups[1].Value);
+                string typeStr = fieldMatch.Groups[2].Value.ToLower();
+                string fieldName = fieldMatch.Groups[3].Value;
 
                 VariableType fieldType = typeStr switch
                 {
@@ -189,7 +245,7 @@ namespace Core
 
                 try
                 {
-                    schema.AddField(fieldName, fieldType);
+                    schema.AddField(fieldName, fieldType, isKey);
                 }
                 catch (Exception ex)
                 {
@@ -202,13 +258,13 @@ namespace Core
         }
 
         private List<(string content, int lineNumber)> SplitIntoStatements(
-            string text, 
+            string text,
             Dictionary<int, int> lineMapping)
         {
             // Split by lines first to handle comments properly
             string[] lines = text.Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries);
             var processedLines = new List<(string content, int lineNumber)>();
-            
+
             int currentLineNumber = 1;
             foreach (string line in lines)
             {
@@ -216,11 +272,12 @@ namespace Core
                 if (!string.IsNullOrWhiteSpace(lineWithoutComment))
                 {
                     // Map to original line number
-                    int originalLineNumber = lineMapping.ContainsKey(currentLineNumber) 
-                        ? lineMapping[currentLineNumber] 
+                    int originalLineNumber = lineMapping.ContainsKey(currentLineNumber)
+                        ? lineMapping[currentLineNumber]
                         : currentLineNumber;
                     processedLines.Add((lineWithoutComment, originalLineNumber));
                 }
+
                 currentLineNumber++;
             }
 
@@ -235,12 +292,13 @@ namespace Core
                 {
                     statementStartLine = lineNumber;
                 }
-                
+
                 currentStatement += " " + content;
-                
+
                 if (content.Contains(';'))
                 {
-                    var parts = currentStatement.Split(';', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+                    var parts = currentStatement.Split(';',
+                        StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
                     foreach (var part in parts)
                     {
                         if (!string.IsNullOrWhiteSpace(part))
@@ -248,6 +306,7 @@ namespace Core
                             statements.Add((part.Trim(), statementStartLine));
                         }
                     }
+
                     currentStatement = "";
                 }
             }
@@ -262,11 +321,11 @@ namespace Core
         }
 
         private (string processedText, Dictionary<int, int> lineMapping) ExtractAndProcessExecuteBlocks(
-            string text, 
+            string text,
             ParseSessionResult result)
         {
             var lineMapping = new Dictionary<int, int>();
-            
+
             string pattern = @"execute\s*\{";
             var matches = Regex.Matches(text, pattern, RegexOptions.Singleline);
 
@@ -278,6 +337,7 @@ namespace Core
                 {
                     lineMapping[i + 1] = i + 1;
                 }
+
                 return (text, lineMapping);
             }
 
@@ -290,13 +350,13 @@ namespace Core
             foreach (Match match in matches)
             {
                 blockNumber++;
-                
+
                 // Find the matching closing brace
                 int closingBraceIndex = FindClosingBrace(text, match.Index + match.Length);
 
                 if (closingBraceIndex == -1)
                 {
-                    result.AddError($"Execute block {blockNumber}: Missing closing brace '}}' ", 
+                    result.AddError($"Execute block {blockNumber}: Missing closing brace '}}' ",
                         text.Substring(0, match.Index).Count(c => c == '\n') + 1);
                     continue;
                 }
@@ -309,7 +369,7 @@ namespace Core
                 // Append text before this execute block
                 string beforeBlock = text.Substring(lastIndex, match.Index - lastIndex);
                 resultText.Append(beforeBlock);
-                
+
                 // Update line mapping
                 UpdateLineMapping(lineMapping, beforeBlock, ref currentOutputLine, ref currentInputLine);
 
@@ -351,6 +411,7 @@ namespace Core
                         return searchIndex;
                     }
                 }
+
                 searchIndex++;
             }
 
@@ -358,9 +419,9 @@ namespace Core
         }
 
         private void UpdateLineMapping(
-            Dictionary<int, int> lineMapping, 
-            string text, 
-            ref int currentOutputLine, 
+            Dictionary<int, int> lineMapping,
+            string text,
+            ref int currentOutputLine,
             ref int currentInputLine)
         {
             var lines = text.Split(new[] { '\r', '\n' });
@@ -421,11 +482,11 @@ namespace Core
         {
             string error = string.Empty;
             bool matched = false;
-            
+
             // Try parameter parsing
             if (parameterParser.TryParse(statement, out Parameter param, out error))
             {
-                if (param != null)
+                if( param != null)
                 {
                     modelManager.AddParameter(param);
                     result.IncrementSuccess();
@@ -439,7 +500,7 @@ namespace Core
             }
 
             // Try index set parsing
-            
+
             if (indexSetParser.TryParse(statement, out var indexSet, out error))
             {
                 if (indexSet != null)
@@ -504,15 +565,15 @@ namespace Core
                     return;
                 }
             }
-            
+
             // Check for validation errors
-            if (!string.IsNullOrEmpty(error) && 
+            if (!string.IsNullOrEmpty(error) &&
                 !error.Equals("Not a tuple set declaration", StringComparison.Ordinal))
             {
                 result.AddError($"\"{statement}\"\n  Error: {error}", lineNumber);
                 return;
             }
-            
+
             error = string.Empty;
 
             // Try indexed equation
@@ -521,14 +582,14 @@ namespace Core
                 result.IncrementSuccess();
                 return;
             }
-            
-            if (!string.IsNullOrEmpty(error) && 
+
+            if (!string.IsNullOrEmpty(error) &&
                 !error.Equals("Not an indexed equation declaration", StringComparison.Ordinal))
             {
                 result.AddError($"\"{statement}\"\n  Error: {error}", lineNumber);
                 return;
             }
-            
+
             error = string.Empty;
 
             // Try regular equation
@@ -550,12 +611,41 @@ namespace Core
                 }
             }
 
+            // Check for equation parsing errors before trying objective
+            if (!string.IsNullOrEmpty(error) && 
+                !error.Equals("Not an equation", StringComparison.Ordinal))
+            {
+                result.AddError($"\"{statement}\"\n  Error: {error}", lineNumber);
+                return;
+            }
+
+            error = string.Empty;
+
+            // **Try objective function**
+            if (TryParseObjective(statement, out var objective, out error))
+            {
+                if (objective != null)
+                {
+                    modelManager.SetObjective(objective);
+                    result.IncrementSuccess();
+                    return;
+                }
+            }
+
+            // Check for objective parsing errors
+            if (!string.IsNullOrEmpty(error) &&
+                !error.Equals("Not an objective function", StringComparison.Ordinal))
+            {
+                result.AddError($"\"{statement}\"\n  Error: {error}", lineNumber);
+                return;
+            }
+
             // Nothing matched
             if (string.IsNullOrEmpty(error))
             {
-                error = "Unknown statement type. Expected: parameter, index set, variable, tuple set, or equation declaration";
+                error = "Unknown statement type. Expected: parameter, index set, variable, tuple set, equation, or objective";
             }
-            
+
             result.AddError($"\"{statement}\"\n  Error: {error}", lineNumber);
         }
 
@@ -565,7 +655,7 @@ namespace Core
             tupleSet = null;
             error = string.Empty;
 
-            // Pattern: {SchemaName} setName = ...;
+            // Pattern: {SchemaName} setName = ...;  or  {SchemaName} setName = {<...>, <...>};
             string pattern = @"^\s*\{([a-zA-Z][a-zA-Z0-9_]*)\}\s+([a-zA-Z][a-zA-Z0-9_]*)\s*=\s*(.+)$";
             var match = Regex.Match(statement.Trim(), pattern);
 
@@ -585,10 +675,158 @@ namespace Core
                 return false;
             }
 
+            var schema = modelManager.TupleSchemas[schemaName];
             bool isExternal = value == "...";
-            tupleSet = new TupleSet(setName, 2, isExternal);
+            tupleSet = new TupleSet(setName, schemaName, isExternal);
+
+            // Parse inline tuple data if provided
+            if (!isExternal)
+            {
+                if (!value.StartsWith("{") || !value.EndsWith("}"))
+                {
+                    error = "Tuple set data must be enclosed in braces: {<...>, <...>}";
+                    return false;
+                }
+
+                string tupleData = value.Substring(1, value.Length - 2).Trim();
+
+                if (!string.IsNullOrEmpty(tupleData))
+                {
+                    if (!ParseInlineTupleData(tupleData, schema, tupleSet, out error))
+                    {
+                        return false;
+                    }
+                }
+            }
 
             return true;
+        }
+
+        private bool ParseInlineTupleData(string tupleData, TupleSchema schema, TupleSet tupleSet, out string error)
+        {
+            error = string.Empty;
+
+            // Pattern: <value1, value2, ...>
+            var tuplePattern = @"<([^>]+)>";
+            var tupleMatches = Regex.Matches(tupleData, tuplePattern);
+
+            if (tupleMatches.Count == 0)
+            {
+                error = "No valid tuple data found. Use angle bracket notation: <value1, value2, ...>";
+                return false;
+            }
+
+            foreach (Match tupleMatch in tupleMatches)
+            {
+                string instanceData = tupleMatch.Groups[1].Value;
+                var values = SplitTupleValues(instanceData);
+
+                if (values.Count != schema.Fields.Count)
+                {
+                    error =
+                        $"Tuple has {values.Count} values but schema '{schema.Name}' requires {schema.Fields.Count} fields";
+                    return false;
+                }
+
+                var instance = new TupleInstance(schema.Name);
+                int fieldIndex = 0;
+
+                foreach (var field in schema.Fields)
+                {
+                    string fieldName = field.Key;
+                    VariableType fieldType = field.Value;
+                    string valueStr = values[fieldIndex++];
+
+                    object parsedValue = ParseTupleFieldValue(valueStr, fieldType, out string parseError);
+
+                    if (!string.IsNullOrEmpty(parseError))
+                    {
+                        error = $"Error parsing field '{fieldName}': {parseError}";
+                        return false;
+                    }
+
+                    instance.SetValue(fieldName, parsedValue);
+                }
+
+                tupleSet.AddInstance(instance);
+            }
+
+            return true;
+        }
+
+        private List<string> SplitTupleValues(string input)
+        {
+            var values = new List<string>();
+            var current = new System.Text.StringBuilder();
+            bool inQuotes = false;
+            int depth = 0;
+
+            for (int i = 0; i < input.Length; i++)
+            {
+                char c = input[i];
+
+                if (c == '"')
+                {
+                    inQuotes = !inQuotes;
+                    current.Append(c);
+                }
+                else if (!inQuotes)
+                {
+                    if (c == '<' || c == '(')
+                    {
+                        depth++;
+                        current.Append(c);
+                    }
+                    else if (c == '>' || c == ')')
+                    {
+                        depth--;
+                        current.Append(c);
+                    }
+                    else if (c == ',' && depth == 0)
+                    {
+                        values.Add(current.ToString().Trim());
+                        current.Clear();
+                    }
+                    else
+                    {
+                        current.Append(c);
+                    }
+                }
+                else
+                {
+                    current.Append(c);
+                }
+            }
+
+            if (current.Length > 0)
+            {
+                values.Add(current.ToString().Trim());
+            }
+
+            return values;
+        }
+
+        private object ParseTupleFieldValue(string valueStr, VariableType type, out string error)
+        {
+            error = string.Empty;
+            valueStr = valueStr.Trim();
+
+            try
+            {
+                return type switch
+                {
+                    VariableType.String => valueStr.Trim('"'),
+                    VariableType.Integer => int.Parse(valueStr),
+                    VariableType.Float => double.Parse(valueStr, System.Globalization.CultureInfo.InvariantCulture),
+                    VariableType.Boolean => bool.Parse(valueStr),
+                    _ => throw new InvalidOperationException($"Unknown type: {type}")
+                };
+            }
+            catch (Exception ex)
+            {
+                error = ex.Message;
+                return null!;
+            }
         }
 
         private bool TryParseIndexedEquation(string statement, int lineNumber, out string error, ParseSessionResult result)
@@ -813,61 +1051,6 @@ namespace Core
             }
         }
 
-        private string ExtractSubjectToBlocks(
-            string text, 
-            Dictionary<int, int> lineMapping, 
-            ParseSessionResult result)
-        {
-            // Pattern to match: subject to { ... }
-            string pattern = @"subject\s+to\s*\{";
-            var matches = Regex.Matches(text, pattern, RegexOptions.IgnoreCase | RegexOptions.Singleline);
-
-            if (matches.Count == 0)
-            {
-                return text; // No subject to blocks
-            }
-
-            var resultText = new System.Text.StringBuilder();
-            int lastIndex = 0;
-
-            foreach (Match match in matches)
-            {
-                // Append text before this block
-                resultText.Append(text.Substring(lastIndex, match.Index - lastIndex));
-
-                // Find matching closing brace
-                int closingBraceIndex = FindClosingBrace(text, match.Index + match.Length);
-
-                if (closingBraceIndex == -1)
-                {
-                    result.AddError("Subject to block: Missing closing brace '}'", 
-                        text.Substring(0, match.Index).Count(c => c == '\n') + 1);
-                    lastIndex = match.Index + match.Length;
-                    continue;
-                }
-
-                // Extract the constraints block content
-                int blockStartIndex = match.Index + match.Length;
-                string blockContent = text.Substring(blockStartIndex, closingBraceIndex - blockStartIndex);
-
-                // Simply append the block content (constraints will be parsed normally)
-                // The "subject to" is just syntactic sugar for grouping - we extract the contents
-                resultText.AppendLine();
-                resultText.Append(blockContent);
-                resultText.AppendLine();
-
-                lastIndex = closingBraceIndex + 1;
-            }
-
-            // Append remaining text
-            if (lastIndex < text.Length)
-            {
-                resultText.Append(text.Substring(lastIndex));
-            }
-
-            return resultText.ToString();
-        }
-
         private bool TryParseEquation(string equation, out LinearEquation? result, out string error)
         {
             result = null;
@@ -877,7 +1060,7 @@ namespace Core
             {
                 if (string.IsNullOrWhiteSpace(equation))
                 {
-                    error = "Equation is empty or contains only whitespace";
+                    error = "Not an equation";
                     return false;
                 }
 
@@ -913,6 +1096,11 @@ namespace Core
                 // Parse operator and split
                 if (!SplitByOperator(cleaned, out var op, out var parts, out error))
                 {
+                    // If no valid operator found, it's not an equation
+                    if (error.Contains("Missing relational operator"))
+                    {
+                        error = "Not an equation";
+                    }
                     return false;
                 }
 
@@ -1079,34 +1267,60 @@ namespace Core
 
             return finalCoefficients;
         }
-    }
 
-    public class ParseSessionResult
-    {
-        public List<(string Message, int LineNumber)> Errors { get; private set; } = new List<(string, int)>();
-        public int SuccessCount { get; private set; } = 0;
-
-        public void AddError(string error, int lineNumber)
+        private bool TryParseObjective(string statement, out Objective? objective, out string error)
         {
-            Errors.Add(($"Line {lineNumber}: {error}", lineNumber));
-        }
+            objective = null;
+            error = string.Empty;
 
-        public void IncrementSuccess()
-        {
-            SuccessCount++;
-        }
+            // Pattern: minimize/maximize [name:] expression;
+            string pattern = @"^\s*(minimize|maximize)\s+(?:([a-zA-Z][a-zA-Z0-9_]*)\s*:\s*)?(.+)$";
+            var match = Regex.Match(statement.Trim(), pattern, RegexOptions.IgnoreCase);
 
-        public bool HasErrors => Errors.Count > 0;
-        public bool HasSuccess => SuccessCount > 0;
+            if (!match.Success)
+            {
+                error = "Not an objective function";
+                return false;
+            }
 
-        public IEnumerable<string> GetErrorMessages()
-        {
-            return Errors.Select(e => e.Message);
-        }
+            string senseStr = match.Groups[1].Value.ToLower();
+            string name = match.Groups[2].Value;
+            string expression = match.Groups[3].Value;
 
-        public IEnumerable<string> GetErrorsForLine(int lineNumber)
-        {
-            return Errors.Where(e => e.LineNumber == lineNumber).Select(e => e.Message);
+            ObjectiveSense sense = senseStr == "minimize" 
+                ? ObjectiveSense.Minimize 
+                : ObjectiveSense.Maximize;
+
+            // Expand summations
+            expression = summationExpander.ExpandSummations(expression, out error);
+            if (!string.IsNullOrEmpty(error))
+            {
+                return false;
+            }
+
+            // Expand parentheses multiplication
+            expression = parenthesesExpander.ExpandParenthesesMultiplication(expression);
+
+            // Remove whitespace
+            string cleaned = Regex.Replace(expression, @"\s+", "");
+
+            // Parse the expression
+            if (!expressionParser.TryParseExpression(cleaned, out var coefficients, out var constant, out error))
+            {
+                error = $"Error parsing objective expression: {error}";
+                return false;
+            }
+
+            // Validate variables
+            if (!variableValidator.ValidateVariableDeclarations(coefficients.Keys.ToList(), out error))
+            {
+                return false;
+            }
+
+            objective = new Objective(sense, coefficients, constant, 
+                string.IsNullOrEmpty(name) ? null : name);
+
+            return true;
         }
     }
 }

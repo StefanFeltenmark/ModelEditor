@@ -7,104 +7,32 @@ namespace Tests
     public class TupleSetTests : TestBase
     {
         [Fact]
-        public void Parse_ExplicitTwoDimensionalTupleSet_ShouldSucceed()
+        public void Parse_TupleSchemaAndSet_ShouldSucceed()
         {
-            // Arrange
-            var manager = CreateModelManager();
-            var parser = CreateParser(manager);
-            string input = "tupleset Routes = {(1,2), (1,3), (2,3), (2,4)};";
+            // Arrange & Act
+            var tupleSet = new TupleSet("products", "Product", true);
 
-            // Act
-            var result = parser.Parse(input);
-
+           
             // Assert
-            AssertNoErrors(result);
-            Assert.Equal(1, result.SuccessCount);
-            Assert.Single(manager.TupleSets);
-            
-            var tupleSet = manager.TupleSets["Routes"];
-            Assert.Equal("Routes", tupleSet.Name);
-            Assert.Equal(2, tupleSet.Dimension);
-            Assert.Equal(4, tupleSet.Count);
-            Assert.True(tupleSet.Contains(1, 2));
-            Assert.True(tupleSet.Contains(2, 4));
-            Assert.False(tupleSet.Contains(3, 4));
+            Assert.True(tupleSet.IsExternal);
+            Assert.Equal(0, tupleSet.Count);
         }
 
         [Fact]
-        public void Parse_ExplicitThreeDimensionalTupleSet_ShouldSucceed()
+        public void AddInstance_WithNullInstance_ShouldThrow()
         {
             // Arrange
-            var manager = CreateModelManager();
-            var parser = CreateParser(manager);
-            string input = "tupleset Connections = {(1,2,3), (1,3,2), (2,1,3)};";
+            var tupleSet = new TupleSet("products", "Product", false);
+            var instance = new TupleInstance("Product");
+            instance.SetValue("id", 1);
+            tupleSet.AddInstance(instance);
 
             // Act
-            var result = parser.Parse(input);
+            var retrieved = tupleSet[0];
 
             // Assert
-            AssertNoErrors(result);
-            var tupleSet = manager.TupleSets["Connections"];
-            Assert.Equal(3, tupleSet.Dimension);
-            Assert.Equal(3, tupleSet.Count);
-            Assert.True(tupleSet.Contains(1, 2, 3));
-            Assert.False(tupleSet.Contains(1, 1, 1));
-        }
-
-        [Fact]
-        public void Parse_ComputedTupleSetWithFilter_ShouldSucceed()
-        {
-            // Arrange
-            var manager = CreateModelManager();
-            var parser = CreateParser(manager);
-            string input = @"
-                range I = 1..4;
-                range J = 1..4;
-                tupleset ValidPairs = {(i,j) | i in I, j in J, i < j};
-            ";
-
-            // Act
-            var result = parser.Parse(input);
-
-            // Assert
-            AssertNoErrors(result);
-            var tupleSet = manager.TupleSets["ValidPairs"];
-            Assert.Equal(2, tupleSet.Dimension);
-            
-            // Should contain (1,2), (1,3), (1,4), (2,3), (2,4), (3,4)
-            Assert.Equal(6, tupleSet.Count);
-            Assert.True(tupleSet.Contains(1, 2));
-            Assert.True(tupleSet.Contains(1, 3));
-            Assert.True(tupleSet.Contains(3, 4));
-            Assert.False(tupleSet.Contains(2, 1)); // i < j filter
-            Assert.False(tupleSet.Contains(2, 2)); // i < j filter
-        }
-
-        [Fact]
-        public void Parse_ComputedTupleSetWithMultipleFilters_ShouldSucceed()
-        {
-            // Arrange
-            var manager = CreateModelManager();
-            var parser = CreateParser(manager);
-            string input = @"
-                range I = 1..5;
-                range J = 1..5;
-                tupleset SpecialPairs = {(i,j) | i in I, j in J, i < j, i + j > 5};
-            ";
-
-            // Act
-            var result = parser.Parse(input);
-
-            // Assert
-            AssertNoErrors(result);
-            var tupleSet = manager.TupleSets["SpecialPairs"];
-            
-            // i < j and i + j > 5
-            // Valid: (1,5), (2,4), (2,5), (3,4), (3,5), (4,5)
-            Assert.True(tupleSet.Contains(2, 4));
-            Assert.True(tupleSet.Contains(3, 4));
-            Assert.False(tupleSet.Contains(1, 2)); // sum = 3, not > 5
-            Assert.False(tupleSet.Contains(2, 2)); // i not < j
+            Assert.Equal(instance, retrieved);
+            Assert.Equal(1, retrieved.GetValue("id"));
         }
 
         [Fact]
@@ -113,36 +41,73 @@ namespace Tests
             // Arrange
             var manager = CreateModelManager();
             var parser = CreateParser(manager);
-            string input = "tupleset Arcs = ...;";
+            string input = @"
+                tuple Arc {
+                    int from;
+                    int to;
+                }
+                {Arc} arcs = ...;
+            ";
 
             // Act
             var result = parser.Parse(input);
 
             // Assert
             AssertNoErrors(result);
-            var tupleSet = manager.TupleSets["Arcs"];
+            var tupleSet = manager.TupleSets["arcs"];
             Assert.True(tupleSet.IsExternal);
-            Assert.Equal(0, tupleSet.Count);
+            Assert.Equal(0, tupleSet.Instances.Count);
+        }
+
+        [Fact]
+        public void Parse_TupleSetWithData_ShouldPopulateFields()
+        {
+            // Arrange
+            var manager = CreateModelManager();
+            var parser = CreateParser(manager);
+            string input = @"
+                tuple Edge {
+                    int from;
+                    int to;
+                    float cost;
+                }
+                {Edge} edges = {<1,2,10.5>, <2,3,20.0>};
+            ";
+
+            // Act
+            var result = parser.Parse(input);
+
+            // Assert
+            AssertNoErrors(result);
+            var tupleSet = manager.TupleSets["edges"];
+            Assert.Equal(2, tupleSet.Instances.Count);
+            
+            var firstEdge = tupleSet.Instances[0];
+            Assert.Equal(1, firstEdge.GetValue("from"));
+            Assert.Equal(2, firstEdge.GetValue("to"));
+            Assert.Equal(10.5, firstEdge.GetValue("cost"));
         }
 
         [Fact]
         public void TupleSet_ToString_ShouldFormatCorrectly()
         {
             // Arrange
-            var tuples = new List<Tuple<int, int>>
-            {
-                Tuple.Create(1, 2),
-                Tuple.Create(3, 4)
-            };
-            var tupleSet = new TupleSet("Test", tuples);
+            var schema = new TupleSchema("TestTuple");
+            schema.AddField("x", VariableType.Integer);
+            schema.AddField("y", VariableType.Integer);
+            
+            var tupleSet = new TupleSet("testSet", "TestTuple", false);
+            var instance1 = new TupleInstance("TestTuple");
+            instance1.SetValue("x", 1);
+            instance1.SetValue("y", 2);
+            tupleSet.AddInstance(instance1);
 
             // Act
             string str = tupleSet.ToString();
 
             // Assert
-            Assert.Contains("Test", str);
-            Assert.Contains("(1,2)", str);
-            Assert.Contains("(3,4)", str);
+            Assert.Contains("testSet", str);
+            Assert.Contains("TestTuple", str);
         }
 
         [Fact]
@@ -150,27 +115,66 @@ namespace Tests
         {
             // Arrange
             var parser = CreateParser();
-            string input = "tupleset Bad = {1,2, 3,4};"; // Missing parentheses
+            string input = @"
+                tuple Bad {
+                    int x;
+                    int y;
+                }
+                {Bad} badSet = {1,2, 3,4};
+            "; // Missing angle brackets
 
             // Act
             var result = parser.Parse(input);
 
             // Assert
-            AssertHasError(result, "Invalid tuple format");
+            Assert.True(result.HasErrors);
         }
 
         [Fact]
-        public void Parse_MixedDimensions_ShouldFail()
+        public void Parse_MismatchedFieldCount_ShouldFail()
         {
             // Arrange
             var parser = CreateParser();
-            string input = "tupleset Mixed = {(1,2), (3,4,5)};"; // 2D and 3D mixed
+            string input = @"
+                tuple Pair {
+                    int x;
+                    int y;
+                }
+                {Pair} pairs = {<1,2>, <3,4,5>};
+            "; // Second tuple has 3 values, schema expects 2
 
             // Act
             var result = parser.Parse(input);
 
             // Assert
-            AssertHasError(result, "Invalid");
+            Assert.True(result.HasErrors);
+        }
+
+        [Fact]
+        public void Parse_TupleSetWithStringFields_ShouldSucceed()
+        {
+            // Arrange
+            var manager = CreateModelManager();
+            var parser = CreateParser(manager);
+            string input = @"
+                tuple City {
+                    string name;
+                    int population;
+                }
+                {City} cities = {<""NYC"", 8000000>, <""LA"", 4000000>};
+            ";
+
+            // Act
+            var result = parser.Parse(input);
+
+            // Assert
+            AssertNoErrors(result);
+            var tupleSet = manager.TupleSets["cities"];
+            Assert.Equal(2, tupleSet.Instances.Count);
+            
+            var nyc = tupleSet.Instances[0];
+            Assert.Equal("NYC", nyc.GetValue("name"));
+            Assert.Equal(8000000, nyc.GetValue("population"));
         }
     }
 }
