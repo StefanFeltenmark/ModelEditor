@@ -40,3 +40,7 @@ src/NetWorks/obj/
 src/Tests/obj/
 
 src/.vs/ModelEditor.slnx/DesignTimeBuild/.dtbcache.v2
+
+src/.vs/CopilotSnapshots/F12419B8E3B3B64A9D6D880CCC0EFE48/BFF0A15718C37E4B885A77DFB7C25A07/
+
+*.mpack

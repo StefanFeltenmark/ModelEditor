@@ -26,6 +26,8 @@ namespace Core
     
         public Dictionary<string, TupleSet> TupleSets { get; private set; } = new Dictionary<string, TupleSet>();
 
+        public Dictionary<string, PrimitiveSet> PrimitiveSets { get; } = new Dictionary<string, PrimitiveSet>();
+
         public void AddParameter(Parameter parameter)
         {
             if (Parameters.ContainsKey(parameter.Name))
@@ -141,17 +143,51 @@ namespace Core
                 sb.AppendLine($"  - {indexSet}");
             }
             
-            // Add tuple sets
-            sb.AppendLine($"\nTuple Sets: {TupleSets.Count}");
-            foreach (var tupleSet in TupleSets.Values)
+            // Add primitive sets
+            if (PrimitiveSets.Count > 0)
             {
-                sb.AppendLine($"  - {tupleSet}");
+                sb.AppendLine($"\nPrimitive Sets: {PrimitiveSets.Count}");
+                foreach (var primitiveSet in PrimitiveSets.Values)
+                {
+                    sb.AppendLine($"  - {primitiveSet}");
+                }
+            }
+            
+            // Add tuple schemas
+            if (TupleSchemas.Count > 0)
+            {
+                sb.AppendLine($"\nTuple Schemas: {TupleSchemas.Count}");
+                foreach (var schema in TupleSchemas.Values)
+                {
+                    sb.AppendLine($"  - {schema}");
+                }
+            }
+            
+            // Add tuple sets
+            if (TupleSets.Count > 0)
+            {
+                sb.AppendLine($"\nTuple Sets: {TupleSets.Count}");
+                foreach (var tupleSet in TupleSets.Values)
+                {
+                    sb.AppendLine($"  - {tupleSet}");
+                }
             }
             
             sb.AppendLine($"\nVariables: {IndexedVariables.Count}");
             foreach (var variable in IndexedVariables.Values)
             {
                 sb.AppendLine($"  - {variable}");
+            }
+            
+            // **ADD OBJECTIVE FUNCTION**
+            if (Objective != null)
+            {
+                sb.AppendLine($"\nObjective:");
+                sb.AppendLine($"  - {Objective}");
+            }
+            else
+            {
+                sb.AppendLine($"\nObjective: None");
             }
             
             sb.AppendLine($"\nEquations: {Equations.Count}");
@@ -248,6 +284,26 @@ namespace Core
                 throw new InvalidOperationException($"Tuple set '{tupleSet.Name}' already exists");
             }
             TupleSets[tupleSet.Name] = tupleSet;
+        }
+
+        public void AddPrimitiveSet(PrimitiveSet primitiveSet)
+        {
+            if (primitiveSet == null)
+                throw new ArgumentNullException(nameof(primitiveSet));
+    
+            if (PrimitiveSets.ContainsKey(primitiveSet.Name))
+                throw new InvalidOperationException($"Primitive set '{primitiveSet.Name}' is already defined");
+    
+            PrimitiveSets[primitiveSet.Name] = primitiveSet;
+        }
+
+        /// <summary>
+        /// Exports the model to MPS format
+        /// </summary>
+        public string ExportToMPS(string problemName = "PROBLEM")
+        {
+            var exporter = new Export.MPSExporter(this);
+            return exporter.Export(problemName);
         }
     }
 }

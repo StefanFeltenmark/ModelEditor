@@ -128,7 +128,7 @@ namespace Core.Models
             return Type switch
             {
                 ParameterType.Integer => Convert.ToInt32(Value),
-                _ => throw new InvalidOperationException($"Parameter '{Name}' is of type {Type}, not Integer")
+                _ => throw new InvalidOperationException($"Parameter '{Name}' is of type {Type}, not Int")
             };
         }
 

@@ -31,6 +31,9 @@ namespace Core
                 return result;
             }
 
+            // **Remove block comments FIRST**
+            text = RemoveBlockComments(text);
+
             // Split by lines and handle comments
             string[] lines = text.Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries);
             var processedLines = new List<(string content, int lineNumber)>();
@@ -120,6 +123,13 @@ namespace Core
 
             // Try tuple data: setName = { <field1, field2, ...>, <...>, ... };
             if (TryParseTupleData(statement, out error))
+            {
+                result.IncrementSuccess();
+                return;
+            }
+
+            // Try primitive set data: setName = {value1, value2, ...}
+            if (TryParsePrimitiveSetData(statement, out error))
             {
                 result.IncrementSuccess();
                 return;
@@ -761,6 +771,130 @@ namespace Core
                 error = $"Error parsing value '{valueStr}': {ex.Message}";
                 return null;
             }
+        }
+
+        private string RemoveBlockComments(string text)
+        {
+            var result = new System.Text.StringBuilder();
+            int i = 0;
+            
+            while (i < text.Length)
+            {
+                // Check for block comment start
+                if (i < text.Length - 1 && text[i] == '/' && text[i + 1] == '*')
+                {
+                    // Find the closing */
+                    int closeIndex = text.IndexOf("*/", i + 2);
+                    
+                    if (closeIndex == -1)
+                    {
+                        // Unclosed block comment - treat rest of file as comment
+                        break;
+                    }
+                    
+                    // Skip the entire comment block
+                    // But preserve line breaks for accurate line number tracking
+                    string commentBlock = text.Substring(i, closeIndex + 2 - i);
+                    int lineBreaks = commentBlock.Count(c => c == '\n');
+                    
+                    // Add newlines to maintain line numbers
+                    for (int n = 0; n < lineBreaks; n++)
+                    {
+                        result.Append('\n');
+                    }
+                    
+                    i = closeIndex + 2; // Skip past */
+                }
+                else
+                {
+                    result.Append(text[i]);
+                    i++;
+                }
+            }
+            
+            return result.ToString();
+        }
+
+        private bool TryParsePrimitiveSetData(string statement, out string error)
+        {
+            error = string.Empty;
+
+            // Pattern: setName = {value1, value2, ...}
+            string pattern = @"^\s*([a-zA-Z][a-zA-Z0-9_]*)\s*=\s*\{(.+)\}$";
+            var match = Regex.Match(statement.Trim(), pattern);
+
+            if (!match.Success)
+            {
+                error = "Not a primitive set data assignment";
+                return false;
+            }
+
+            string setName = match.Groups[1].Value;
+            string data = match.Groups[2].Value.Trim();
+
+            // Check if it's a primitive set
+            if (!modelManager.PrimitiveSets.TryGetValue(setName, out var primitiveSet))
+            {
+                error = "Not a primitive set data assignment";
+                return false;
+            }
+
+            // Clear existing data
+            primitiveSet.Clear();
+
+            // Parse and populate
+            var values = SplitByCommaOrWhitespace(data);
+
+            foreach (var valueStr in values)
+            {
+                string trimmed = valueStr.Trim();
+                
+                if (string.IsNullOrEmpty(trimmed))
+                    continue;
+
+                try
+                {
+                    switch (primitiveSet.Type)
+                    {
+                        case PrimitiveSetType.Int:
+                            if (int.TryParse(trimmed, out int intVal))
+                            {
+                                primitiveSet.Add(intVal);
+                            }
+                            else
+                            {
+                                error = $"Invalid integer value for set '{setName}': '{trimmed}'";
+                                return false;
+                            }
+                            break;
+
+                        case PrimitiveSetType.String:
+                            string strVal = trimmed.Trim('"');
+                            primitiveSet.Add(strVal);
+                            break;
+
+                        case PrimitiveSetType.Float:
+                            if (double.TryParse(trimmed, System.Globalization.NumberStyles.Float,
+                                System.Globalization.CultureInfo.InvariantCulture, out double floatVal))
+                            {
+                                primitiveSet.Add(floatVal);
+                            }
+                            else
+                            {
+                                error = $"Invalid float value for set '{setName}': '{trimmed}'";
+                                return false;
+                            }
+                            break;
+                    }
+                }
+                catch (Exception ex)
+                {
+                    error = $"Error parsing value for set '{setName}': {ex.Message}";
+                    return false;
+                }
+            }
+
+            return true;
         }
     }
 }

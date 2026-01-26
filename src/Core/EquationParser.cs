@@ -1,3 +1,4 @@
+using System.Text;
 using Core.Models;
 using Core.Parsing;
 using System.Text.RegularExpressions;
@@ -16,7 +17,6 @@ namespace Core
         // Specialized parsers
         private readonly ParameterParser parameterParser;
         private readonly IndexSetParser indexSetParser;
-        private readonly TupleSetParser tupleSetParser;
         private readonly VariableDeclarationParser variableParser;
         private readonly ExpressionParser expressionParser;
         private readonly SummationExpander summationExpander;
@@ -28,11 +28,10 @@ namespace Core
             modelManager = manager;
             evaluator = new ExpressionEvaluator(manager);
             jsEvaluator = new JavaScriptEvaluator(manager);
-
+            
             // Initialize specialized parsers
             parameterParser = new ParameterParser(manager, evaluator);
             indexSetParser = new IndexSetParser(manager, evaluator);
-            tupleSetParser = new TupleSetParser(manager, evaluator);
             variableParser = new VariableDeclarationParser(manager, evaluator);
             expressionParser = new ExpressionParser(manager);
             summationExpander = new SummationExpander(manager);
@@ -55,7 +54,10 @@ namespace Core
                 return result;
             }
 
-            // Extract and process JavaScript execute blocks FIRST
+            // **Remove block comments FIRST**
+            text = RemoveBlockComments(text);
+
+            // Extract and process JavaScript execute blocks
             var (processedText, lineMapping) = ExtractAndProcessExecuteBlocks(text, result);
 
             // **NEW: Extract and process tuple schemas**
@@ -478,15 +480,16 @@ namespace Core
             };
         }
 
+
+
         private void ProcessStatement(string statement, int lineNumber, ParseSessionResult result)
         {
             string error = string.Empty;
-            bool matched = false;
-
+            
             // Try parameter parsing
             if (parameterParser.TryParse(statement, out Parameter param, out error))
             {
-                if( param != null)
+                if (param != null)
                 {
                     modelManager.AddParameter(param);
                     result.IncrementSuccess();
@@ -500,7 +503,6 @@ namespace Core
             }
 
             // Try index set parsing
-
             if (indexSetParser.TryParse(statement, out var indexSet, out error))
             {
                 if (indexSet != null)
@@ -517,7 +519,7 @@ namespace Core
             }
 
             if (!string.IsNullOrEmpty(error) &&
-                !error.Equals("Not an index set declaration", StringComparison.Ordinal))
+                !IsNotRecognizedError(error))
             {
                 result.AddError($"\"{statement}\"\n  Error: {error}", lineNumber);
                 return;
@@ -542,7 +544,7 @@ namespace Core
             }
 
             if (!string.IsNullOrEmpty(error) &&
-                !error.Equals("Not a variable declaration", StringComparison.Ordinal))
+                !IsNotRecognizedError(error))
             {
                 result.AddError($"\"{statement}\"\n  Error: {error}", lineNumber);
                 return;
@@ -550,7 +552,32 @@ namespace Core
 
             error = string.Empty;
 
-            // Try tuple set declaration**
+            // Try primitive set declaration
+            if (TryParsePrimitiveSet(statement, out var primitiveSet, out error))
+            {
+                if (primitiveSet != null)
+                {
+                    modelManager.AddPrimitiveSet(primitiveSet);
+                    result.IncrementSuccess();
+                    return;
+                }
+                else
+                {
+                    result.AddError($"\"{statement}\"\n  Error: {error}", lineNumber);
+                    return;
+                }
+            }
+
+            if (!string.IsNullOrEmpty(error) &&
+                !IsNotRecognizedError(error))
+            {
+                result.AddError($"\"{statement}\"\n  Error: {error}", lineNumber);
+                return;
+            }
+
+            error = string.Empty;
+
+            // Try tuple set declaration
             if (TryParseTupleSet(statement, out var tupleSet, out error))
             {
                 if (tupleSet != null)
@@ -566,9 +593,8 @@ namespace Core
                 }
             }
 
-            // Check for validation errors
             if (!string.IsNullOrEmpty(error) &&
-                !error.Equals("Not a tuple set declaration", StringComparison.Ordinal))
+                !IsNotRecognizedError(error))
             {
                 result.AddError($"\"{statement}\"\n  Error: {error}", lineNumber);
                 return;
@@ -584,7 +610,7 @@ namespace Core
             }
 
             if (!string.IsNullOrEmpty(error) &&
-                !error.Equals("Not an indexed equation declaration", StringComparison.Ordinal))
+                !IsNotRecognizedError(error))
             {
                 result.AddError($"\"{statement}\"\n  Error: {error}", lineNumber);
                 return;
@@ -612,8 +638,8 @@ namespace Core
             }
 
             // Check for equation parsing errors before trying objective
-            if (!string.IsNullOrEmpty(error) && 
-                !error.Equals("Not an equation", StringComparison.Ordinal))
+            if (!string.IsNullOrEmpty(error) &&
+                !IsNotRecognizedError(error))
             {
                 result.AddError($"\"{statement}\"\n  Error: {error}", lineNumber);
                 return;
@@ -621,7 +647,7 @@ namespace Core
 
             error = string.Empty;
 
-            // **Try objective function**
+            // Try objective function
             if (TryParseObjective(statement, out var objective, out error))
             {
                 if (objective != null)
@@ -634,7 +660,7 @@ namespace Core
 
             // Check for objective parsing errors
             if (!string.IsNullOrEmpty(error) &&
-                !error.Equals("Not an objective function", StringComparison.Ordinal))
+                !IsNotRecognizedError(error))
             {
                 result.AddError($"\"{statement}\"\n  Error: {error}", lineNumber);
                 return;
@@ -643,10 +669,15 @@ namespace Core
             // Nothing matched
             if (string.IsNullOrEmpty(error))
             {
-                error = "Unknown statement type. Expected: parameter, index set, variable, tuple set, equation, or objective";
+                error = "Unknown statement type. Expected: parameter, index set, variable, primitive set, tuple set, equation, or objective";
             }
 
             result.AddError($"\"{statement}\"\n  Error: {error}", lineNumber);
+        }
+
+        private bool IsNotRecognizedError(string error)
+        {
+            return error.StartsWith("Not a ") || error.StartsWith("Not an ");
         }
 
         // Add this method to parse tuple sets
@@ -702,6 +733,155 @@ namespace Core
             return true;
         }
 
+        private bool TryParsePrimitiveSet(string statement, out PrimitiveSet? primitiveSet, out string error)
+{
+    primitiveSet = null;
+    error = string.Empty;
+
+    // Pattern: {int|string|float} setName = {values} or ...;
+    string pattern = @"^\s*\{(int|string|float)\}\s+([a-zA-Z][a-zA-Z0-9_]*)\s*=\s*(.+)$";
+    var match = Regex.Match(statement.Trim(), pattern, RegexOptions.IgnoreCase);
+
+    if (!match.Success)
+    {
+        error = "Not a primitive set declaration";
+        return false;
+    }
+
+    string typeStr = match.Groups[1].Value.ToLower();
+    string setName = match.Groups[2].Value;
+    string valueStr = match.Groups[3].Value.Trim();
+
+    PrimitiveSetType setType = typeStr switch
+    {
+        "int" => PrimitiveSetType.Int,
+        "string" => PrimitiveSetType.String,
+        "float" => PrimitiveSetType.Float,
+        _ => PrimitiveSetType.Int
+    };
+
+    bool isExternal = valueStr == "...";
+    primitiveSet = new PrimitiveSet(setName, setType, isExternal);
+
+    // Parse inline data if provided
+    if (!isExternal)
+    {
+        if (!valueStr.StartsWith("{") || !valueStr.EndsWith("}"))
+        {
+            error = "Primitive set data must be enclosed in braces: {value1, value2, ...}";
+            return false;
+        }
+
+        string data = valueStr.Substring(1, valueStr.Length - 2).Trim();
+
+        if (!string.IsNullOrEmpty(data))
+        {
+            if (!ParsePrimitiveSetData(data, primitiveSet, out error))
+            {
+                return false;
+            }
+        }
+    }
+
+    return true;
+}
+
+private bool ParsePrimitiveSetData(string data, PrimitiveSet primitiveSet, out string error)
+{
+    error = string.Empty;
+
+    // Split by commas, respecting quotes for strings
+    var values = SplitByCommaRespectingQuotes(data);
+
+    foreach (var valueStr in values)
+    {
+        string trimmed = valueStr.Trim();
+        
+        if (string.IsNullOrEmpty(trimmed))
+            continue;
+
+        try
+        {
+            switch (primitiveSet.Type)
+            {
+                case PrimitiveSetType.Int:
+                    if (int.TryParse(trimmed, out int intVal))
+                    {
+                        primitiveSet.Add(intVal);
+                    }
+                    else
+                    {
+                        error = $"Invalid integer value: '{trimmed}'";
+                        return false;
+                    }
+                    break;
+
+                case PrimitiveSetType.String:
+                    string strVal = trimmed.Trim('"');
+                    primitiveSet.Add(strVal);
+                    break;
+
+                case PrimitiveSetType.Float:
+                    if (double.TryParse(trimmed, System.Globalization.NumberStyles.Float,
+                        System.Globalization.CultureInfo.InvariantCulture, out double floatVal))
+                    {
+                        primitiveSet.Add(floatVal);
+                    }
+                    else
+                    {
+                        error = $"Invalid float value: '{trimmed}'";
+                        return false;
+                    }
+                    break;
+            }
+        }
+        catch (Exception ex)
+        {
+            error = $"Error parsing value '{trimmed}': {ex.Message}";
+            return false;
+        }
+    }
+
+    return true;
+}
+
+private List<string> SplitByCommaRespectingQuotes(string input)
+{
+    var result = new List<string>();
+    var current = new System.Text.StringBuilder();
+    bool inQuotes = false;
+
+    for (int i = 0; i < input.Length; i++)
+    {
+        char c = input[i];
+
+        if (c == '"')
+        {
+            inQuotes = !inQuotes;
+            current.Append(c);
+        }
+        else if (c == ',' && !inQuotes)
+        {
+            if (current.Length > 0)
+            {
+                result.Add(current.ToString());
+                current.Clear();
+            }
+        }
+        else
+        {
+            current.Append(c);
+        }
+    }
+
+    if (current.Length > 0)
+    {
+        result.Add(current.ToString());
+    }
+
+    return result;
+}
+
         private bool ParseInlineTupleData(string tupleData, TupleSchema schema, TupleSet tupleSet, out string error)
         {
             error = string.Empty;
@@ -736,6 +916,7 @@ namespace Core
                     string fieldName = field.Key;
                     VariableType fieldType = field.Value;
                     string valueStr = values[fieldIndex++];
+
 
                     object parsedValue = ParseTupleFieldValue(valueStr, fieldType, out string parseError);
 
@@ -1322,5 +1503,47 @@ namespace Core
 
             return true;
         }
+
+        private string RemoveBlockComments(string text)
+{
+    var result = new StringBuilder();
+    int i = 0;
+    
+    while (i < text.Length)
+    {
+        // Check for block comment start
+        if (i < text.Length - 1 && text[i] == '/' && text[i + 1] == '*')
+        {
+            // Find the closing */
+            int closeIndex = text.IndexOf("*/", i + 2);
+            
+            if (closeIndex == -1)
+            {
+                // Unclosed block comment - treat rest of file as comment
+                break;
+            }
+            
+            // Skip the entire comment block
+            // But preserve line breaks for accurate line number tracking
+            string commentBlock = text.Substring(i, closeIndex + 2 - i);
+            int lineBreaks = commentBlock.Count(c => c == '\n');
+            
+            // Add newlines to maintain line numbers
+            for (int n = 0; n < lineBreaks; n++)
+            {
+                result.Append('\n');
+            }
+            
+            i = closeIndex + 2; // Skip past */
+        }
+        else
+        {
+            result.Append(text[i]);
+            i++;
+        }
+    }
+    
+    return result.ToString();
+}
     }
 }

@@ -43,18 +43,22 @@
             saveToolStripMenuItem = new ToolStripMenuItem();
             saveAsToolStripMenuItem = new ToolStripMenuItem();
             saveAllToolStripMenuItem = new ToolStripMenuItem();
-            toolStripSeparator1 = new ToolStripSeparator();
-            sessionToolStripMenuItem = new ToolStripMenuItem();
-            restoreSessionToolStripMenuItem = new ToolStripMenuItem();
-            clearSessionToolStripMenuItem = new ToolStripMenuItem();
-            toolStripSeparator5 = new ToolStripSeparator();
+            toolStripSeparator6 = new ToolStripSeparator();
+            exportToolStripMenuItem = new ToolStripMenuItem();
             exitToolStripMenuItem = new ToolStripMenuItem();
             editToolStripMenuItem = new ToolStripMenuItem();
             cutToolStripMenuItem = new ToolStripMenuItem();
             copyToolStripMenuItem = new ToolStripMenuItem();
             pasteToolStripMenuItem = new ToolStripMenuItem();
+            toolStripSeparator5 = new ToolStripSeparator();
+            toolStripSeparator6 =new ToolStripSeparator();
+            toolStripSeparator1 = new ToolStripSeparator();
             toolStripSeparator2 = new ToolStripSeparator();
             selectAllToolStripMenuItem = new ToolStripMenuItem();
+            exportToMPSToolStripMenuItem = new ToolStripMenuItem();
+            restoreSessionToolStripMenuItem = new ToolStripMenuItem();
+            sessionToolStripMenuItem = new ToolStripMenuItem();
+            clearSessionToolStripMenuItem = new ToolStripMenuItem();
             tabControl1 = new TabControl();
             panel1 = new Panel();
             btnParse = new Button();
@@ -71,22 +75,7 @@
             panel1.SuspendLayout();
             statusStrip1.SuspendLayout();
             SuspendLayout();
-            // 
-            // menuStrip1
-            // 
-            menuStrip1.Items.AddRange(new ToolStripItem[] { fileToolStripMenuItem, editToolStripMenuItem });
-            menuStrip1.Location = new Point(0, 0);
-            menuStrip1.Name = "menuStrip1";
-            menuStrip1.Size = new Size(1200, 24);
-            menuStrip1.TabIndex = 0;
-            menuStrip1.Text = "menuStrip1";
-            // 
-            // fileToolStripMenuItem
-            // 
-            fileToolStripMenuItem.DropDownItems.AddRange(new ToolStripItem[] { newToolStripMenuItem, openToolStripMenuItem, toolStripSeparator3, closeTabToolStripMenuItem, closeAllTabsToolStripMenuItem, toolStripSeparator4, saveToolStripMenuItem, saveAsToolStripMenuItem, saveAllToolStripMenuItem, toolStripSeparator1, sessionToolStripMenuItem, toolStripSeparator5, exitToolStripMenuItem });
-            fileToolStripMenuItem.Name = "fileToolStripMenuItem";
-            fileToolStripMenuItem.Size = new Size(37, 20);
-            fileToolStripMenuItem.Text = "&File";
+           
             // 
             // newToolStripMenuItem
             // 
@@ -184,6 +173,28 @@
             saveAllToolStripMenuItem.Text = "Save All";
             saveAllToolStripMenuItem.Click += saveAllToolStripMenuItem_Click;
             // 
+            // toolStripSeparator6
+            // 
+            toolStripSeparator6 = new ToolStripSeparator();
+            toolStripSeparator6.Name = "toolStripSeparator6";
+            toolStripSeparator6.Size = new Size(183, 6);
+            // 
+            // exportToMPSToolStripMenuItem
+            // 
+            exportToMPSToolStripMenuItem.Name = "exportToMPSToolStripMenuItem";
+            exportToMPSToolStripMenuItem.ShortcutKeys = Keys.Control | Keys.E;
+            exportToMPSToolStripMenuItem.Size = new Size(220, 22);
+            exportToMPSToolStripMenuItem.Text = "To MPS Format...";
+            exportToMPSToolStripMenuItem.Click += exportToMPSToolStripMenuItem_Click;
+            // 
+            // exportToolStripMenuItem
+            // 
+            exportToolStripMenuItem.DropDownItems.AddRange(new ToolStripItem[] { exportToMPSToolStripMenuItem });
+            exportToolStripMenuItem.Name = "exportToolStripMenuItem";
+            exportToolStripMenuItem.Size = new Size(186, 22);
+            exportToolStripMenuItem.Text = "E&xport";
+           
+            // 
             // toolStripSeparator1
             // 
             toolStripSeparator1.Name = "toolStripSeparator1";
@@ -194,20 +205,20 @@
             sessionToolStripMenuItem.DropDownItems.AddRange(new ToolStripItem[] { restoreSessionToolStripMenuItem, clearSessionToolStripMenuItem });
             sessionToolStripMenuItem.Name = "sessionToolStripMenuItem";
             sessionToolStripMenuItem.Size = new Size(186, 22);
-            sessionToolStripMenuItem.Text = "Session";
+            sessionToolStripMenuItem.Text = "Se&ssion";
             // 
             // restoreSessionToolStripMenuItem
             // 
             restoreSessionToolStripMenuItem.Name = "restoreSessionToolStripMenuItem";
             restoreSessionToolStripMenuItem.Size = new Size(180, 22);
-            restoreSessionToolStripMenuItem.Text = "Restore Session...";
+            restoreSessionToolStripMenuItem.Text = "Restore Session";
             restoreSessionToolStripMenuItem.Click += restoreSessionToolStripMenuItem_Click;
             // 
             // clearSessionToolStripMenuItem
             // 
             clearSessionToolStripMenuItem.Name = "clearSessionToolStripMenuItem";
             clearSessionToolStripMenuItem.Size = new Size(180, 22);
-            clearSessionToolStripMenuItem.Text = "Clear Session Data";
+            clearSessionToolStripMenuItem.Text = "Clear Session";
             clearSessionToolStripMenuItem.Click += clearSessionToolStripMenuItem_Click;
             // 
             // toolStripSeparator5
@@ -364,6 +375,40 @@
             toolStripStatusLabelEncoding.Size = new Size(56, 21);
             toolStripStatusLabelEncoding.Text = "UTF-8";
             toolStripStatusLabelEncoding.ToolTipText = "File Encoding";
+
+            // 
+            // menuStrip1
+            // 
+            menuStrip1.Items.AddRange(new ToolStripItem[] { fileToolStripMenuItem, editToolStripMenuItem });
+            menuStrip1.Location = new Point(0, 0);
+            menuStrip1.Name = "menuStrip1";
+            menuStrip1.Size = new Size(1200, 24);
+            menuStrip1.TabIndex = 0;
+            menuStrip1.Text = "menuStrip1";
+            // 
+            // fileToolStripMenuItem
+            // 
+            fileToolStripMenuItem.DropDownItems.AddRange(new ToolStripItem[] { 
+                newToolStripMenuItem, 
+                openToolStripMenuItem, 
+                toolStripSeparator3, 
+                closeTabToolStripMenuItem, 
+                closeAllTabsToolStripMenuItem, 
+                toolStripSeparator4, 
+                saveToolStripMenuItem, 
+                saveAsToolStripMenuItem, 
+                saveAllToolStripMenuItem, 
+                toolStripSeparator6,          // NEW
+                exportToolStripMenuItem,      // NEW
+                toolStripSeparator1, 
+                sessionToolStripMenuItem, 
+                toolStripSeparator5, 
+                exitToolStripMenuItem 
+            });
+            fileToolStripMenuItem.Name = "fileToolStripMenuItem";
+            fileToolStripMenuItem.Size = new Size(37, 20);
+            fileToolStripMenuItem.Text = "&File";
+
             // 
             // Form1
             // 
@@ -403,6 +448,9 @@
         private ToolStripMenuItem saveToolStripMenuItem;
         private ToolStripMenuItem saveAsToolStripMenuItem;
         private ToolStripMenuItem saveAllToolStripMenuItem;
+        private ToolStripSeparator toolStripSeparator6;
+        private ToolStripMenuItem exportToolStripMenuItem;
+        private ToolStripMenuItem exportToMPSToolStripMenuItem;
         private ToolStripSeparator toolStripSeparator1;
         private ToolStripMenuItem sessionToolStripMenuItem;
         private ToolStripMenuItem restoreSessionToolStripMenuItem;

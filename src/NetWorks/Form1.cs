@@ -304,443 +304,443 @@ namespace ModelEditorApp
             }
             catch (Exception ex)
             {
-                System.Diagnostics.Debug.WriteLine($"Error restoring session: {ex.Message}");
-                return false;
-            }
+    System.Diagnostics.Debug.WriteLine($"Error restoring session: {ex.Message}");
+    return false;
+}
         }
 
         private void ClearSessionMenuItem_Click(object sender, EventArgs e)
-        {
-            sessionManager.ClearSession();
-            MessageBox.Show("Session data cleared.", "Session", 
-                MessageBoxButtons.OK, MessageBoxIcon.Information);
-        }
+{
+    sessionManager.ClearSession();
+    MessageBox.Show("Session data cleared.", "Session", 
+        MessageBoxButtons.OK, MessageBoxIcon.Information);
+}
 
-        // File Menu Events
-        private void newModelToolStripMenuItem_Click(object sender, EventArgs e)
-        {
-            CreateNewTab(FileType.Model);
-            SetParseStatus("Ready", false);
-        }
+// File Menu Events
+private void newModelToolStripMenuItem_Click(object sender, EventArgs e)
+{
+    CreateNewTab(FileType.Model);
+    SetParseStatus("Ready", false);
+}
 
-        private void newDataFileToolStripMenuItem_Click(object sender, EventArgs e)
-        {
-            CreateNewTab(FileType.Data);
-            SetParseStatus("Ready", false);
-        }
+private void newDataFileToolStripMenuItem_Click(object sender, EventArgs e)
+{
+    CreateNewTab(FileType.Data);
+    SetParseStatus("Ready", false);
+}
 
-        private void openModelToolStripMenuItem_Click(object sender, EventArgs e)
-        {
-            OpenFile(FileType.Model);
-        }
+private void openModelToolStripMenuItem_Click(object sender, EventArgs e)
+{
+    OpenFile(FileType.Model);
+}
 
-        private void openDataFileToolStripMenuItem_Click(object sender, EventArgs e)
-        {
-            OpenFile(FileType.Data);
-        }
+private void openDataFileToolStripMenuItem_Click(object sender, EventArgs e)
+{
+    OpenFile(FileType.Data);
+}
 
-        private void OpenFile(FileType fileType)
-        {
-            using (OpenFileDialog openFileDialog = new OpenFileDialog())
-            {
-                string extension = fileType == FileType.Model ? "mod" : "dat";
-                string description = fileType == FileType.Model ? "Model" : "Data";
-                
-                openFileDialog.Filter = $"{description} Files (*.{extension})|*.{extension}|All Files (*.*)|*.*";
-                openFileDialog.DefaultExt = extension;
-                openFileDialog.Title = $"Open {description} File";
+private void OpenFile(FileType fileType)
+{
+    using (OpenFileDialog openFileDialog = new OpenFileDialog())
+    {
+        string extension = fileType == FileType.Model ? "mod" : "dat";
+        string description = fileType == FileType.Model ? "Model" : "Data";
+        
+        openFileDialog.Filter = $"{description} Files (*.{extension})|*.{extension}|All Files (*.*)|*.*";
+        openFileDialog.DefaultExt = extension;
+        openFileDialog.Title = $"Open {description} File";
 
-                if (openFileDialog.ShowDialog() == DialogResult.OK)
-                {
-                    try
-                    {
-                        // Check if file is already open
-                        var existingTab = fileTabs.FirstOrDefault(t => 
-                            t.FilePath.Equals(openFileDialog.FileName, StringComparison.OrdinalIgnoreCase));
-                        
-                        if (existingTab != null)
-                        {
-                            // Switch to existing tab
-                            int index = fileTabs.IndexOf(existingTab);
-                            tabControl1.SelectedIndex = index;
-                            MessageBox.Show("File is already open.", "Information", 
-                                MessageBoxButtons.OK, MessageBoxIcon.Information);
-                            return;
-                        }
-                        
-                        // Create new tab and load file
-                        isLoadingFile = true;
-                        var newTab = CreateNewTab(fileType, openFileDialog.FileName);
-                        newTab.Editor.Text = File.ReadAllText(openFileDialog.FileName);
-                        newTab.HasUnsavedChanges = false;
-                        isLoadingFile = false;
-                        
-                        UpdateTabDisplay(newTab);
-                        UpdateStatusBar();
-                        
-                        // Apply syntax highlighting to the newly opened file
-                        ApplySyntaxHighlighting(newTab.Editor);
-                        
-                        SetParseStatus("File loaded - Ready to parse", false);
-                    }
-                    catch (Exception ex)
-                    {
-                        isLoadingFile = false;
-                        MessageBox.Show($"Error opening file: {ex.Message}", "Error", 
-                            MessageBoxButtons.OK, MessageBoxIcon.Error);
-                    }
-                }
-            }
-        }
-
-        private void closeTabToolStripMenuItem_Click(object sender, EventArgs e)
-        {
-            if (tabControl1.SelectedIndex >= 0)
-            {
-                CloseTab(tabControl1.SelectedIndex);
-            }
-        }
-
-        private void saveToolStripMenuItem_Click(object sender, EventArgs e)
-        {
-            var activeTab = GetActiveTab();
-            if (activeTab != null)
-            {
-                SaveTab(activeTab);
-            }
-        }
-
-        private void SaveTab(FileTab tab)
-        {
-            if (string.IsNullOrEmpty(tab.FilePath))
-            {
-                SaveTabAs(tab);
-            }
-            else
-            {
-                SaveFile(tab, tab.FilePath);
-            }
-        }
-
-        private void saveAsToolStripMenuItem_Click(object sender, EventArgs e)
-        {
-            var activeTab = GetActiveTab();
-            if (activeTab != null)
-            {
-                SaveTabAs(activeTab);
-            }
-        }
-
-        private void SaveTabAs(FileTab tab)
-        {
-            using (SaveFileDialog saveFileDialog = new SaveFileDialog())
-            {
-                string extension = tab.GetFileExtension();
-                string description = tab.Type == FileType.Model ? "Model" : "Data";
-                
-                saveFileDialog.Filter = $"{description} Files (*{extension})|*{extension}|All Files (*.*)|*.*";
-                saveFileDialog.DefaultExt = extension.TrimStart('.');
-                saveFileDialog.Title = $"Save {description} File As";
-                
-                if (!string.IsNullOrEmpty(tab.FilePath))
-                {
-                    saveFileDialog.FileName = Path.GetFileName(tab.FilePath);
-                }
-                else
-                {
-                    saveFileDialog.FileName = $"Untitled{extension}";
-                }
-
-                if (saveFileDialog.ShowDialog() == DialogResult.OK)
-                {
-                    SaveFile(tab, saveFileDialog.FileName);
-                }
-            }
-        }
-
-        private void SaveFile(FileTab tab, string filePath)
+        if (openFileDialog.ShowDialog() == DialogResult.OK)
         {
             try
             {
-                File.WriteAllText(filePath, tab.Editor.Text);
-                tab.FilePath = filePath;
-                tab.HasUnsavedChanges = false;
-                UpdateTabDisplay(tab);
-                SetParseStatus("File saved successfully", false);
-                MessageBox.Show("File saved successfully!", "Success", 
-                    MessageBoxButtons.OK, MessageBoxIcon.Information);
+                // Check if file is already open
+                var existingTab = fileTabs.FirstOrDefault(t => 
+                    t.FilePath.Equals(openFileDialog.FileName, StringComparison.OrdinalIgnoreCase));
+                
+                if (existingTab != null)
+                {
+                    // Switch to existing tab
+                    int index = fileTabs.IndexOf(existingTab);
+                    tabControl1.SelectedIndex = index;
+                    MessageBox.Show("File is already open.", "Information", 
+                        MessageBoxButtons.OK, MessageBoxIcon.Information);
+                    return;
+                }
+                
+                // Create new tab and load file
+                isLoadingFile = true;
+                var newTab = CreateNewTab(fileType, openFileDialog.FileName);
+                newTab.Editor.Text = File.ReadAllText(openFileDialog.FileName);
+                newTab.HasUnsavedChanges = false;
+                isLoadingFile = false;
+                
+                UpdateTabDisplay(newTab);
+                UpdateStatusBar();
+                
+                // Apply syntax highlighting to the newly opened file
+                ApplySyntaxHighlighting(newTab.Editor);
+                
+                SetParseStatus("File loaded - Ready to parse", false);
             }
             catch (Exception ex)
             {
-                MessageBox.Show($"Error saving file: {ex.Message}", "Error", 
+                isLoadingFile = false;
+                MessageBox.Show($"Error opening file: {ex.Message}", "Error", 
                     MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
         }
+    }
+}
 
-        private void exitToolStripMenuItem_Click(object sender, EventArgs e)
+private void closeTabToolStripMenuItem_Click(object sender, EventArgs e)
+{
+    if (tabControl1.SelectedIndex >= 0)
+    {
+        CloseTab(tabControl1.SelectedIndex);
+    }
+}
+
+private void saveToolStripMenuItem_Click(object sender, EventArgs e)
+{
+    var activeTab = GetActiveTab();
+    if (activeTab != null)
+    {
+        SaveTab(activeTab);
+    }
+}
+
+private void SaveTab(FileTab tab)
+{
+    if (string.IsNullOrEmpty(tab.FilePath))
+    {
+        SaveTabAs(tab);
+    }
+    else
+    {
+        SaveFile(tab, tab.FilePath);
+    }
+}
+
+private void saveAsToolStripMenuItem_Click(object sender, EventArgs e)
+{
+    var activeTab = GetActiveTab();
+    if (activeTab != null)
+    {
+        SaveTabAs(activeTab);
+    }
+}
+
+private void SaveTabAs(FileTab tab)
+{
+    using (SaveFileDialog saveFileDialog = new SaveFileDialog())
+    {
+        string extension = tab.GetFileExtension();
+        string description = tab.Type == FileType.Model ? "Model" : "Data";
+        
+        saveFileDialog.Filter = $"{description} Files (*{extension})|*{extension}|All Files (*.*)|*.*";
+        saveFileDialog.DefaultExt = extension.TrimStart('.');
+        saveFileDialog.Title = $"Save {description} File As";
+        
+        if (!string.IsNullOrEmpty(tab.FilePath))
         {
-            Close();
+            saveFileDialog.FileName = Path.GetFileName(tab.FilePath);
+        }
+        else
+        {
+            saveFileDialog.FileName = $"Untitled{extension}";
         }
 
-        // Edit Menu Events
-        private void cutToolStripMenuItem_Click(object sender, EventArgs e)
+        if (saveFileDialog.ShowDialog() == DialogResult.OK)
         {
-            var editor = GetActiveEditor();
-            if (editor != null && editor.SelectionLength > 0)
+            SaveFile(tab, saveFileDialog.FileName);
+        }
+    }
+}
+
+private void SaveFile(FileTab tab, string filePath)
+{
+    try
+    {
+        File.WriteAllText(filePath, tab.Editor.Text);
+        tab.FilePath = filePath;
+        tab.HasUnsavedChanges = false;
+        UpdateTabDisplay(tab);
+        SetParseStatus("File saved successfully", false);
+        MessageBox.Show("File saved successfully!", "Success", 
+            MessageBoxButtons.OK, MessageBoxIcon.Information);
+    }
+    catch (Exception ex)
+    {
+        MessageBox.Show($"Error saving file: {ex.Message}", "Error", 
+            MessageBoxButtons.OK, MessageBoxIcon.Error);
+    }
+}
+
+private void exitToolStripMenuItem_Click(object sender, EventArgs e)
+{
+    Close();
+}
+
+// Edit Menu Events
+private void cutToolStripMenuItem_Click(object sender, EventArgs e)
+{
+    var editor = GetActiveEditor();
+    if (editor != null && editor.SelectionLength > 0)
+    {
+        editor.Cut();
+    }
+}
+
+private void copyToolStripMenuItem_Click(object sender, EventArgs e)
+{
+    var editor = GetActiveEditor();
+    if (editor != null && editor.SelectionLength > 0)
+    {
+        editor.Copy();
+    }
+}
+
+private void pasteToolStripMenuItem_Click(object sender, EventArgs e)
+{
+    var editor = GetActiveEditor();
+    if (editor != null)
+    {
+        editor.Paste();
+    }
+}
+
+private void selectAllToolStripMenuItem_Click(object sender, EventArgs e)
+{
+    var editor = GetActiveEditor();
+    if (editor != null)
+    {
+        editor.SelectAll();
+    }
+}
+
+// RichTextBox Events
+private void RichTextBox_TextChanged(object sender, EventArgs e)
+{
+    if (!isLoadingFile && !isHighlighting)
+    {
+        var editor = sender as RichTextBox;
+        var tab = fileTabs.FirstOrDefault(t => t.Editor == editor);
+        if (tab != null)
+        {
+            tab.HasUnsavedChanges = true;
+            UpdateTabDisplay(tab);
+        }
+    }
+    
+    UpdateStatusBar();
+    
+    if (!isHighlighting)
+    {
+        highlightTimer.Stop();
+        highlightTimer.Start();
+    }
+}
+
+private void RichTextBox_SelectionChanged(object sender, EventArgs e)
+{
+    UpdateCursorPosition();
+}
+
+private void HighlightTimer_Tick(object sender, EventArgs e)
+{
+    highlightTimer.Stop();
+    var editor = GetActiveEditor();
+    if (editor != null)
+    {
+        ApplySyntaxHighlighting(editor);
+    }
+}
+
+private void tabControl1_SelectedIndexChanged(object sender, EventArgs e)
+{
+    UpdateStatusBar();
+    var activeTab = GetActiveTab();
+    if (activeTab != null)
+    {
+        SetParseStatus("Ready", false);
+        
+        // Apply syntax highlighting when switching tabs
+        // This ensures tabs that were restored but not active get highlighted
+        var editor = GetActiveEditor();
+        if (editor != null && !string.IsNullOrWhiteSpace(editor.Text))
+        {
+            ApplySyntaxHighlighting(editor);
+        }
+    }
+}
+
+private void tabControl1_MouseDown(object sender, MouseEventArgs e)
+{
+    if (e.Button == MouseButtons.Middle)
+    {
+        for (int i = 0; i < tabControl1.TabPages.Count; i++)
+        {
+            Rectangle tabRect = tabControl1.GetTabRect(i);
+            if (tabRect.Contains(e.Location))
             {
-                editor.Cut();
+                CloseTab(i);
+                break;
             }
         }
+    }
+}
 
-        private void copyToolStripMenuItem_Click(object sender, EventArgs e)
+// Parse Button Event
+private void btnParse_Click(object sender, EventArgs e)
+{
+    try
+    {
+        modelManager.Clear();
+        SetParseStatus("Parsing...", false);
+
+        var modelTabs = fileTabs.Where(t => t.Type == FileType.Model).ToList();
+        var dataTabs = fileTabs.Where(t => t.Type == FileType.Data).ToList();
+
+        if (modelTabs.Count == 0)
         {
-            var editor = GetActiveEditor();
-            if (editor != null && editor.SelectionLength > 0)
-            {
-                editor.Copy();
-            }
+            SetParseStatus("No model files to parse", false);
+            MessageBox.Show("No model files open. Please open or create a model file (.mod).", 
+                "Information", MessageBoxButtons.OK, MessageBoxIcon.Information);
+            return;
         }
 
-        private void pasteToolStripMenuItem_Click(object sender, EventArgs e)
-        {
-            var editor = GetActiveEditor();
-            if (editor != null)
-            {
-                editor.Paste();
-            }
-        }
+        var modelTexts = modelTabs.Select(t => t.Editor.Text).ToList();
+        var dataTexts = dataTabs.Select(t => t.Editor.Text).ToList();
 
-        private void selectAllToolStripMenuItem_Click(object sender, EventArgs e)
-        {
-            var editor = GetActiveEditor();
-            if (editor != null)
-            {
-                editor.SelectAll();
-            }
-        }
+        // Call the testable parsing service
+        var result = parsingService.ParseModel(modelTexts, dataTexts);
 
-        // RichTextBox Events
-        private void RichTextBox_TextChanged(object sender, EventArgs e)
+        // Update UI based on result
+        SetParseStatus(result.SummaryMessage, !result.Success);
+
+        if (result.Success)
         {
-            if (!isLoadingFile && !isHighlighting)
+            // Show success dialog with model summary
+            ShowParseResults();
+        }
+        else if (result.TotalSuccess > 0 && result.HasErrors)
+        {
+            // Partial success - show errors
+            var errorMsg = new System.Text.StringBuilder();
+            errorMsg.AppendLine($"Parsed {result.TotalSuccess} statement(s) successfully, but {result.TotalErrors} error(s) occurred:\n");
+            
+            foreach (var error in result.Errors)
             {
-                var editor = sender as RichTextBox;
-                var tab = fileTabs.FirstOrDefault(t => t.Editor == editor);
-                if (tab != null)
-                {
-                    tab.HasUnsavedChanges = true;
-                    UpdateTabDisplay(tab);
-                }
+                errorMsg.AppendLine(error);
+                errorMsg.AppendLine();
             }
             
-            UpdateStatusBar();
+            MessageBox.Show(
+                errorMsg.ToString(),
+                "Parsing Errors",
+                MessageBoxButtons.OK,
+                MessageBoxIcon.Error);
+        }
+        else
+        {
+            // Total failure - show errors and help
+            var errorMsg = new System.Text.StringBuilder();
+            errorMsg.AppendLine("Parse failed with errors:\n");
             
-            if (!isHighlighting)
+            foreach (var error in result.Errors)
             {
-                highlightTimer.Stop();
-                highlightTimer.Start();
+                errorMsg.AppendLine(error);
+                errorMsg.AppendLine();
             }
-        }
-
-        private void RichTextBox_SelectionChanged(object sender, EventArgs e)
-        {
-            UpdateCursorPosition();
-        }
-
-        private void HighlightTimer_Tick(object sender, EventArgs e)
-        {
-            highlightTimer.Stop();
-            var editor = GetActiveEditor();
-            if (editor != null)
-            {
-                ApplySyntaxHighlighting(editor);
-            }
-        }
-
-        private void tabControl1_SelectedIndexChanged(object sender, EventArgs e)
-        {
-            UpdateStatusBar();
-            var activeTab = GetActiveTab();
-            if (activeTab != null)
-            {
-                SetParseStatus("Ready", false);
-                
-                // Apply syntax highlighting when switching tabs
-                // This ensures tabs that were restored but not active get highlighted
-                var editor = GetActiveEditor();
-                if (editor != null && !string.IsNullOrWhiteSpace(editor.Text))
-                {
-                    ApplySyntaxHighlighting(editor);
-                }
-            }
-        }
-
-        private void tabControl1_MouseDown(object sender, MouseEventArgs e)
-        {
-            if (e.Button == MouseButtons.Middle)
-            {
-                for (int i = 0; i < tabControl1.TabPages.Count; i++)
-                {
-                    Rectangle tabRect = tabControl1.GetTabRect(i);
-                    if (tabRect.Contains(e.Location))
-                    {
-                        CloseTab(i);
-                        break;
-                    }
-                }
-            }
-        }
-
-        // Parse Button Event
-        private void btnParse_Click(object sender, EventArgs e)
-        {
-            try
-            {
-                modelManager.Clear();
-                SetParseStatus("Parsing...", false);
-
-                var modelTabs = fileTabs.Where(t => t.Type == FileType.Model).ToList();
-                var dataTabs = fileTabs.Where(t => t.Type == FileType.Data).ToList();
-
-                if (modelTabs.Count == 0)
-                {
-                    SetParseStatus("No model files to parse", false);
-                    MessageBox.Show("No model files open. Please open or create a model file (.mod).", 
-                        "Information", MessageBoxButtons.OK, MessageBoxIcon.Information);
-                    return;
-                }
-
-                var modelTexts = modelTabs.Select(t => t.Editor.Text).ToList();
-                var dataTexts = dataTabs.Select(t => t.Editor.Text).ToList();
-
-                // Call the testable parsing service
-                var result = parsingService.ParseModel(modelTexts, dataTexts);
-
-                // Update UI based on result
-                SetParseStatus(result.SummaryMessage, !result.Success);
-
-                if (result.Success)
-                {
-                    // Show success dialog with model summary
-                    ShowParseResults();
-                }
-                else if (result.TotalSuccess > 0 && result.HasErrors)
-                {
-                    // Partial success - show errors
-                    var errorMsg = new System.Text.StringBuilder();
-                    errorMsg.AppendLine($"Parsed {result.TotalSuccess} statement(s) successfully, but {result.TotalErrors} error(s) occurred:\n");
-                    
-                    foreach (var error in result.Errors)
-                    {
-                        errorMsg.AppendLine(error);
-                        errorMsg.AppendLine();
-                    }
-                    
-                    MessageBox.Show(
-                        errorMsg.ToString(),
-                        "Parsing Errors",
-                        MessageBoxButtons.OK,
-                        MessageBoxIcon.Error);
-                }
-                else
-                {
-                    // Total failure - show errors and help
-                    var errorMsg = new System.Text.StringBuilder();
-                    errorMsg.AppendLine("Parse failed with errors:\n");
-                    
-                    foreach (var error in result.Errors)
-                    {
-                        errorMsg.AppendLine(error);
-                        errorMsg.AppendLine();
-                    }
-                    
-                    errorMsg.AppendLine();
-                    errorMsg.AppendLine(ModelParsingService.GetSyntaxHelpMessage());
-                    
-                    MessageBox.Show(
-                        errorMsg.ToString(),
-                        "Parse Error",
-                        MessageBoxButtons.OK,
-                        MessageBoxIcon.Error);
-                }
-            }
-            catch (Exception ex)
-            {
-                SetParseStatus("Critical error during parsing", true);
-                MessageBox.Show(
-                    $"Unexpected error: {ex.Message}\n\nStack trace:\n{ex.StackTrace}",
-                    "Critical Error",
-                    MessageBoxButtons.OK,
-                    MessageBoxIcon.Error);
-            }
-        }
-
-        private void ShowParseResults()
-        {
-            string report = modelManager.GenerateParseResultsReport();
-            MessageBox.Show(report, "Parse Results", MessageBoxButtons.OK, MessageBoxIcon.Information);
-        }
-
-        private void UpdateStatusBar()
-        {
-            UpdateCursorPosition();
-            UpdateCharacterAndWordCount();
-        }
-
-        private void UpdateCursorPosition()
-        {
-            var editor = GetActiveEditor();
-            if (editor != null)
-            {
-                int currentLine = editor.GetLineFromCharIndex(editor.SelectionStart) + 1;
-                int currentColumn = editor.SelectionStart - editor.GetFirstCharIndexOfCurrentLine() + 1;
-                
-                toolStripStatusLabelLine.Text = $"Ln: {currentLine}";
-                toolStripStatusLabelColumn.Text = $"Col: {currentColumn}";
-            }
-            else
-            {
-                toolStripStatusLabelLine.Text = "Ln: -";
-                toolStripStatusLabelColumn.Text = "Col: -";
-            }
-        }
-
-        private void UpdateCharacterAndWordCount()
-        {
-            var editor = GetActiveEditor();
-            if (editor != null)
-            {
-                int charCount = editor.Text.Length;
-                int wordCount = CountWords(editor.Text);
-                
-                toolStripStatusLabelCharCount.Text = $"Characters: {charCount}";
-                toolStripStatusLabelWordCount.Text = $"Words: {wordCount}";
-            }
-            else
-            {
-                toolStripStatusLabelCharCount.Text = "Characters: 0";
-                toolStripStatusLabelWordCount.Text = "Words: 0";
-            }
-        }
-
-        private int CountWords(string text)
-        {
-            if (string.IsNullOrWhiteSpace(text))
-                return 0;
             
-            var matches = Regex.Matches(text, @"\S+");
-            return matches.Count;
+            errorMsg.AppendLine();
+            errorMsg.AppendLine(ModelParsingService.GetSyntaxHelpMessage());
+            
+            MessageBox.Show(
+                errorMsg.ToString(),
+                "Parse Error",
+                MessageBoxButtons.OK,
+                MessageBoxIcon.Error);
         }
+    }
+    catch (Exception ex)
+    {
+        SetParseStatus("Critical error during parsing", true);
+        MessageBox.Show(
+            $"Unexpected error: {ex.Message}\n\nStack trace:\n{ex.StackTrace}",
+            "Critical Error",
+            MessageBoxButtons.OK,
+            MessageBoxIcon.Error);
+    }
+}
 
-        private void SetParseStatus(string message, bool isError)
-        {
-            toolStripStatusLabelParseStatus.Text = message;
-            toolStripStatusLabelParseStatus.ForeColor = isError ? Color.Red : Color.Black;
-        }
+private void ShowParseResults()
+{
+    string report = modelManager.GenerateParseResultsReport();
+    MessageBox.Show(report, "Parse Results", MessageBoxButtons.OK, MessageBoxIcon.Information);
+}
 
-        public ModelManager GetModelManager() => modelManager;
+private void UpdateStatusBar()
+{
+    UpdateCursorPosition();
+    UpdateCharacterAndWordCount();
+}
 
-        // File Menu Events - Add these new handlers
+private void UpdateCursorPosition()
+{
+    var editor = GetActiveEditor();
+    if (editor != null)
+    {
+        int currentLine = editor.GetLineFromCharIndex(editor.SelectionStart) + 1;
+        int currentColumn = editor.SelectionStart - editor.GetFirstCharIndexOfCurrentLine() + 1;
+        
+        toolStripStatusLabelLine.Text = $"Ln: {currentLine}";
+        toolStripStatusLabelColumn.Text = $"Col: {currentColumn}";
+    }
+    else
+    {
+        toolStripStatusLabelLine.Text = "Ln: -";
+        toolStripStatusLabelColumn.Text = "Col: -";
+    }
+}
+
+private void UpdateCharacterAndWordCount()
+{
+    var editor = GetActiveEditor();
+    if (editor != null)
+    {
+        int charCount = editor.Text.Length;
+        int wordCount = CountWords(editor.Text);
+        
+        toolStripStatusLabelCharCount.Text = $"Characters: {charCount}";
+        toolStripStatusLabelWordCount.Text = $"Words: {wordCount}";
+    }
+    else
+    {
+        toolStripStatusLabelCharCount.Text = "Characters: 0";
+        toolStripStatusLabelWordCount.Text = "Words: 0";
+    }
+}
+
+private int CountWords(string text)
+{
+    if (string.IsNullOrWhiteSpace(text))
+        return 0;
+    
+    var matches = Regex.Matches(text, @"\S+");
+    return matches.Count;
+}
+
+private void SetParseStatus(string message, bool isError)
+{
+    toolStripStatusLabelParseStatus.Text = message;
+    toolStripStatusLabelParseStatus.ForeColor = isError ? Color.Red : Color.Black;
+}
+
+public ModelManager GetModelManager() => modelManager;
+
+// File Menu Events - Add these new handlers
 
 private void closeAllTabsToolStripMenuItem_Click(object sender, EventArgs e)
 {
@@ -939,6 +939,100 @@ private void StartNewProject()
         case DialogResult.Cancel:
             // Do nothing
             break;
+    }
+}
+
+// Export Menu Events
+private void exportToMPSToolStripMenuItem_Click(object sender, EventArgs e)
+{
+    ExportToMPS();
+}
+
+private void ExportToMPS()
+{
+    try
+    {
+        if (modelManager.Objective == null)
+        {
+            MessageBox.Show(
+                "Cannot export: No objective function defined in the model.\n\n" +
+                "Please parse your model first using the 'Parse' button.",
+                "Export Error",
+                MessageBoxButtons.OK,
+                MessageBoxIcon.Warning);
+            return;
+        }
+        
+        if (modelManager.Equations.Count == 0)
+        {
+            var result = MessageBox.Show(
+                "The model has no constraints (only an objective function).\n\n" +
+                "Do you want to export anyway?",
+                "No Constraints",
+                MessageBoxButtons.YesNo,
+                MessageBoxIcon.Question);
+            
+            if (result != DialogResult.Yes)
+                return;
+        }
+        
+        // Show save dialog
+        using (var saveDialog = new SaveFileDialog())
+        {
+            saveDialog.Filter = "MPS Files (*.mps)|*.mps|All Files (*.*)|*.*";
+            saveDialog.Title = "Export to MPS Format";
+            saveDialog.FileName = "model.mps";
+            saveDialog.DefaultExt = "mps";
+            
+            if (saveDialog.ShowDialog() == DialogResult.OK)
+            {
+                // Get problem name from filename
+                string problemName = Path.GetFileNameWithoutExtension(saveDialog.FileName);
+                
+                string mpsContent = modelManager.ExportToMPS(problemName);
+                File.WriteAllText(saveDialog.FileName, mpsContent);
+                
+                // Count variables in the export
+                var allVars = new HashSet<string>();
+                if (modelManager.Objective != null)
+                {
+                    foreach (var varName in modelManager.Objective.Coefficients.Keys)
+                        allVars.Add(varName);
+                }
+                foreach (var eq in modelManager.Equations)
+                {
+                    foreach (var varName in eq.Coefficients.Keys)
+                        allVars.Add(varName);
+                }
+                
+                MessageBox.Show(
+                    $"Model exported successfully!\n\n" +
+                    $"File: {Path.GetFileName(saveDialog.FileName)}\n" +
+                    $"Location: {Path.GetDirectoryName(saveDialog.FileName)}\n\n" +
+                    $"Statistics:\n" +
+                    $"  Variables: {allVars.Count}\n" +
+                    $"  Constraints: {modelManager.Equations.Count}\n" +
+                    $"  Objective: {modelManager.Objective.Sense}\n\n" +
+                    $"The MPS file can now be solved with:\n" +
+                    $"  - CPLEX, Gurobi, GLPK, CBC, HiGHS, or any MPS-compatible solver",
+                    "Export Successful",
+                    MessageBoxButtons.OK,
+                    MessageBoxIcon.Information);
+                
+                SetParseStatus($"Exported to {Path.GetFileName(saveDialog.FileName)}", false);
+            }
+        }
+    }
+    catch (Exception ex)
+    {
+        MessageBox.Show(
+            $"Export failed:\n\n{ex.Message}\n\n" +
+            $"Make sure the model is parsed before exporting.",
+            "Export Error",
+            MessageBoxButtons.OK,
+            MessageBoxIcon.Error);
+        
+        SetParseStatus("Export failed", true);
     }
 }
 
