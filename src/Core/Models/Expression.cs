@@ -497,11 +497,372 @@ namespace Core.Models
         Add,
         Subtract,
         Multiply,
-        Divide
+        Divide,
+        Equal,
+        NotEqual,
+        LessThan,
+        LessThanOrEqual,
+        GreaterThan,
+        GreaterThanOrEqual
     }
 
     public enum UnaryOperator
     {
         Negate
     }
+
+    /// <summary>
+    /// Comparison expression (binary)
+    /// </summary>
+    public class ComparisonExpression : Expression
+    {
+        public Expression Left { get; set; }
+        public BinaryOperator Operator { get; set; }
+        public Expression Right { get; set; }
+        
+        public ComparisonExpression(Expression left, BinaryOperator op, Expression right)
+        {
+            Left = left;
+            Operator = op;
+            Right = right;
+        }
+        
+        public override double Evaluate(ModelManager modelManager)
+        {
+            double leftValue = Left.Evaluate(modelManager);
+            double rightValue = Right.Evaluate(modelManager);
+            
+            bool result = Operator switch
+            {
+                BinaryOperator.Equal => Math.Abs(leftValue - rightValue) < 1e-10,
+                BinaryOperator.NotEqual => Math.Abs(leftValue - rightValue) >= 1e-10,
+                BinaryOperator.LessThan => leftValue < rightValue,
+                BinaryOperator.LessThanOrEqual => leftValue <= rightValue,
+                BinaryOperator.GreaterThan => leftValue > rightValue,
+                BinaryOperator.GreaterThanOrEqual => leftValue >= rightValue,
+                _ => throw new InvalidOperationException($"Invalid comparison operator: {Operator}")
+            };
+            
+            return result ? 1.0 : 0.0;
+        }
+        
+        public override string ToString() => $"({Left} {Operator} {Right})";
+        
+        public override bool IsConstant => Left.IsConstant && Right.IsConstant;
+        
+        public override Expression Simplify(ModelManager? modelManager = null)
+        {
+            // Recursively simplify operands first
+            var simplifiedLeft = Left.Simplify(modelManager);
+            var simplifiedRight = Right.Simplify(modelManager);
+            
+            // If both operands are constants, evaluate immediately
+            if (simplifiedLeft is ConstantExpression leftConst && 
+                simplifiedRight is ConstantExpression rightConst)
+            {
+                double result = Operator switch
+                {
+                    BinaryOperator.Equal => leftConst.Value == rightConst.Value ? 1.0 : 0.0,
+                    BinaryOperator.NotEqual => leftConst.Value != rightConst.Value ? 1.0 : 0.0,
+                    BinaryOperator.LessThan => leftConst.Value < rightConst.Value ? 1.0 : 0.0,
+                    BinaryOperator.LessThanOrEqual => leftConst.Value <= rightConst.Value ? 1.0 : 0.0,
+                    BinaryOperator.GreaterThan => leftConst.Value > rightConst.Value ? 1.0 : 0.0,
+                    BinaryOperator.GreaterThanOrEqual => leftConst.Value >= rightConst.Value ? 1.0 : 0.0,
+                    _ => throw new InvalidOperationException($"Invalid comparison operator: {Operator}")
+                };
+                return new ConstantExpression(result);
+            }
+            
+            // Return simplified comparison expression if we can't reduce further
+            if (simplifiedLeft != Left || simplifiedRight != Right)
+            {
+                return new ComparisonExpression(simplifiedLeft, Operator, simplifiedRight);
+            }
+            
+            return this;
+        }
+    }
+
+    /// <summary>
+    /// Represents a summation expression: sum(i in Set) expression[i]
+    /// </summary>
+    public class SummationExpression : Expression
+    {
+        public string IndexVariable { get; set; }
+        public string SetName { get; set; }
+        public Expression Body { get; set; }
+        
+        public SummationExpression(string indexVariable, string setName, Expression body)
+        {
+            IndexVariable = indexVariable;
+            SetName = setName;
+            Body = body;
+        }
+        
+        public override double Evaluate(ModelManager modelManager)
+        {
+            double sum = 0.0;
+            
+            // Get the set to iterate over
+            IEnumerable<int> range = GetRange(modelManager);
+            
+            // Store original parameter value if exists
+            bool hadOriginal = modelManager.Parameters.TryGetValue(IndexVariable, out var originalParam);
+            double originalValue = hadOriginal ? Convert.ToDouble(originalParam.Value) : 0;
+            
+            try
+            {
+                // Evaluate body for each value in the range
+                foreach (int value in range)
+                {
+                    // Set the index variable as a temporary parameter
+                    modelManager.SetParameter(IndexVariable, value);
+                    
+                    // Evaluate the body
+                    sum += Body.Evaluate(modelManager);
+                }
+            }
+            finally
+            {
+                // Restore original parameter or remove temporary one
+                if (hadOriginal)
+                {
+                    modelManager.SetParameter(IndexVariable, originalValue);
+                }
+                else
+                {
+                    modelManager.Parameters.Remove(IndexVariable);
+                }
+            }
+            
+            return sum;
+        }
+        
+        public override string ToString() => $"sum({IndexVariable} in {SetName}) {Body}";
+        
+        public override bool IsConstant => false; // Summations depend on runtime evaluation
+        
+        public override Expression Simplify(ModelManager? modelManager = null)
+        {
+            // Simplify the body
+            var simplifiedBody = Body.Simplify(modelManager);
+            
+            // If we have a model manager, we could potentially evaluate the entire summation
+            if (modelManager != null)
+            {
+                try
+                {
+                    return new ConstantExpression(Evaluate(modelManager));
+                }
+                catch
+                {
+                    // If evaluation fails, return with simplified body
+                }
+            }
+            
+            // Return with simplified body if changed
+            if (simplifiedBody != Body)
+            {
+                return new SummationExpression(IndexVariable, SetName, simplifiedBody);
+            }
+            
+            return this;
+        }
+        
+        private IEnumerable<int> GetRange(ModelManager modelManager)
+        {
+            // Try to get from Sets dictionary
+            if (modelManager.Sets.TryGetValue(SetName, out var set))
+            {
+                return set;
+            }
+            
+            // Try to get from IndexSets
+            if (modelManager.IndexSets.TryGetValue(SetName, out var indexSet))
+            {
+                return indexSet.GetIndices();
+            }
+            
+            throw new InvalidOperationException($"Set or IndexSet '{SetName}' not found");
+        }
+        
+        /// <summary>
+        /// Expands the summation into individual terms
+        /// </summary>
+        public List<Expression> ExpandTerms(ModelManager modelManager)
+        {
+            var terms = new List<Expression>();
+            IEnumerable<int> range = GetRange(modelManager);
+            
+            foreach (int value in range)
+            {
+                // Create context for index substitution
+                var context = new IndexSubstitutionContext(new Dictionary<string, int> 
+                { 
+                    { IndexVariable, value } 
+                });
+                
+                // Substitute the index in the body
+                var substitutedBody = SubstituteIndex(Body, context);
+                terms.Add(substitutedBody);
+            }
+            
+            return terms;
+        }
+        
+        private Expression SubstituteIndex(Expression expr, IndexSubstitutionContext context)
+        {
+            return expr switch
+            {
+                ConstantExpression constExpr => constExpr,
+                
+                ParameterExpression paramExpr => 
+                    context.TryGetIndex(paramExpr.ParameterName, out int value) 
+                        ? new ConstantExpression(value) 
+                        : paramExpr,
+                
+                VariableExpression varExpr => varExpr,
+                
+                IndexedVariableExpression idxVarExpr => new IndexedVariableExpression(
+                    idxVarExpr.BaseName,
+                    SubstituteIndex(idxVarExpr.Index1, context),
+                    idxVarExpr.Index2 != null ? SubstituteIndex(idxVarExpr.Index2, context) : null
+                ),
+                
+                BinaryExpression binExpr => new BinaryExpression(
+                    SubstituteIndex(binExpr.Left, context),
+                    binExpr.Operator,
+                    SubstituteIndex(binExpr.Right, context)
+                ),
+                
+                UnaryExpression unaryExpr => new UnaryExpression(
+                    unaryExpr.Operator,
+                    SubstituteIndex(unaryExpr.Operand, context)
+                ),
+                
+                SummationExpression sumExpr => sumExpr, // Keep nested summations as-is for now
+                
+                _ => expr
+            };
+        }
+    }
+
+    /// <summary>
+    /// Represents a variable with dynamic indices (e.g., x[i], flow[i][j])
+    /// Used in forall templates where indices are iterator variables
+    /// </summary>
+    public class IndexedVariableExpression : Expression
+    {
+        public string BaseName { get; set; }
+        public Expression Index1 { get; set; }
+        public Expression? Index2 { get; set; }
+        
+        public IndexedVariableExpression(string baseName, Expression index1, Expression? index2 = null)
+        {
+            BaseName = baseName;
+            Index1 = index1;
+            Index2 = index2;
+        }
+        
+        public override double Evaluate(ModelManager modelManager)
+        {
+            // Evaluate the indices to get concrete values
+            int idx1 = (int)Math.Round(Index1.Evaluate(modelManager));
+            
+            string varName;
+            if (Index2 != null)
+            {
+                int idx2 = (int)Math.Round(Index2.Evaluate(modelManager));
+                varName = $"{BaseName}{idx1}_{idx2}";
+            }
+            else
+            {
+                varName = $"{BaseName}{idx1}";
+            }
+            
+            // For templates, we don't actually evaluate the variable value
+            // This is used for building the constraint structure
+            return 0.0;
+        }
+        
+        public override string ToString()
+        {
+            if (Index2 != null)
+            {
+                return $"{BaseName}[{Index1}][{Index2}]";
+            }
+            else
+            {
+                return $"{BaseName}[{Index1}]";
+            }
+        }
+        
+        public override bool IsConstant => false; // Variable references are not constant
+        
+        public override Expression Simplify(ModelManager? modelManager = null)
+        {
+            // Simplify indices
+            var simplifiedIndex1 = Index1.Simplify(modelManager);
+            var simplifiedIndex2 = Index2?.Simplify(modelManager);
+            
+            // If indices changed, return new expression
+            if (simplifiedIndex1 != Index1 || simplifiedIndex2 != Index2)
+            {
+                return new IndexedVariableExpression(BaseName, simplifiedIndex1, simplifiedIndex2);
+            }
+            
+            return this;
+        }
+        
+        /// <summary>
+        /// Gets the full variable name by evaluating indices
+        /// </summary>
+        public string GetFullName(ModelManager modelManager)
+        {
+            int idx1 = (int)Math.Round(Index1.Evaluate(modelManager));
+            
+            if (Index2 != null)
+            {
+                int idx2 = (int)Math.Round(Index2.Evaluate(modelManager));
+                return $"{BaseName}{idx1}_{idx2}";
+            }
+            else
+            {
+                return $"{BaseName}{idx1}";
+            }
+        }
+    }
+
+    /// <summary>
+    /// Represents a reference to a decision variable
+    /// </summary>
+    public class VariableExpression : Expression
+    {
+        public string VariableName { get; }
+        
+        public VariableExpression(string variableName)
+        {
+            VariableName = variableName;
+        }
+        
+        public override double Evaluate(ModelManager modelManager)
+        {
+            // Variables don't have runtime values during model building
+            // This is used for structure, not evaluation
+            return 0.0;
+        }
+        
+        public override string ToString() => VariableName;
+        
+        public override bool IsConstant => false;
+        
+        public override Expression Simplify(ModelManager? modelManager = null) => this;
+        
+        /// <summary>
+        /// Gets the full variable name
+        /// </summary>
+        public string GetFullName() => VariableName;
+    }
+
+   
 }

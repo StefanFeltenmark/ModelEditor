@@ -9,6 +9,7 @@ namespace Core.Export
     public class MPSExporter
     {
         private readonly ModelManager modelManager;
+        private Dictionary<LinearEquation, string> rowNameCache = new Dictionary<LinearEquation, string>();
         const int MAX_NAME_LENGTH = 24;
 
         public MPSExporter(ModelManager manager)
@@ -34,6 +35,9 @@ namespace Core.Export
             // Sanitize problem name (MPS standard: max 8 chars, no spaces)
             problemName = SanitizeName(problemName, MAX_NAME_LENGTH);
             
+            // Build unique row names BEFORE generating sections
+            BuildUniqueRowNames();
+            
             // NAME section
             sb.AppendLine($"NAME          {problemName}");
             
@@ -53,6 +57,45 @@ namespace Core.Export
             sb.AppendLine("ENDATA");
             
             return sb.ToString();
+        }
+        
+        private void BuildUniqueRowNames()
+        {
+            rowNameCache.Clear();
+            var usedNames = new HashSet<string>();
+            
+            foreach (var equation in modelManager.Equations)
+            {
+                string baseName = equation.Label ?? equation.BaseName ?? "R";
+                
+                if (equation.Index.HasValue)
+                {
+                    if (equation.SecondIndex.HasValue)
+                    {
+                        baseName = $"{baseName}_{equation.Index}_{equation.SecondIndex}";
+                    }
+                    else
+                    {
+                        baseName = $"{baseName}_{equation.Index}";
+                    }
+                }
+                
+                string sanitized = SanitizeName(baseName, MAX_NAME_LENGTH);
+                string uniqueName = sanitized;
+                int counter = 1;
+                
+                // Ensure uniqueness by appending counter if needed
+                while (usedNames.Contains(uniqueName))
+                {
+                    string suffix = $"_{counter}";
+                    int maxBase = MAX_NAME_LENGTH - suffix.Length;
+                    uniqueName = sanitized.Substring(0, Math.Min(sanitized.Length, maxBase)) + suffix;
+                    counter++;
+                }
+                
+                usedNames.Add(uniqueName);
+                rowNameCache[equation] = uniqueName;
+            }
         }
         
         private void AppendRowsSection(StringBuilder sb)
@@ -280,6 +323,12 @@ namespace Core.Export
         
         private string GetRowName(LinearEquation equation)
         {
+            if (rowNameCache.TryGetValue(equation, out string? cachedName))
+            {
+                return cachedName;
+            }
+            
+            // Fallback (shouldn't happen if BuildUniqueRowNames was called)
             string baseName = equation.Label ?? equation.BaseName ?? $"R{modelManager.Equations.IndexOf(equation)}";
             
             if (equation.Index.HasValue)

@@ -12,6 +12,44 @@ namespace Core
         public Dictionary<string, IndexedVariable> IndexedVariables { get; } = new Dictionary<string, IndexedVariable>();
         public Dictionary<string, IndexedEquation> IndexedEquationTemplates { get; } = new Dictionary<string, IndexedEquation>();
         public Dictionary<string, LinearEquation> LabeledEquations { get; } = new Dictionary<string, LinearEquation>();
+
+
+        // Add to existing ModelManager class
+
+        public List<ForallStatement> ForallStatements { get; } = new List<ForallStatement>();
+
+        public void AddForallStatement(ForallStatement forall)
+        {
+            ForallStatements.Add(forall);
+        }
+
+        /// <summary>
+        /// Expands all forall statements into concrete constraints
+        /// </summary>
+        public void ExpandForallStatements()
+        {
+            foreach (var forall in ForallStatements)
+            {
+                var expandedConstraints = forall.Expand(this);
+                foreach (var constraint in expandedConstraints)
+                {
+                    AddEquation(constraint);
+                }
+            }
+        }
+        // Add to existing ModelManager class
+
+        public Dictionary<string, List<int>> Sets { get; } = new Dictionary<string, List<int>>();
+
+        public void DefineSet(string name, List<int> values)
+        {
+            Sets[name] = values;
+        }
+
+        public void DefineRange(string name, int start, int end)
+        {
+            Sets[name] = Enumerable.Range(start, end - start + 1).ToList();
+        }
         public List<LinearEquation> Equations { get; } = new List<LinearEquation>();
 
         public Objective? Objective { get; set; }
@@ -27,6 +65,44 @@ namespace Core
         public Dictionary<string, TupleSet> TupleSets { get; private set; } = new Dictionary<string, TupleSet>();
 
         public Dictionary<string, PrimitiveSet> PrimitiveSets { get; } = new Dictionary<string, PrimitiveSet>();
+
+        // Add this method to the ModelManager class
+
+        /// <summary>
+        /// Sets or updates a parameter value
+        /// </summary>
+        public void SetParameter(string name, double value)
+        {
+            if (Parameters.TryGetValue(name, out var param))
+            {
+                // Update existing parameter
+                param.Value = value;
+            }
+            else
+            {
+                // Create new scalar parameter
+                var newParam = new Parameter(name, ParameterType.Float, value);
+                Parameters[name] = newParam;
+            }
+        }
+
+        /// <summary>
+        /// Sets or updates a parameter value with explicit type
+        /// </summary>
+        public void SetParameter(string name, object value, ParameterType type = ParameterType.Float)
+        {
+            if (Parameters.TryGetValue(name, out var param))
+            {
+                // Update existing parameter
+                param.Value = value;
+            }
+            else
+            {
+                // Create new parameter
+                var newParam = new Parameter(name, type, value);
+                Parameters[name] = newParam;
+            }
+        }
 
         public void AddParameter(Parameter parameter)
         {

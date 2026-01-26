@@ -28,7 +28,7 @@ namespace Core
             modelManager = manager;
             evaluator = new ExpressionEvaluator(manager);
             jsEvaluator = new JavaScriptEvaluator(manager);
-            
+
             // Initialize specialized parsers
             parameterParser = new ParameterParser(manager, evaluator);
             indexSetParser = new IndexSetParser(manager, evaluator);
@@ -38,6 +38,8 @@ namespace Core
             parenthesesExpander = new ParenthesesExpander();
             variableValidator = new VariableValidator(manager);
         }
+
+
 
         public ModelManager GetModelManager()
         {
@@ -485,7 +487,7 @@ namespace Core
         private void ProcessStatement(string statement, int lineNumber, ParseSessionResult result)
         {
             string error = string.Empty;
-            
+
             // Try parameter parsing
             if (parameterParser.TryParse(statement, out Parameter param, out error))
             {
@@ -669,7 +671,8 @@ namespace Core
             // Nothing matched
             if (string.IsNullOrEmpty(error))
             {
-                error = "Unknown statement type. Expected: parameter, index set, variable, primitive set, tuple set, equation, or objective";
+                error =
+                    "Unknown statement type. Expected: parameter, index set, variable, primitive set, tuple set, equation, or objective";
             }
 
             result.AddError($"\"{statement}\"\n  Error: {error}", lineNumber);
@@ -734,153 +737,155 @@ namespace Core
         }
 
         private bool TryParsePrimitiveSet(string statement, out PrimitiveSet? primitiveSet, out string error)
-{
-    primitiveSet = null;
-    error = string.Empty;
-
-    // Pattern: {int|string|float} setName = {values} or ...;
-    string pattern = @"^\s*\{(int|string|float)\}\s+([a-zA-Z][a-zA-Z0-9_]*)\s*=\s*(.+)$";
-    var match = Regex.Match(statement.Trim(), pattern, RegexOptions.IgnoreCase);
-
-    if (!match.Success)
-    {
-        error = "Not a primitive set declaration";
-        return false;
-    }
-
-    string typeStr = match.Groups[1].Value.ToLower();
-    string setName = match.Groups[2].Value;
-    string valueStr = match.Groups[3].Value.Trim();
-
-    PrimitiveSetType setType = typeStr switch
-    {
-        "int" => PrimitiveSetType.Int,
-        "string" => PrimitiveSetType.String,
-        "float" => PrimitiveSetType.Float,
-        _ => PrimitiveSetType.Int
-    };
-
-    bool isExternal = valueStr == "...";
-    primitiveSet = new PrimitiveSet(setName, setType, isExternal);
-
-    // Parse inline data if provided
-    if (!isExternal)
-    {
-        if (!valueStr.StartsWith("{") || !valueStr.EndsWith("}"))
         {
-            error = "Primitive set data must be enclosed in braces: {value1, value2, ...}";
-            return false;
-        }
+            primitiveSet = null;
+            error = string.Empty;
 
-        string data = valueStr.Substring(1, valueStr.Length - 2).Trim();
+            // Pattern: {int|string|float} setName = {values} or ...;
+            string pattern = @"^\s*\{(int|string|float)\}\s+([a-zA-Z][a-zA-Z0-9_]*)\s*=\s*(.+)$";
+            var match = Regex.Match(statement.Trim(), pattern, RegexOptions.IgnoreCase);
 
-        if (!string.IsNullOrEmpty(data))
-        {
-            if (!ParsePrimitiveSetData(data, primitiveSet, out error))
+            if (!match.Success)
             {
+                error = "Not a primitive set declaration";
                 return false;
             }
-        }
-    }
 
-    return true;
-}
+            string typeStr = match.Groups[1].Value.ToLower();
+            string setName = match.Groups[2].Value;
+            string valueStr = match.Groups[3].Value.Trim();
 
-private bool ParsePrimitiveSetData(string data, PrimitiveSet primitiveSet, out string error)
-{
-    error = string.Empty;
-
-    // Split by commas, respecting quotes for strings
-    var values = SplitByCommaRespectingQuotes(data);
-
-    foreach (var valueStr in values)
-    {
-        string trimmed = valueStr.Trim();
-        
-        if (string.IsNullOrEmpty(trimmed))
-            continue;
-
-        try
-        {
-            switch (primitiveSet.Type)
+            PrimitiveSetType setType = typeStr switch
             {
-                case PrimitiveSetType.Int:
-                    if (int.TryParse(trimmed, out int intVal))
+                "int" => PrimitiveSetType.Int,
+                "string" => PrimitiveSetType.String,
+                "float" => PrimitiveSetType.Float,
+                _ => PrimitiveSetType.Int
+            };
+
+            bool isExternal = valueStr == "...";
+            primitiveSet = new PrimitiveSet(setName, setType, isExternal);
+
+            // Parse inline data if provided
+            if (!isExternal)
+            {
+                if (!valueStr.StartsWith("{") || !valueStr.EndsWith("}"))
+                {
+                    error = "Primitive set data must be enclosed in braces: {value1, value2, ...}";
+                    return false;
+                }
+
+                string data = valueStr.Substring(1, valueStr.Length - 2).Trim();
+
+                if (!string.IsNullOrEmpty(data))
+                {
+                    if (!ParsePrimitiveSetData(data, primitiveSet, out error))
                     {
-                        primitiveSet.Add(intVal);
-                    }
-                    else
-                    {
-                        error = $"Invalid integer value: '{trimmed}'";
                         return false;
                     }
-                    break;
-
-                case PrimitiveSetType.String:
-                    string strVal = trimmed.Trim('"');
-                    primitiveSet.Add(strVal);
-                    break;
-
-                case PrimitiveSetType.Float:
-                    if (double.TryParse(trimmed, System.Globalization.NumberStyles.Float,
-                        System.Globalization.CultureInfo.InvariantCulture, out double floatVal))
-                    {
-                        primitiveSet.Add(floatVal);
-                    }
-                    else
-                    {
-                        error = $"Invalid float value: '{trimmed}'";
-                        return false;
-                    }
-                    break;
+                }
             }
+
+            return true;
         }
-        catch (Exception ex)
+
+        private bool ParsePrimitiveSetData(string data, PrimitiveSet primitiveSet, out string error)
         {
-            error = $"Error parsing value '{trimmed}': {ex.Message}";
-            return false;
+            error = string.Empty;
+
+            // Split by commas, respecting quotes for strings
+            var values = SplitByCommaRespectingQuotes(data);
+
+            foreach (var valueStr in values)
+            {
+                string trimmed = valueStr.Trim();
+
+                if (string.IsNullOrEmpty(trimmed))
+                    continue;
+
+                try
+                {
+                    switch (primitiveSet.Type)
+                    {
+                        case PrimitiveSetType.Int:
+                            if (int.TryParse(trimmed, out int intVal))
+                            {
+                                primitiveSet.Add(intVal);
+                            }
+                            else
+                            {
+                                error = $"Invalid integer value: '{trimmed}'";
+                                return false;
+                            }
+
+                            break;
+
+                        case PrimitiveSetType.String:
+                            string strVal = trimmed.Trim('"');
+                            primitiveSet.Add(strVal);
+                            break;
+
+                        case PrimitiveSetType.Float:
+                            if (double.TryParse(trimmed, System.Globalization.NumberStyles.Float,
+                                    System.Globalization.CultureInfo.InvariantCulture, out double floatVal))
+                            {
+                                primitiveSet.Add(floatVal);
+                            }
+                            else
+                            {
+                                error = $"Invalid float value: '{trimmed}'";
+                                return false;
+                            }
+
+                            break;
+                    }
+                }
+                catch (Exception ex)
+                {
+                    error = $"Error parsing value '{trimmed}': {ex.Message}";
+                    return false;
+                }
+            }
+
+            return true;
         }
-    }
 
-    return true;
-}
-
-private List<string> SplitByCommaRespectingQuotes(string input)
-{
-    var result = new List<string>();
-    var current = new System.Text.StringBuilder();
-    bool inQuotes = false;
-
-    for (int i = 0; i < input.Length; i++)
-    {
-        char c = input[i];
-
-        if (c == '"')
+        private List<string> SplitByCommaRespectingQuotes(string input)
         {
-            inQuotes = !inQuotes;
-            current.Append(c);
-        }
-        else if (c == ',' && !inQuotes)
-        {
+            var result = new List<string>();
+            var current = new System.Text.StringBuilder();
+            bool inQuotes = false;
+
+            for (int i = 0; i < input.Length; i++)
+            {
+                char c = input[i];
+
+                if (c == '"')
+                {
+                    inQuotes = !inQuotes;
+                    current.Append(c);
+                }
+                else if (c == ',' && !inQuotes)
+                {
+                    if (current.Length > 0)
+                    {
+                        result.Add(current.ToString());
+                        current.Clear();
+                    }
+                }
+                else
+                {
+                    current.Append(c);
+                }
+            }
+
             if (current.Length > 0)
             {
                 result.Add(current.ToString());
-                current.Clear();
             }
-        }
-        else
-        {
-            current.Append(c);
-        }
-    }
 
-    if (current.Length > 0)
-    {
-        result.Add(current.ToString());
-    }
-
-    return result;
-}
+            return result;
+        }
 
         private bool ParseInlineTupleData(string tupleData, TupleSchema schema, TupleSet tupleSet, out string error)
         {
@@ -1010,14 +1015,17 @@ private List<string> SplitByCommaRespectingQuotes(string input)
             }
         }
 
-        private bool TryParseIndexedEquation(string statement, int lineNumber, out string error, ParseSessionResult result)
+        private bool TryParseIndexedEquation(string statement, int lineNumber, out string error,
+            ParseSessionResult result)
         {
             error = string.Empty;
 
             // OPL-style forall: forall(i in I, j in J) [label:] expression
             // More flexible pattern to handle labels and whitespace better
-            string forallTwoDimPattern = @"^\s*forall\s*\(\s*([a-zA-Z][a-zA-Z0-9_]*)\s+in\s+([a-zA-Z][a-zA-Z0-9_]*)\s*,\s*([a-zA-Z][a-zA-Z0-9_]*)\s+in\s+([a-zA-Z][a-zA-Z0-9_]*)\s*\)\s*(?:([a-zA-Z][a-zA-Z0-9_]*)\s*:\s*)?(.+)$";
-            var forallTwoDimMatch = Regex.Match(statement.Trim(), forallTwoDimPattern, RegexOptions.IgnoreCase | RegexOptions.Singleline);
+            string forallTwoDimPattern =
+                @"^\s*forall\s*\(\s*([a-zA-Z][a-zA-Z0-9_]*)\s+in\s+([a-zA-Z][a-zA-Z0-9_]*)\s*,\s*([a-zA-Z][a-zA-Z0-9_]*)\s+in\s+([a-zA-Z][a-zA-Z0-9_]*)\s*\)\s*(?:([a-zA-Z][a-zA-Z0-9_]*)\s*:\s*)?(.+)$";
+            var forallTwoDimMatch = Regex.Match(statement.Trim(), forallTwoDimPattern,
+                RegexOptions.IgnoreCase | RegexOptions.Singleline);
 
             if (forallTwoDimMatch.Success)
             {
@@ -1052,8 +1060,10 @@ private List<string> SplitByCommaRespectingQuotes(string input)
 
             // OPL-style forall single dimension: forall(i in I) [label:] expression
             // More flexible pattern - handles whitespace and optional label
-            string forallPattern = @"^\s*forall\s*\(\s*([a-zA-Z][a-zA-Z0-9_]*)\s+in\s+([a-zA-Z][a-zA-Z0-9_]*)\s*\)\s*(?:([a-zA-Z][a-zA-Z0-9_]*)\s*:\s*)?(.+)$";
-            var forallMatch = Regex.Match(statement.Trim(), forallPattern, RegexOptions.IgnoreCase | RegexOptions.Singleline);
+            string forallPattern =
+                @"^\s*forall\s*\(\s*([a-zA-Z][a-zA-Z0-9_]*)\s+in\s+([a-zA-Z][a-zA-Z0-9_]*)\s*\)\s*(?:([a-zA-Z][a-zA-Z0-9_]*)\s*:\s*)?(.+)$";
+            var forallMatch = Regex.Match(statement.Trim(), forallPattern,
+                RegexOptions.IgnoreCase | RegexOptions.Singleline);
 
             if (forallMatch.Success)
             {
@@ -1079,7 +1089,8 @@ private List<string> SplitByCommaRespectingQuotes(string input)
             }
 
             // Original bracket notation: constraint[i in I, j in J]: ...
-            string twoDimPattern = @"^\s*([a-zA-Z][a-zA-Z0-9_]*)\s*\[\s*([a-zA-Z][a-zA-Z0-9_]*)\s+in\s+([a-zA-Z][a-zA-Z0-9_]*)\s*,\s*([a-zA-Z][a-zA-Z0-9_]*)\s+in\s+([a-zA-Z][a-zA-Z0-9_]*)\s*\]\s*:\s*(.+)$";
+            string twoDimPattern =
+                @"^\s*([a-zA-Z][a-zA-Z0-9_]*)\s*\[\s*([a-zA-Z][a-zA-Z0-9_]*)\s+in\s+([a-zA-Z][a-zA-Z0-9_]*)\s*,\s*([a-zA-Z][a-zA-Z0-9_]*)\s+in\s+([a-zA-Z][a-zA-Z0-9_]*)\s*\]\s*:\s*(.+)$";
             var twoDimMatch = Regex.Match(statement.Trim(), twoDimPattern);
 
             if (twoDimMatch.Success)
@@ -1088,7 +1099,8 @@ private List<string> SplitByCommaRespectingQuotes(string input)
             }
 
             // Original bracket notation: constraint[i in I]: ...
-            string pattern = @"^\s*([a-zA-Z][a-zA-Z0-9_]*)\s*\[\s*([a-zA-Z][a-zA-Z0-9_]*)\s+in\s+([a-zA-Z][a-zA-Z0-9_]*)\s*\]\s*:\s*(.+)$";
+            string pattern =
+                @"^\s*([a-zA-Z][a-zA-Z0-9_]*)\s*\[\s*([a-zA-Z][a-zA-Z0-9_]*)\s+in\s+([a-zA-Z][a-zA-Z0-9_]*)\s*\]\s*:\s*(.+)$";
             var match = Regex.Match(statement.Trim(), pattern);
 
             if (!match.Success)
@@ -1103,7 +1115,7 @@ private List<string> SplitByCommaRespectingQuotes(string input)
         private bool ProcessTwoDimensionalIndexedEquation(Match match, out string error)
         {
             error = string.Empty;
-            
+
             string baseName = match.Groups[1].Value;
             string indexVar1 = match.Groups[2].Value;
             string indexSetName1 = match.Groups[3].Value;
@@ -1132,7 +1144,7 @@ private List<string> SplitByCommaRespectingQuotes(string input)
         private bool ProcessSingleDimensionalIndexedEquation(Match match, out string error)
         {
             error = string.Empty;
-            
+
             string baseName = match.Groups[1].Value;
             string indexVar = match.Groups[2].Value;
             string indexSetName = match.Groups[3].Value;
@@ -1196,7 +1208,7 @@ private List<string> SplitByCommaRespectingQuotes(string input)
                     else
                     {
                         result.AddError(
-                            $"Error expanding equation '{indexedEquation.BaseName}[{index1},{index2}]': {eqError}", 
+                            $"Error expanding equation '{indexedEquation.BaseName}[{index1},{index2}]': {eqError}",
                             0);
                     }
                 }
@@ -1212,7 +1224,7 @@ private List<string> SplitByCommaRespectingQuotes(string input)
             {
                 string expandedEquation = summationExpander.ExpandEquationTemplate(
                     indexedEquation.Template, indexVar, index);
-                
+
                 if (TryParseEquation(expandedEquation, out var eq, out var eqError))
                 {
                     if (eq != null)
@@ -1226,7 +1238,7 @@ private List<string> SplitByCommaRespectingQuotes(string input)
                 else
                 {
                     result.AddError(
-                        $"Error expanding equation '{indexedEquation.BaseName}[{index}]': {eqError}", 
+                        $"Error expanding equation '{indexedEquation.BaseName}[{index}]': {eqError}",
                         0);
                 }
             }
@@ -1248,7 +1260,7 @@ private List<string> SplitByCommaRespectingQuotes(string input)
                 // Extract label if present
                 string? label = null;
                 string equationText = equation.Trim();
-                
+
                 if (!ExtractLabel(ref equationText, ref label, out error))
                 {
                     return false;
@@ -1282,17 +1294,20 @@ private List<string> SplitByCommaRespectingQuotes(string input)
                     {
                         error = "Not an equation";
                     }
+
                     return false;
                 }
 
                 // Parse both sides
-                if (!expressionParser.TryParseExpression(parts[0], out var leftCoefficients, out var leftConstant, out error))
+                if (!expressionParser.TryParseExpression(parts[0], out var leftCoefficients, out var leftConstant,
+                        out error))
                 {
                     error = $"Error parsing left side: {error}";
                     return false;
                 }
 
-                if (!expressionParser.TryParseExpression(parts[1], out var rightCoefficients, out var rightConstant, out error))
+                if (!expressionParser.TryParseExpression(parts[1], out var rightCoefficients, out var rightConstant,
+                        out error))
                 {
                     error = $"Error parsing right side: {error}";
                     return false;
@@ -1322,19 +1337,19 @@ private List<string> SplitByCommaRespectingQuotes(string input)
         private bool ExtractLabel(ref string equationText, ref string? label, out string error)
         {
             error = string.Empty;
-            
+
             string labelPattern = @"^([a-zA-Z][a-zA-Z0-9_]*)\s*:\s*(.+)$";
             var labelMatch = Regex.Match(equationText, labelPattern);
-            
+
             if (labelMatch.Success)
             {
                 string potentialLabel = labelMatch.Groups[1].Value;
                 string remainingText = labelMatch.Groups[2].Value;
 
                 // Verify remaining text has a relational operator
-                if (remainingText.Contains("==") || remainingText.Contains("<=") || 
-                    remainingText.Contains(">=") || remainingText.Contains("<") || 
-                    remainingText.Contains(">") || remainingText.Contains("≤") || 
+                if (remainingText.Contains("==") || remainingText.Contains("<=") ||
+                    remainingText.Contains(">=") || remainingText.Contains("<") ||
+                    remainingText.Contains(">") || remainingText.Contains("≤") ||
                     remainingText.Contains("≥"))
                 {
                     label = potentialLabel;
@@ -1351,9 +1366,9 @@ private List<string> SplitByCommaRespectingQuotes(string input)
         }
 
         private bool SplitByOperator(
-            string cleaned, 
-            out RelationalOperator op, 
-            out string[] parts, 
+            string cleaned,
+            out RelationalOperator op,
+            out string[] parts,
             out string error)
         {
             op = RelationalOperator.Equal;
@@ -1369,7 +1384,7 @@ private List<string> SplitByCommaRespectingQuotes(string input)
             else if (cleaned.Contains("<=") || cleaned.Contains("≤"))
             {
                 op = RelationalOperator.LessThanOrEqual;
-                parts = cleaned.Contains("<=") 
+                parts = cleaned.Contains("<=")
                     ? cleaned.Split(new[] { "<=" }, StringSplitOptions.None)
                     : cleaned.Split('≤');
             }
@@ -1417,11 +1432,11 @@ private List<string> SplitByCommaRespectingQuotes(string input)
         }
 
         private Dictionary<string, Expression> CombineCoefficients(
-            Dictionary<string, Expression> leftCoefficients, 
+            Dictionary<string, Expression> leftCoefficients,
             Dictionary<string, Expression> rightCoefficients)
         {
             var finalCoefficients = new Dictionary<string, Expression>();
-            
+
             // Add left side coefficients
             foreach (var kvp in leftCoefficients)
             {
@@ -1468,8 +1483,8 @@ private List<string> SplitByCommaRespectingQuotes(string input)
             string name = match.Groups[2].Value;
             string expression = match.Groups[3].Value;
 
-            ObjectiveSense sense = senseStr == "minimize" 
-                ? ObjectiveSense.Minimize 
+            ObjectiveSense sense = senseStr == "minimize"
+                ? ObjectiveSense.Minimize
                 : ObjectiveSense.Maximize;
 
             // Expand summations
@@ -1498,52 +1513,416 @@ private List<string> SplitByCommaRespectingQuotes(string input)
                 return false;
             }
 
-            objective = new Objective(sense, coefficients, constant, 
+            objective = new Objective(sense, coefficients, constant,
                 string.IsNullOrEmpty(name) ? null : name);
 
             return true;
         }
 
         private string RemoveBlockComments(string text)
-{
-    var result = new StringBuilder();
-    int i = 0;
-    
-    while (i < text.Length)
-    {
-        // Check for block comment start
-        if (i < text.Length - 1 && text[i] == '/' && text[i + 1] == '*')
         {
-            // Find the closing */
-            int closeIndex = text.IndexOf("*/", i + 2);
-            
-            if (closeIndex == -1)
+            var result = new StringBuilder();
+            int i = 0;
+
+            while (i < text.Length)
             {
-                // Unclosed block comment - treat rest of file as comment
-                break;
+                // Check for block comment start
+                if (i < text.Length - 1 && text[i] == '/' && text[i + 1] == '*')
+                {
+                    // Find the closing */
+                    int closeIndex = text.IndexOf("*/", i + 2);
+
+                    if (closeIndex == -1)
+                    {
+                        // Unclosed block comment - treat rest of file as comment
+                        break;
+                    }
+
+                    // Skip the entire comment block
+                    // But preserve line breaks for accurate line number tracking
+                    string commentBlock = text.Substring(i, closeIndex + 2 - i);
+                    int lineBreaks = commentBlock.Count(c => c == '\n');
+
+                    // Add newlines to maintain line numbers
+                    for (int n = 0; n < lineBreaks; n++)
+                    {
+                        result.Append('\n');
+                    }
+
+                    i = closeIndex + 2; // Skip past */
+                }
+                else
+                {
+                    result.Append(text[i]);
+                    i++;
+                }
             }
-            
-            // Skip the entire comment block
-            // But preserve line breaks for accurate line number tracking
-            string commentBlock = text.Substring(i, closeIndex + 2 - i);
-            int lineBreaks = commentBlock.Count(c => c == '\n');
-            
-            // Add newlines to maintain line numbers
-            for (int n = 0; n < lineBreaks; n++)
-            {
-                result.Append('\n');
-            }
-            
-            i = closeIndex + 2; // Skip past */
+
+            return result.ToString();
         }
-        else
+
+        // Add to EquationParser class
+
+        public ForallStatement? ParseForallStatement(string line)
         {
-            result.Append(text[i]);
-            i++;
+            // Example: forall(i in 1..n) x[i] <= capacity[i];
+            // Example: forall(i in 1..n, j in 1..m: i != j) flow[i][j] <= cap[i][j];
+
+            if (!line.TrimStart().StartsWith("forall", StringComparison.OrdinalIgnoreCase))
+                return null;
+
+            try
+            {
+                var forall = new ForallStatement();
+
+                // Extract forall(...) part
+                int openParen = line.IndexOf('(');
+                int closeParen = FindMatchingParen(line, openParen);
+
+                if (openParen == -1 || closeParen == -1)
+                    throw new InvalidOperationException("Invalid forall syntax: missing parentheses");
+
+                string forallDecl = line.Substring(openParen + 1, closeParen - openParen - 1);
+                string constraintPart = line.Substring(closeParen + 1).Trim();
+
+                // Parse forall declaration
+                ParseForallDeclaration(forallDecl, forall);
+
+                // Parse constraint template
+                ParseConstraintTemplate(constraintPart, forall);
+
+                return forall;
+            }
+            catch (Exception ex)
+            {
+                throw new InvalidOperationException($"Error parsing forall statement: {ex.Message}", ex);
+            }
         }
-    }
-    
-    return result.ToString();
-}
+
+        private void ParseForallDeclaration(string declaration, ForallStatement forall)
+        {
+            // Split by ':' to separate iterators from condition
+            string[] parts = declaration.Split(':');
+            string iteratorsPart = parts[0].Trim();
+            string? conditionPart = parts.Length > 1 ? parts[1].Trim() : null;
+
+            // Parse iterators (comma-separated)
+            var iteratorDecls = iteratorsPart.Split(',');
+            foreach (var iterDecl in iteratorDecls)
+            {
+                var iterator = ParseIterator(iterDecl.Trim());
+                forall.Iterators.Add(iterator);
+            }
+
+            // Parse condition if present
+            if (!string.IsNullOrEmpty(conditionPart))
+            {
+                forall.Condition = ParseConditionExpression(conditionPart);
+            }
+        }
+
+        private ForallIterator ParseIterator(string iterDecl)
+        {
+            // Example: "i in 1..n" or "j in Cities"
+            var match = System.Text.RegularExpressions.Regex.Match(
+                iterDecl,
+                @"(\w+)\s+in\s+(.+)");
+
+            if (!match.Success)
+                throw new InvalidOperationException($"Invalid iterator syntax: {iterDecl}");
+
+            string varName = match.Groups[1].Value;
+            string rangePart = match.Groups[2].Value;
+
+            return new ForallIterator
+            {
+                VariableName = varName,
+                Range = ParseRangeExpression(rangePart)
+            };
+        }
+
+        private RangeExpression ParseRangeExpression(string rangePart)
+        {
+            // Check for range operator ".."
+            if (rangePart.Contains(".."))
+            {
+                var parts = rangePart.Split(new[] { ".." }, StringSplitOptions.None);
+                if (parts.Length != 2)
+                    throw new InvalidOperationException($"Invalid range syntax: {rangePart}");
+
+                return new RangeExpression
+                {
+                    Start = ParseExpression(parts[0].Trim()),
+                    End = ParseExpression(parts[1].Trim())
+                };
+            }
+            else
+            {
+                // It's a set name
+                return new RangeExpression
+                {
+                    SetName = rangePart.Trim()
+                };
+            }
+        }
+
+        private Expression ParseConditionExpression(string condition)
+        {
+            // Parse comparison expressions like "i != j", "i < j", etc.
+            var comparisonOps = new[] { "!=", "==", "<=", ">=", "<", ">" };
+
+            foreach (var op in comparisonOps)
+            {
+                if (condition.Contains(op))
+                {
+                    var parts = condition.Split(new[] { op }, StringSplitOptions.None);
+                    if (parts.Length == 2)
+                    {
+                        var left = ParseExpression(parts[0].Trim());
+                        var right = ParseExpression(parts[1].Trim());
+
+                        var binaryOp = op switch
+                        {
+                            "!=" => BinaryOperator.NotEqual,
+                            "==" => BinaryOperator.Equal,
+                            "<=" => BinaryOperator.LessThanOrEqual,
+                            ">=" => BinaryOperator.GreaterThanOrEqual,
+                            "<" => BinaryOperator.LessThan,
+                            ">" => BinaryOperator.GreaterThan,
+                            _ => throw new InvalidOperationException($"Unknown operator: {op}")
+                        };
+
+                        return new ComparisonExpression(left, binaryOp, right);
+                    }
+                }
+            }
+
+            throw new InvalidOperationException($"Invalid condition: {condition}");
+        }
+
+        private void ParseConstraintTemplate(string constraintPart, ForallStatement forall)
+        {
+            // Remove trailing semicolon
+            constraintPart = constraintPart.TrimEnd(';').Trim();
+
+            // Parse as regular constraint but create template
+            var relOps = new[] { "<=", ">=", "==", "<", ">", "=" };
+            string? foundOp = null;
+            int opIndex = -1;
+
+            foreach (var op in relOps)
+            {
+                opIndex = constraintPart.IndexOf(op);
+                if (opIndex >= 0)
+                {
+                    foundOp = op;
+                    break;
+                }
+            }
+
+            if (foundOp == null)
+                throw new InvalidOperationException("No relational operator found in constraint");
+
+            string leftPart = constraintPart.Substring(0, opIndex).Trim();
+            string rightPart = constraintPart.Substring(opIndex + foundOp.Length).Trim();
+
+            var template = new ConstraintTemplate
+            {
+                LeftSide = ParseExpression(leftPart),
+                Operator = ParseRelationalOperator(foundOp),
+                RightSide = ParseExpression(rightPart)
+            };
+
+            forall.ConstraintTemplate = template;
+        }
+
+        private int FindMatchingParen(string text, int openIndex)
+        {
+            int depth = 0;
+            for (int i = openIndex; i < text.Length; i++)
+            {
+                if (text[i] == '(') depth++;
+                if (text[i] == ')') depth--;
+                if (depth == 0) return i;
+            }
+
+            return -1;
+        }
+
+        private Expression ParseExpression(string exprStr)
+        {
+            exprStr = exprStr.Trim();
+
+            // Try to parse as a number (constant)
+            if (double.TryParse(exprStr, System.Globalization.NumberStyles.Float,
+                    System.Globalization.CultureInfo.InvariantCulture, out double constValue))
+            {
+                return new ConstantExpression(constValue);
+            }
+
+            // Try to parse as a parameter
+            if (modelManager.Parameters.ContainsKey(exprStr))
+            {
+                return new ParameterExpression(exprStr);
+            }
+
+            // Try to parse as a variable reference
+            if (IsVariableName(exprStr))
+            {
+                return new VariableExpression(exprStr);
+            }
+
+            // Try to parse as a binary expression
+            if (TryParseBinaryExpression(exprStr, out var binaryExpr))
+            {
+                return binaryExpr;
+            }
+
+            // Try to parse as an indexed variable (e.g., x[i], flow[i][j])
+            if (TryParseIndexedVariable(exprStr, out var indexedVar))
+            {
+                return indexedVar;
+            }
+
+            // Fallback: try to use expression parser for more complex expressions
+            if (expressionParser.TryParseExpression(exprStr, out var coefficients, out var constant, out string error))
+            {
+                // If it's a single variable with coefficient 1 and no constant
+                if (coefficients.Count == 1 && constant is ConstantExpression constExpr &&
+                    Math.Abs(constExpr.Value) < 1e-10)
+                {
+                    var kvp = coefficients.First();
+                    if (kvp.Value is ConstantExpression coefExpr && Math.Abs(coefExpr.Value - 1.0) < 1e-10)
+                    {
+                        return new VariableExpression(kvp.Key);
+                    }
+                }
+            }
+
+            // If all else fails, return as a parameter expression (might be an iterator variable)
+            return new ParameterExpression(exprStr);
+        }
+
+        private bool IsVariableName(string name)
+        {
+            // Check if it matches variable naming pattern
+            if (string.IsNullOrEmpty(name) || !char.IsLetter(name[0]))
+                return false;
+
+            return name.All(c => char.IsLetterOrDigit(c) || c == '_');
+        }
+
+        private bool TryParseBinaryExpression(string exprStr, out Expression? result)
+        {
+            result = null;
+
+            // Simple binary operations: +, -, *, /
+            var operators = new[] { "+", "-", "*", "/" };
+
+            foreach (var op in operators)
+            {
+                int opIndex = FindOperatorIndex(exprStr, op);
+                if (opIndex > 0 && opIndex < exprStr.Length - 1)
+                {
+                    string leftPart = exprStr.Substring(0, opIndex).Trim();
+                    string rightPart = exprStr.Substring(opIndex + 1).Trim();
+
+                    var left = ParseExpression(leftPart);
+                    var right = ParseExpression(rightPart);
+
+                    var binaryOp = op switch
+                    {
+                        "+" => BinaryOperator.Add,
+                        "-" => BinaryOperator.Subtract,
+                        "*" => BinaryOperator.Multiply,
+                        "/" => BinaryOperator.Divide,
+                        _ => throw new InvalidOperationException($"Unknown operator: {op}")
+                    };
+
+                    result = new BinaryExpression(left, binaryOp, right);
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+        private int FindOperatorIndex(string expr, string op)
+        {
+            // Find the operator at the lowest precedence level (outside parentheses)
+            int depth = 0;
+            int lastIndex = -1;
+
+            for (int i = 0; i < expr.Length; i++)
+            {
+                if (expr[i] == '(' || expr[i] == '[')
+                    depth++;
+                else if (expr[i] == ')' || expr[i] == ']')
+                    depth--;
+                else if (depth == 0 && i + op.Length <= expr.Length)
+                {
+                    if (expr.Substring(i, op.Length) == op)
+                    {
+                        // For - and +, we want the rightmost occurrence at depth 0
+                        if (op == "+" || op == "-")
+                        {
+                            lastIndex = i;
+                        }
+                        else // For * and /, we want the leftmost occurrence at depth 0
+                        {
+                            return i;
+                        }
+                    }
+                }
+            }
+
+            return lastIndex;
+        }
+
+        private bool TryParseIndexedVariable(string exprStr, out Expression? result)
+        {
+            result = null;
+
+            // Pattern: varName[index] or varName[index1][index2]
+            var match = Regex.Match(exprStr, @"^([a-zA-Z][a-zA-Z0-9_]*)\[([^\]]+)\](?:\[([^\]]+)\])?$");
+
+            if (!match.Success)
+                return false;
+
+            string baseName = match.Groups[1].Value;
+            string index1Str = match.Groups[2].Value;
+            string? index2Str = match.Groups[3].Success ? match.Groups[3].Value : null;
+
+            // Parse indices as expressions
+            var index1Expr = ParseExpression(index1Str);
+
+            if (index2Str != null)
+            {
+                var index2Expr = ParseExpression(index2Str);
+                result = new IndexedVariableExpression(baseName, index1Expr, index2Expr);
+            }
+            else
+            {
+                result = new IndexedVariableExpression(baseName, index1Expr);
+            }
+
+            return true;
+        }
+
+        private RelationalOperator ParseRelationalOperator(string op)
+        {
+            return op switch
+            {
+                "==" or "=" => RelationalOperator.Equal,
+                "<=" or "≤" => RelationalOperator.LessThanOrEqual,
+                ">=" or "≥" => RelationalOperator.GreaterThanOrEqual,
+                "<" => RelationalOperator.LessThan,
+                ">" => RelationalOperator.GreaterThan,
+                _ => throw new InvalidOperationException($"Unknown relational operator: {op}")
+            };
+        }
+
+
+
     }
 }
