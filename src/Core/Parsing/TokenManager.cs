@@ -13,7 +13,7 @@ namespace Core.Parsing
         /// <summary>
         /// Creates a token for an expression
         /// </summary>
-        public string CreateToken(Expression expression, string prefix = "TOKEN")
+        public string CreateToken(Expression expression, string prefix = "PARAM")
         {
             if (expression == null)
                 throw new ArgumentNullException(nameof(expression));

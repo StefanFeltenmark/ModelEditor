@@ -146,13 +146,40 @@ namespace Core.Parsing
                     coeffExpr = new ConstantExpression(evalResult.Value);
                 }
             }
+            // Check if it's a token (parameter, dexpr, tuple field access, etc.)
             else if (tokenManager.TryGetExpression(coeffStr, out var tokenExpr))
             {
                 coeffExpr = tokenExpr!;
             }
+            // Check if it's a number
             else if (double.TryParse(coeffStr, NumberStyles.Float, CultureInfo.InvariantCulture, out double coeff))
             {
                 coeffExpr = new ConstantExpression(coeff);
+            }
+            // Check if it's a plain identifier
+            else if (IsValidIdentifier(coeffStr))
+            {
+                // Try as decision expression first - ADD THIS
+                if (modelManager.DecisionExpressions.ContainsKey(coeffStr))
+                {
+                    var dexpr = modelManager.DecisionExpressions[coeffStr];
+                    if (dexpr.IsIndexed)
+                    {
+                        error = $"Indexed decision expression '{coeffStr}' used without index";
+                        return false;
+                    }
+                    coeffExpr = new DecisionExpressionExpression(coeffStr);
+                }
+                // Try as parameter
+                else if (modelManager.Parameters.ContainsKey(coeffStr))
+                {
+                    coeffExpr = new ParameterExpression(coeffStr);
+                }
+                else
+                {
+                    error = $"Undefined identifier '{coeffStr}' used as coefficient for variable '{variable}'";
+                    return false;
+                }
             }
             else
             {
@@ -204,6 +231,11 @@ namespace Core.Parsing
             else if (double.TryParse(coeffStr, NumberStyles.Float, CultureInfo.InvariantCulture, out double coeff))
             {
                 coeffExpr = new ConstantExpression(coeff);
+            }
+            // ADD: Check if it's a parameter name
+            else if (IsValidIdentifier(coeffStr) && modelManager.Parameters.ContainsKey(coeffStr))
+            {
+                coeffExpr = new ParameterExpression(coeffStr);
             }
             else
             {
@@ -367,6 +399,17 @@ namespace Core.Parsing
                 sb.Append(processedIndices.Contains(i) ? ' ' : expression[i]);
             }
             return sb.ToString();
+        }
+
+        /// <summary>
+        /// Checks if a string is a valid identifier
+        /// </summary>
+        private bool IsValidIdentifier(string name)
+        {
+            if (string.IsNullOrEmpty(name) || !char.IsLetter(name[0]))
+                return false;
+            
+            return name.All(c => char.IsLetterOrDigit(c) || c == '_');
         }
     }
 }

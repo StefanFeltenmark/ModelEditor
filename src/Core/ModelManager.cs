@@ -13,7 +13,18 @@ namespace Core
         public Dictionary<string, IndexedEquation> IndexedEquationTemplates { get; } = new Dictionary<string, IndexedEquation>();
         public Dictionary<string, LinearEquation> LabeledEquations { get; } = new Dictionary<string, LinearEquation>();
 
+      
+        public Dictionary<string, DecisionExpression> DecisionExpressions { get; } = new Dictionary<string, DecisionExpression>();
 
+       
+
+        /// <summary>
+        /// Gets a decision expression by name
+        /// </summary>
+        public DecisionExpression? GetDecisionExpression(string name)
+        {
+            return DecisionExpressions.TryGetValue(name, out var dexpr) ? dexpr : null;
+        }
         // Add to existing ModelManager class
 
         public List<ForallStatement> ForallStatements { get; } = new List<ForallStatement>();
@@ -54,8 +65,7 @@ namespace Core
 
         public Objective? Objective { get; set; }
 
-        public Dictionary<string, DecisionExpression> DecisionExpressions { get; } = 
-            new Dictionary<string, DecisionExpression>();
+      
 
         public List<AssertStatement> Assertions { get; } = new List<AssertStatement>();
 

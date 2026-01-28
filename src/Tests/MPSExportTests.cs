@@ -17,7 +17,7 @@ namespace Tests
                 dvar float+ x;
                 dvar float+ y;
                 
-                maximize profit: 3*x + 5*y;
+                maximize  3*x + 5*y;
                 
                 constraint1: 2*x + y <= 10;
                 constraint2: x + 2*y <= 8;
@@ -34,7 +34,7 @@ namespace Tests
             Assert.Contains("NAME          TEST", mps);
             Assert.Contains("ROWS", mps);
             Assert.Contains(" N  OBJ", mps);
-            Assert.Contains(" L  CONSTRA1", mps);
+            Assert.Contains(" L  CONSTRAINT1", mps);
             Assert.Contains("COLUMNS", mps);
             Assert.Contains("RHS", mps);
             Assert.Contains("BOUNDS", mps);
@@ -51,7 +51,7 @@ namespace Tests
                 range I = 1..3;
                 dvar float+ x[I];
                 
-                maximize total: sum(i in I) x[i];
+                maximize sum(i in I) x[i];
                 
                 forall(i in I)
                     limit: x[i] <= 10;
@@ -84,7 +84,7 @@ namespace Tests
                 dvar float+ y;
                 dvar float+ z;
                 
-                maximize obj: x + y + z;
+                maximize x + y + z;
                 
                 lessThan: x <= 10;
                 greaterThan: y >= 5;
@@ -113,7 +113,7 @@ namespace Tests
             string input = @"
                 dvar float+ x;
                 
-                minimize cost: 5*x;
+                minimize  5*x;
                 
                 bound: x <= 100;
             ";
@@ -138,11 +138,11 @@ namespace Tests
             var parser = CreateParser(manager);
             string input = @"
                 dvar float+ x;               // x >= 0
-                dvar float y in [5..100];   // 5 <= y <= 100
+                dvar float y in 5..100;   // 5 <= y <= 100
                 dvar float z;                // unbounded
-                
-                maximize obj: x + y + z;
-                
+
+                maximize x + y + z;
+
                 dummy: x + y + z >= 0;
             ";
             
@@ -167,9 +167,9 @@ namespace Tests
             var manager = CreateModelManager();
             var parser = CreateParser(manager);
             string input = @"
-                dvar int+ count in [0..10];
+                dvar int+ count in 0..10;
                 
-                maximize obj: count;
+                maximize count;
                 
                 limit: count <= 10;
             ";
@@ -195,9 +195,9 @@ namespace Tests
                 int multiplier = 5;
                 
                 dvar float+ x;
-                
-                maximize obj: multiplier * x;
-                
+
+                maximize multiplier * x;
+
                 limit: x <= 100;
             ";
             
@@ -246,7 +246,7 @@ namespace Tests
                 
                 dvar float+ production[Products];
                 
-                maximize profit: 10*production[1] + 15*production[2];
+                maximize  10*production[1] + 15*production[2];
                 
                 subject to {
                     forall(p in Products)
@@ -278,8 +278,8 @@ namespace Tests
             Assert.Equal(3, lCount); // capacity_1, capacity_2, total
             
             // Verify variables
-            Assert.Contains("PRODUCTI1", mps);
-            Assert.Contains("PRODUCTI2", mps);
+            Assert.Contains("PRODUCTION1", mps);
+            Assert.Contains("PRODUCTION2", mps);
         }
 
         [Fact]
@@ -292,7 +292,7 @@ namespace Tests
                 dvar float+ x;
                 dvar float+ y;
                 
-                maximize profit: 3*x + 5*y;
+                maximize  3*x + 5*y;
                 c1: x + y <= 10;
             ";
             

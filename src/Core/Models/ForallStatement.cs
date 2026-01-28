@@ -210,14 +210,18 @@ namespace Core.Models
         {
             return expr switch
             {
-                ConstantExpression constExpr => constExpr, // No substitution needed
+                ConstantExpression constExpr => constExpr,
                 
                 ParameterExpression paramExpr => 
                     context.TryGetIndex(paramExpr.ParameterName, out int value) 
                         ? new ConstantExpression(value) 
                         : paramExpr,
                 
-                VariableExpression varExpr => varExpr, // Keep as-is
+                VariableExpression varExpr => varExpr,
+                
+                // ADD: Handle DecisionExpressionExpression
+                DecisionExpressionExpression dexprExpr => 
+                    SubstituteDexprIndices(dexprExpr, context),
                 
                 IndexedVariableExpression idxVarExpr => new IndexedVariableExpression(
                     idxVarExpr.BaseName,
@@ -238,10 +242,35 @@ namespace Core.Models
                 
                 SummationExpression sumExpr => SubstituteSummation(sumExpr, context),
                 
-                _ => expr // Unknown type, return as-is
+                _ => expr
             };
         }
 
+        private Expression SubstituteDexprIndices(DecisionExpressionExpression dexprExpr, IndexSubstitutionContext context)
+        {
+            // If the dexpr has an index expression, substitute it
+            if (dexprExpr.IndexExpression != null)
+            {
+                var substitutedIndex = SubstituteIndices(dexprExpr.IndexExpression, context);
+                
+                // If the index became a constant, use it
+                if (substitutedIndex is ConstantExpression constIndex)
+                {
+                    return new DecisionExpressionExpression(
+                        dexprExpr.Name, 
+                        (int)Math.Round(constIndex.Value)
+                    );
+                }
+                else
+                {
+                    return new DecisionExpressionExpression(dexprExpr.Name, substitutedIndex);
+                }
+            }
+            
+            // No substitution needed
+            return dexprExpr;
+        }
+        
         private Expression SubstituteSummation(SummationExpression sumExpr, IndexSubstitutionContext context)
         {
             // This is complex - for now, return as-is
@@ -275,7 +304,20 @@ namespace Core.Models
             double sign,
             ModelManager modelManager)
         {
-            if (expr is VariableExpression varExpr)
+            if (expr is IndexedVariableExpression idxVarExpr)
+            {
+                // FIX: Use GetFullName on the IndexedVariableExpression itself
+                string varName = idxVarExpr.GetFullName(modelManager);
+                
+                if (!coefficients.ContainsKey(varName))
+                {
+                    coefficients[varName] = new ConstantExpression(0);
+                }
+                
+                double currentCoeff = coefficients[varName].Evaluate(modelManager);
+                coefficients[varName] = new ConstantExpression(currentCoeff + sign);
+            }
+            else if (expr is VariableExpression varExpr)
             {
                 string varName = varExpr.GetFullName();
                 if (!coefficients.ContainsKey(varName))
@@ -285,6 +327,25 @@ namespace Core.Models
                 
                 double currentCoeff = coefficients[varName].Evaluate(modelManager);
                 coefficients[varName] = new ConstantExpression(currentCoeff + sign);
+            }
+            else if (expr is DecisionExpressionExpression dexprExpr)
+            {
+                // Evaluate the dexpr and then extract terms from its result
+                try
+                {
+                    // For now, treat dexpr as a constant contribution
+                    // In a full implementation, you'd expand the dexpr's expression
+                    double value = dexprExpr.Evaluate(modelManager);
+                    constant += sign * value;
+                }
+                catch
+                {
+                    // If we can't evaluate, try to expand the dexpr's underlying expression
+                    if (modelManager.DecisionExpressions.TryGetValue(dexprExpr.Name, out var dexpr))
+                    {
+                        ExtractTerms(dexpr.Expression, coefficients, ref constant, sign, modelManager);
+                    }
+                }
             }
             else if (expr is ConstantExpression constExpr)
             {
@@ -305,27 +366,120 @@ namespace Core.Models
                 else if (binExpr.Operator == BinaryOperator.Multiply)
                 {
                     // Check if it's coefficient * variable
-                    if (binExpr.Left is ConstantExpression leftConst && binExpr.Right is VariableExpression rightVar)
+                    if (binExpr.Left is ConstantExpression leftConst)
                     {
-                        string varName = rightVar.GetFullName();
-                        if (!coefficients.ContainsKey(varName))
+                        // Handle: constant * variable or constant * indexedVariable
+                        if (binExpr.Right is VariableExpression rightVar)
                         {
-                            coefficients[varName] = new ConstantExpression(0);
+                            string varName = rightVar.GetFullName();
+                            if (!coefficients.ContainsKey(varName))
+                            {
+                                coefficients[varName] = new ConstantExpression(0);
+                            }
+                            
+                            double currentCoeff = coefficients[varName].Evaluate(modelManager);
+                            coefficients[varName] = new ConstantExpression(currentCoeff + sign * leftConst.Value);
                         }
-                        
-                        double currentCoeff = coefficients[varName].Evaluate(modelManager);
-                        coefficients[varName] = new ConstantExpression(currentCoeff + sign * leftConst.Value);
+                        else if (binExpr.Right is IndexedVariableExpression rightIdxVar)
+                        {
+                            string varName = rightIdxVar.GetFullName(modelManager);
+                            if (!coefficients.ContainsKey(varName))
+                            {
+                                coefficients[varName] = new ConstantExpression(0);
+                            }
+                            
+                            double currentCoeff = coefficients[varName].Evaluate(modelManager);
+                            coefficients[varName] = new ConstantExpression(currentCoeff + sign * leftConst.Value);
+                        }
+                        else
+                        {
+                            // Complex multiplication - try to evaluate
+                            double value = expr.Evaluate(modelManager);
+                            constant += sign * value;
+                        }
                     }
-                    else if (binExpr.Right is ConstantExpression rightConst && binExpr.Left is VariableExpression leftVar)
+                    else if (binExpr.Right is ConstantExpression rightConst)
                     {
-                        string varName = leftVar.GetFullName();
-                        if (!coefficients.ContainsKey(varName))
+                        // Handle: variable * constant or indexedVariable * constant
+                        if (binExpr.Left is VariableExpression leftVar)
                         {
-                            coefficients[varName] = new ConstantExpression(0);
+                            string varName = leftVar.GetFullName();
+                            if (!coefficients.ContainsKey(varName))
+                            {
+                                coefficients[varName] = new ConstantExpression(0);
+                            }
+                            
+                            double currentCoeff = coefficients[varName].Evaluate(modelManager);
+                            coefficients[varName] = new ConstantExpression(currentCoeff + sign * rightConst.Value);
                         }
-                        
-                        double currentCoeff = coefficients[varName].Evaluate(modelManager);
-                        coefficients[varName] = new ConstantExpression(currentCoeff + sign * rightConst.Value);
+                        else if (binExpr.Left is IndexedVariableExpression leftIdxVar)
+                        {
+                            string varName = leftIdxVar.GetFullName(modelManager);
+                            if (!coefficients.ContainsKey(varName))
+                            {
+                                coefficients[varName] = new ConstantExpression(0);
+                            }
+                            
+                            double currentCoeff = coefficients[varName].Evaluate(modelManager);
+                            coefficients[varName] = new ConstantExpression(currentCoeff + sign * rightConst.Value);
+                        }
+                        else
+                        {
+                            // Complex multiplication - try to evaluate
+                            double value = expr.Evaluate(modelManager);
+                            constant += sign * value;
+                        }
+                    }
+                    // NEW: Handle parameter/expression * variable
+                    else if (binExpr.Left is ParameterExpression leftParam || binExpr.Left is DecisionExpressionExpression)
+                    {
+                        if (binExpr.Right is VariableExpression rightVar)
+                        {
+                            string varName = rightVar.GetFullName();
+                            if (!coefficients.ContainsKey(varName))
+                            {
+                                coefficients[varName] = new ConstantExpression(0);
+                            }
+                            
+                            // Coefficient is the parameter/dexpr expression
+                            if (coefficients[varName] is ConstantExpression currentConstCoeff)
+                            {
+                                // If current is constant, create binary expression
+                                double evaluated = binExpr.Left.Evaluate(modelManager);
+                                coefficients[varName] = new ConstantExpression(currentConstCoeff.Value + sign * evaluated);
+                            }
+                            else
+                            {
+                                // Current is already an expression, add to it
+                                coefficients[varName] = new BinaryExpression(
+                                    coefficients[varName],
+                                    BinaryOperator.Add,
+                                    new BinaryExpression(
+                                        new ConstantExpression(sign),
+                                        BinaryOperator.Multiply,
+                                        binExpr.Left
+                                    )
+                                );
+                            }
+                        }
+                        else if (binExpr.Right is IndexedVariableExpression rightIdxVar)
+                        {
+                            string varName = rightIdxVar.GetFullName(modelManager);
+                            if (!coefficients.ContainsKey(varName))
+                            {
+                                coefficients[varName] = new ConstantExpression(0);
+                            }
+                            
+                            double evaluated = binExpr.Left.Evaluate(modelManager);
+                            double currentCoeff = coefficients[varName].Evaluate(modelManager);
+                            coefficients[varName] = new ConstantExpression(currentCoeff + sign * evaluated);
+                        }
+                        else
+                        {
+                            // Complex - try to evaluate whole thing
+                            double value = expr.Evaluate(modelManager);
+                            constant += sign * value;
+                        }
                     }
                     else
                     {
@@ -350,6 +504,12 @@ namespace Core.Models
                     ExtractTerms(term, coefficients, ref constant, sign, modelManager);
                 }
             }
+            else if (expr is ParameterExpression paramExpr)
+            {
+                // Evaluate parameter as constant
+                double value = paramExpr.Evaluate(modelManager);
+                constant += sign * value;
+            }
             else
             {
                 // Try to evaluate as constant
@@ -358,9 +518,10 @@ namespace Core.Models
                     double value = expr.Evaluate(modelManager);
                     constant += sign * value;
                 }
-                catch
+                catch (Exception ex)
                 {
-                    // Cannot evaluate - skip
+                    // Cannot evaluate - log warning and skip
+                    System.Diagnostics.Debug.WriteLine($"Warning: Could not extract terms from expression type {expr.GetType().Name}: {ex.Message}");
                 }
             }
         }

@@ -2,6 +2,7 @@ using Xunit;
 using Core;
 using Core.Models;
 using Core.Parsing;
+using Core.Parsing.Tokenization;
 
 namespace Tests
 {

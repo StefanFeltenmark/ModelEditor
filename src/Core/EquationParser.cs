@@ -19,9 +19,11 @@ namespace Core
         private readonly IndexSetParser indexSetParser;
         private readonly VariableDeclarationParser variableParser;
         private readonly ExpressionParser expressionParser;
+
         private readonly SummationExpander summationExpander;
         private readonly ParenthesesExpander parenthesesExpander;
         private readonly VariableValidator variableValidator;
+        private readonly DecisionExpressionParser dexprParser;
 
         public EquationParser(ModelManager manager)
         {
@@ -33,6 +35,7 @@ namespace Core
             parameterParser = new ParameterParser(manager, evaluator);
             indexSetParser = new IndexSetParser(manager, evaluator);
             variableParser = new VariableDeclarationParser(manager, evaluator);
+            dexprParser = new DecisionExpressionParser(manager, evaluator);  // ADD THIS
             expressionParser = new ExpressionParser(manager);
             summationExpander = new SummationExpander(manager);
             parenthesesExpander = new ParenthesesExpander();
@@ -668,6 +671,29 @@ namespace Core
                 return;
             }
 
+            if (dexprParser.TryParse(statement, out var dexpr, out error))
+            {
+                if (dexpr != null)
+                {
+                    modelManager.AddDecisionExpression(dexpr);
+                    result.IncrementSuccess();
+                    return;
+                }
+                else
+                {
+                    result.AddError($"\"{statement}\"\n  Error: {error}", lineNumber);
+                    return;
+                }
+            }
+    
+            if (!string.IsNullOrEmpty(error) && !IsNotRecognizedError(error))
+            {
+                result.AddError($"\"{statement}\"\n  Error: {error}", lineNumber);
+                return;
+            }
+    
+            error = string.Empty;
+
             // Nothing matched
             if (string.IsNullOrEmpty(error))
             {
@@ -1020,8 +1046,8 @@ namespace Core
         {
             error = string.Empty;
 
-            // OPL-style forall: forall(i in I, j in J) [label:] expression
-            // More flexible pattern to handle labels and whitespace better
+            // OPL-style forall: forall(i in 1..n) x[i] <= capacity[i];
+            // Example: forall(i in 1..n, j in 1..m: i != j) flow[i][j] <= cap[i][j];
             string forallTwoDimPattern =
                 @"^\s*forall\s*\(\s*([a-zA-Z][a-zA-Z0-9_]*)\s+in\s+([a-zA-Z][a-zA-Z0-9_]*)\s*,\s*([a-zA-Z][a-zA-Z0-9_]*)\s+in\s+([a-zA-Z][a-zA-Z0-9_]*)\s*\)\s*(?:([a-zA-Z][a-zA-Z0-9_]*)\s*:\s*)?(.+)$";
             var forallTwoDimMatch = Regex.Match(statement.Trim(), forallTwoDimPattern,
@@ -1765,6 +1791,12 @@ namespace Core
             {
                 return new ParameterExpression(exprStr);
             }
+    
+            // Try to parse as a decision expression - ADD THIS
+    if (modelManager.DecisionExpressions.ContainsKey(exprStr))
+    {
+        return new DecisionExpressionExpression(exprStr);
+    }
 
             // Try to parse as a variable reference
             if (IsVariableName(exprStr))
@@ -1783,6 +1815,12 @@ namespace Core
             {
                 return indexedVar;
             }
+    
+            // Try to parse as indexed dexpr (e.g., totalCost[i]) - ADD THIS
+    if (TryParseIndexedDexpr(exprStr, out var indexedDexpr))
+    {
+        return indexedDexpr;
+    }
 
             // Fallback: try to use expression parser for more complex expressions
             if (expressionParser.TryParseExpression(exprStr, out var coefficients, out var constant, out string error))
@@ -1803,107 +1841,41 @@ namespace Core
             return new ParameterExpression(exprStr);
         }
 
-        private bool IsVariableName(string name)
-        {
-            // Check if it matches variable naming pattern
-            if (string.IsNullOrEmpty(name) || !char.IsLetter(name[0]))
-                return false;
-
-            return name.All(c => char.IsLetterOrDigit(c) || c == '_');
-        }
-
-        private bool TryParseBinaryExpression(string exprStr, out Expression? result)
+        private bool TryParseIndexedDexpr(string exprStr, out Expression? result)
         {
             result = null;
 
-            // Simple binary operations: +, -, *, /
-            var operators = new[] { "+", "-", "*", "/" };
-
-            foreach (var op in operators)
-            {
-                int opIndex = FindOperatorIndex(exprStr, op);
-                if (opIndex > 0 && opIndex < exprStr.Length - 1)
-                {
-                    string leftPart = exprStr.Substring(0, opIndex).Trim();
-                    string rightPart = exprStr.Substring(opIndex + 1).Trim();
-
-                    var left = ParseExpression(leftPart);
-                    var right = ParseExpression(rightPart);
-
-                    var binaryOp = op switch
-                    {
-                        "+" => BinaryOperator.Add,
-                        "-" => BinaryOperator.Subtract,
-                        "*" => BinaryOperator.Multiply,
-                        "/" => BinaryOperator.Divide,
-                        _ => throw new InvalidOperationException($"Unknown operator: {op}")
-                    };
-
-                    result = new BinaryExpression(left, binaryOp, right);
-                    return true;
-                }
-            }
-
-            return false;
-        }
-
-        private int FindOperatorIndex(string expr, string op)
-        {
-            // Find the operator at the lowest precedence level (outside parentheses)
-            int depth = 0;
-            int lastIndex = -1;
-
-            for (int i = 0; i < expr.Length; i++)
-            {
-                if (expr[i] == '(' || expr[i] == '[')
-                    depth++;
-                else if (expr[i] == ')' || expr[i] == ']')
-                    depth--;
-                else if (depth == 0 && i + op.Length <= expr.Length)
-                {
-                    if (expr.Substring(i, op.Length) == op)
-                    {
-                        // For - and +, we want the rightmost occurrence at depth 0
-                        if (op == "+" || op == "-")
-                        {
-                            lastIndex = i;
-                        }
-                        else // For * and /, we want the leftmost occurrence at depth 0
-                        {
-                            return i;
-                        }
-                    }
-                }
-            }
-
-            return lastIndex;
-        }
-
-        private bool TryParseIndexedVariable(string exprStr, out Expression? result)
-        {
-            result = null;
-
-            // Pattern: varName[index] or varName[index1][index2]
-            var match = Regex.Match(exprStr, @"^([a-zA-Z][a-zA-Z0-9_]*)\[([^\]]+)\](?:\[([^\]]+)\])?$");
+            // Pattern: dexprName[index]
+            var match = Regex.Match(exprStr, @"^([a-zA-Z][a-zA-Z0-9_]*)\[([^\]]+)\]$");
 
             if (!match.Success)
                 return false;
 
-            string baseName = match.Groups[1].Value;
-            string index1Str = match.Groups[2].Value;
-            string? index2Str = match.Groups[3].Success ? match.Groups[3].Value : null;
+            string dexprName = match.Groups[1].Value;
+            string indexStr = match.Groups[2].Value;
 
-            // Parse indices as expressions
-            var index1Expr = ParseExpression(index1Str);
+            // Check if it's a decision expression
+            if (!modelManager.DecisionExpressions.ContainsKey(dexprName))
+                return false;
 
-            if (index2Str != null)
+            var dexpr = modelManager.DecisionExpressions[dexprName];
+            
+            if (!dexpr.IsIndexed)
             {
-                var index2Expr = ParseExpression(index2Str);
-                result = new IndexedVariableExpression(baseName, index1Expr, index2Expr);
+                // Trying to index a scalar dexpr - error
+                return false;
+            }
+
+            // Parse index - could be literal or expression
+            if (int.TryParse(indexStr, out int literalIndex))
+            {
+                result = new DecisionExpressionExpression(dexprName, literalIndex);
             }
             else
             {
-                result = new IndexedVariableExpression(baseName, index1Expr);
+                // Index is an expression (like 'i')
+                var indexExpr = ParseExpression(indexStr);
+                result = new DecisionExpressionExpression(dexprName, indexExpr);
             }
 
             return true;
@@ -1922,7 +1894,130 @@ namespace Core
             };
         }
 
+        // Add these methods to the EquationParser class
 
+private bool IsVariableName(string name)
+{
+    // Check if it matches variable naming pattern
+    if (string.IsNullOrEmpty(name) || !char.IsLetter(name[0]))
+        return false;
+
+    if (!name.All(c => char.IsLetterOrDigit(c) || c == '_'))
+        return false;
+    
+    // Make sure it's not a reserved keyword or existing parameter/dexpr
+    if (modelManager.Parameters.ContainsKey(name))
+        return false;
+    
+    if (modelManager.DecisionExpressions.ContainsKey(name))
+        return false;
+    
+    return true;
+}
+
+private bool TryParseBinaryExpression(string exprStr, out Expression? result)
+{
+    result = null;
+
+    // Simple binary operations: +, -, *, /
+    var operators = new[] { "+", "-", "*", "/" };
+
+    foreach (var op in operators)
+    {
+        int opIndex = FindOperatorIndex(exprStr, op);
+        if (opIndex > 0 && opIndex < exprStr.Length - 1)
+        {
+            string leftPart = exprStr.Substring(0, opIndex).Trim();
+            string rightPart = exprStr.Substring(opIndex + 1).Trim();
+
+            var left = ParseExpression(leftPart);
+            var right = ParseExpression(rightPart);
+
+            var binaryOp = op switch
+            {
+                "+" => BinaryOperator.Add,
+                "-" => BinaryOperator.Subtract,
+                "*" => BinaryOperator.Multiply,
+                "/" => BinaryOperator.Divide,
+                _ => throw new InvalidOperationException($"Unknown operator: {op}")
+            };
+
+            result = new BinaryExpression(left, binaryOp, right);
+            return true;
+        }
+    }
+
+    return false;
+}
+
+private int FindOperatorIndex(string expr, string op)
+{
+    // Find the operator at the lowest precedence level (outside parentheses/brackets)
+    int depth = 0;
+    int lastIndex = -1;
+
+    for (int i = 0; i < expr.Length; i++)
+    {
+        if (expr[i] == '(' || expr[i] == '[')
+            depth++;
+        else if (expr[i] == ')' || expr[i] == ']')
+            depth--;
+        else if (depth == 0 && i + op.Length <= expr.Length)
+        {
+            if (expr.Substring(i, op.Length) == op)
+            {
+                // For - and +, we want the rightmost occurrence at depth 0 (lowest precedence)
+                if (op == "+" || op == "-")
+                {
+                    lastIndex = i;
+                }
+                else // For * and /, we want the leftmost occurrence at depth 0
+                {
+                    return i;
+                }
+            }
+        }
+    }
+
+    return lastIndex;
+}
+
+private bool TryParseIndexedVariable(string exprStr, out Expression? result)
+{
+    result = null;
+
+    // Pattern: varName[index] or varName[index1][index2]
+    var match = Regex.Match(exprStr, @"^([a-zA-Z][a-zA-Z0-9_]*)\[([^\]]+)\](?:\[([^\]]+)\])?$");
+
+    if (!match.Success)
+        return false;
+
+    string baseName = match.Groups[1].Value;
+    string index1Str = match.Groups[2].Value;
+    string? index2Str = match.Groups[3].Success ? match.Groups[3].Value : null;
+
+    // Make sure it's not a parameter or dexpr (they have their own handling)
+    if (modelManager.Parameters.ContainsKey(baseName))
+        return false;
+    
+    if (modelManager.DecisionExpressions.ContainsKey(baseName))
+        return false;
+
+    // Parse indices as expressions
+    var index1Expr = ParseExpression(index1Str);
+
+    if (index2Str != null)
+    {
+        var index2Expr = ParseExpression(index2Str);
+        result = new IndexedVariableExpression(baseName, index1Expr, index2Expr);
+    }
+    else
+    {
+        result = new IndexedVariableExpression(baseName, index1Expr);
+    }
+
+    return true;
+}
 
     }
 }
