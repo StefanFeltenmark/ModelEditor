@@ -1,3 +1,5 @@
+using System.Text;
+
 namespace Core.Models
 {
     /// <summary>
@@ -6,6 +8,9 @@ namespace Core.Models
     /// </summary>
     public class DecisionExpression
     {
+        // Track dependencies
+        public HashSet<string> DependsOn { get; private set; } = new HashSet<string>();
+
         public string Name { get; set; }
         public VariableType Type { get; set; }
         public Expression Expression { get; set; }
@@ -40,6 +45,44 @@ namespace Core.Models
             }
             
             return Expression.Evaluate(modelManager);
+        }
+
+        /// <summary>
+        /// Analyzes the expression to find dependencies on other dexprs
+        /// </summary>
+        public void AnalyzeDependencies(ModelManager modelManager)
+        {
+            DependsOn.Clear();
+            FindDexprReferences(Expression, DependsOn);
+        }
+        
+        private void FindDexprReferences(Expression expr, HashSet<string> dependencies)
+        {
+            switch (expr)
+            {
+                case DecisionExpressionExpression dexprExpr:
+                    dependencies.Add(dexprExpr.Name);
+                    break;
+                
+                case BinaryExpression binExpr:
+                    FindDexprReferences(binExpr.Left, dependencies);
+                    FindDexprReferences(binExpr.Right, dependencies);
+                    break;
+                
+                case UnaryExpression unaryExpr:
+                    FindDexprReferences(unaryExpr.Operand, dependencies);
+                    break;
+                
+                case SummationExpression sumExpr:
+                    FindDexprReferences(sumExpr.Body, dependencies);
+                    break;
+                
+                case IndexedVariableExpression idxVarExpr:
+                    FindDexprReferences(idxVarExpr.Index1, dependencies);
+                    if (idxVarExpr.Index2 != null)
+                        FindDexprReferences(idxVarExpr.Index2, dependencies);
+                    break;
+            }
         }
         
         /// <summary>
@@ -127,20 +170,13 @@ namespace Core.Models
         
         private IEnumerable<int> GetIndices(ModelManager modelManager)
         {
-            // Try ranges first
-            if (modelManager.IndexSets.TryGetValue(IndexSetName!, out var range))
-            {
-                
-                return range.GetIndices();
-            }
-            
-            // Try index sets
+            // Try index sets first
             if (modelManager.IndexSets.TryGetValue(IndexSetName!, out var indexSet))
             {
                 return indexSet.GetIndices();
             }
             
-            throw new InvalidOperationException($"Index set or range '{IndexSetName}' not found");
+            throw new InvalidOperationException($"Index set '{IndexSetName}' not found");
         }
         
         public override string ToString()
@@ -153,6 +189,76 @@ namespace Core.Models
             {
                 return $"dexpr {Type.ToString().ToLower()} {Name} = {Expression}";
             }
+        }
+        
+        /// <summary>
+        /// Returns a detailed string representation for debugging
+        /// </summary>
+        public string ToDetailedString(ModelManager modelManager, bool includeValue = false)
+        {
+            var sb = new StringBuilder();
+            sb.Append($"dexpr {Type.ToString().ToLower()} {Name}");
+            
+            // FIXED: Use IndexSetName (singular)
+            if (IsIndexed)
+            {
+                sb.Append($"[{IndexSetName}]");
+            }
+            
+            sb.Append($" = {Expression}");
+            
+            if (includeValue && !IsIndexed)
+            {
+                try
+                {
+                    double value = Evaluate(modelManager);
+                    sb.Append($"  // evaluates to: {value}");
+                }
+                catch (Exception ex)
+                {
+                    sb.Append($"  // error: {ex.Message}");
+                }
+            }
+            
+            if (DependsOn.Count > 0)
+            {
+                sb.Append($"\n  // depends on: {string.Join(", ", DependsOn)}");
+            }
+            
+            return sb.ToString();
+        }
+        
+        /// <summary>
+        /// Prints all values for indexed dexpr
+        /// </summary>
+        public string PrintAllValues(ModelManager modelManager)
+        {
+            if (!IsIndexed)
+            {
+                return $"{Name} = {Evaluate(modelManager)}";
+            }
+            
+            var sb = new StringBuilder();
+            sb.AppendLine($"{Name}:");
+            
+            // FIXED: Get single-dimensional indices
+            var indices = GetIndices(modelManager);
+            
+            foreach (int index in indices)
+            {
+                try
+                {
+                    // FIXED: Call Evaluate with single index
+                    double value = Evaluate(modelManager, index);
+                    sb.AppendLine($"  [{index}] = {value}");
+                }
+                catch (Exception ex)
+                {
+                    sb.AppendLine($"  [{index}] = ERROR: {ex.Message}");
+                }
+            }
+            
+            return sb.ToString();
         }
     }
 }

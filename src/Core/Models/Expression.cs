@@ -498,6 +498,77 @@ namespace Core.Models
         }
     }
 
+    /// <summary>
+    /// Represents dynamic tuple field access where the tuple comes from a context variable
+    /// Example: n.prob, j.arcindex, s.id (where n, j, s are iterator variables)
+    /// </summary>
+    public class DynamicTupleFieldAccessExpression : Expression
+    {
+        public string VariableName { get; }
+        public string FieldName { get; }
+
+        public DynamicTupleFieldAccessExpression(string variableName, string fieldName)
+        {
+            VariableName = variableName;
+            FieldName = fieldName;
+        }
+
+        public override double Evaluate(ModelManager modelManager)
+        {
+            // This is evaluated in context - the variable should be in a parameter temporarily
+            if (modelManager.Parameters.TryGetValue(VariableName, out var param))
+            {
+                // Check if the parameter value is a tuple instance
+                if (param.Value is TupleInstance tuple)
+                {
+                    var fieldValue = tuple.GetValue(FieldName);
+                    return Convert.ToDouble(fieldValue);
+                }
+            }
+
+            throw new InvalidOperationException($"Cannot access field '{FieldName}' on variable '{VariableName}'");
+        }
+
+        /// <summary>
+        /// Evaluates with explicit context (used in set comprehensions and forall)
+        /// </summary>
+        public double EvaluateWithContext(Dictionary<string, object> context, ModelManager modelManager)
+        {
+            if (context.TryGetValue(VariableName, out var value))
+            {
+                if (value is TupleInstance tuple)
+                {
+                    var fieldValue = tuple.GetValue(FieldName);
+                    return Convert.ToDouble(fieldValue);
+                }
+            }
+
+            throw new InvalidOperationException($"Variable '{VariableName}' not found in context or is not a tuple");
+        }
+
+        /// <summary>
+        /// Gets the field value as an object (for string fields, etc.)
+        /// </summary>
+        public object? GetFieldValueWithContext(Dictionary<string, object> context)
+        {
+            if (context.TryGetValue(VariableName, out var value))
+            {
+                if (value is TupleInstance tuple)
+                {
+                    return tuple.GetValue(FieldName);
+                }
+            }
+
+            return null;
+        }
+
+        public override string ToString() => $"{VariableName}.{FieldName}";
+
+        public override bool IsConstant => false;
+
+        public override Expression Simplify(ModelManager? modelManager = null) => this;
+    }
+
     public enum BinaryOperator
     {
         Add,
@@ -610,30 +681,52 @@ namespace Core.Models
             double sum = 0.0;
 
             // Get the set to iterate over
-            IEnumerable<int> range = GetRange(modelManager);
+            var range = GetRange(modelManager, out bool isTupleSet, out List<object>? tupleInstances);
 
             // Store original parameter value if exists
             bool hadOriginal = modelManager.Parameters.TryGetValue(IndexVariable, out var originalParam);
-            double originalValue = hadOriginal ? Convert.ToDouble(originalParam.Value) : 0;
+            object? originalValue = hadOriginal ? originalParam!.Value : null;
 
             try
             {
-                // Evaluate body for each value in the range
-                foreach (int value in range)
+                if (isTupleSet && tupleInstances != null)
                 {
-                    // Set the index variable as a temporary parameter
-                    modelManager.SetParameter(IndexVariable, value);
+                    // Iterate over tuple instances
+                    foreach (var tupleObj in tupleInstances)
+                    {
+                        if (tupleObj is TupleInstance tuple)
+                        {
+                            // Set the index variable as a parameter holding the tuple
+                            var tupleParam = new Parameter(IndexVariable, ParameterType.String, tuple);
+                            modelManager.Parameters[IndexVariable] = tupleParam;
+                            
+                            // Evaluate the body
+                            sum += Body.Evaluate(modelManager);
+                        }
+                    }
+                }
+                else
+                {
+                    // Iterate over numeric range
+                    foreach (int value in range)
+                    {
+                        // Set the index variable as a temporary parameter
+                        modelManager.SetParameter(IndexVariable, value);
 
-                    // Evaluate the body
-                    sum += Body.Evaluate(modelManager);
+                        // Evaluate the body
+                        sum += Body.Evaluate(modelManager);
+                    }
                 }
             }
             finally
             {
                 // Restore original parameter or remove temporary one
-                if (hadOriginal)
+                if (hadOriginal && originalValue != null)
                 {
-                    modelManager.SetParameter(IndexVariable, originalValue);
+                    if (originalParam != null)
+                    {
+                        modelManager.Parameters[IndexVariable] = originalParam;
+                    }
                 }
                 else
                 {
@@ -646,7 +739,7 @@ namespace Core.Models
 
         public override string ToString() => $"sum({IndexVariable} in {SetName}) {Body}";
 
-        public override bool IsConstant => false; // Summations depend on runtime evaluation
+        public override bool IsConstant => false;
 
         public override Expression Simplify(ModelManager? modelManager = null)
         {
@@ -675,8 +768,35 @@ namespace Core.Models
             return this;
         }
 
-        private IEnumerable<int> GetRange(ModelManager modelManager)
+        private IEnumerable<int> GetRange(ModelManager modelManager, out bool isTupleSet, out List<object>? tupleInstances)
         {
+            isTupleSet = false;
+            tupleInstances = null;
+            
+            // Try tuple sets first
+            if (modelManager.TupleSets.TryGetValue(SetName, out var tupleSet))
+            {
+                isTupleSet = true;
+                tupleInstances = tupleSet.Instances.Cast<object>().ToList();
+                return Enumerable.Range(1, tupleSet.Count); // Dummy range
+            }
+            
+            // Try computed sets
+            if (modelManager.ComputedSets.TryGetValue(SetName, out var computedSet))
+            {
+                var computed = computedSet.Evaluate(modelManager);
+                if (computed is IEnumerable<object> enumerable)
+                {
+                    var list = enumerable.ToList();
+                    if (list.Count > 0 && list[0] is TupleInstance)
+                    {
+                        isTupleSet = true;
+                        tupleInstances = list;
+                        return Enumerable.Range(1, list.Count); // Dummy range
+                    }
+                }
+            }
+            
             // Try to get from Sets dictionary
             if (modelManager.Sets.TryGetValue(SetName, out var set))
             {
@@ -688,6 +808,12 @@ namespace Core.Models
             {
                 return indexSet.GetIndices();
             }
+            
+            // Try to get from Ranges
+            if (modelManager.Ranges.TryGetValue(SetName, out var range))
+            {
+                return range.GetValues(modelManager);
+            }
 
             throw new InvalidOperationException($"Set or IndexSet '{SetName}' not found");
         }
@@ -698,7 +824,14 @@ namespace Core.Models
         public List<Expression> ExpandTerms(ModelManager modelManager)
         {
             var terms = new List<Expression>();
-            IEnumerable<int> range = GetRange(modelManager);
+            var range = GetRange(modelManager, out bool isTupleSet, out var tupleInstances);
+
+            if (isTupleSet && tupleInstances != null)
+            {
+                // Cannot expand tuple summations into individual terms
+                // (would need to substitute tuple field accesses)
+                return new List<Expression> { this };
+            }
 
             foreach (int value in range)
             {
@@ -958,5 +1091,231 @@ namespace Core.Models
 
             return this;
         }
+    }
+    
+    /// <summary>
+    /// Represents aggregation functions: min, max, prod, card
+    /// </summary>
+    public class AggregationExpression : Expression
+    {
+        public enum AggregationType
+        {
+            Min,
+            Max,
+            Product,
+            Cardinality,
+            Average
+        }
+        
+        public AggregationType Type { get; set; }
+        public string IndexVariable { get; set; }
+        public string SetName { get; set; }
+        public Expression Body { get; set; }
+        
+        public AggregationExpression(AggregationType type, string indexVar, string setName, Expression body)
+        {
+            Type = type;
+            IndexVariable = indexVar;
+            SetName = setName;
+            Body = body;
+        }
+        
+        public override double Evaluate(ModelManager modelManager)
+        {
+            var range = GetRange(modelManager);
+            
+            // Store original parameter
+            bool hadOriginal = modelManager.Parameters.TryGetValue(IndexVariable, out var originalParam);
+            double originalValue = hadOriginal ? Convert.ToDouble(originalParam!.Value) : 0;
+            
+            try
+            {
+                double result = Type switch
+                {
+                    AggregationType.Min => EvaluateMin(range, modelManager),
+                    AggregationType.Max => EvaluateMax(range, modelManager),
+                    AggregationType.Product => EvaluateProduct(range, modelManager),
+                    AggregationType.Cardinality => range.Count(),
+                    AggregationType.Average => EvaluateAverage(range, modelManager),
+                    _ => throw new InvalidOperationException($"Unknown aggregation type: {Type}")
+                };
+                
+                return result;
+            }
+            finally
+            {
+                // Restore
+                if (hadOriginal)
+                {
+                    modelManager.SetParameter(IndexVariable, originalValue);
+                }
+                else
+                {
+                    modelManager.Parameters.Remove(IndexVariable);
+                }
+            }
+        }
+        
+        private double EvaluateMin(IEnumerable<int> range, ModelManager modelManager)
+        {
+            double min = double.MaxValue;
+            foreach (int value in range)
+            {
+                modelManager.SetParameter(IndexVariable, value);
+                double current = Body.Evaluate(modelManager);
+                if (current < min) min = current;
+            }
+            return min;
+        }
+        
+        private double EvaluateMax(IEnumerable<int> range, ModelManager modelManager)
+        {
+            double max = double.MinValue;
+            foreach (int value in range)
+            {
+                modelManager.SetParameter(IndexVariable, value);
+                double current = Body.Evaluate(modelManager);
+                if (current > max) max = current;
+            }
+            return max;
+        }
+        
+        private double EvaluateProduct(IEnumerable<int> range, ModelManager modelManager)
+        {
+            double product = 1.0;
+            foreach (int value in range)
+            {
+                modelManager.SetParameter(IndexVariable, value);
+                product *= Body.Evaluate(modelManager);
+            }
+            return product;
+        }
+        
+        private double EvaluateAverage(IEnumerable<int> range, ModelManager modelManager)
+        {
+            double sum = 0.0;
+            int count = 0;
+            foreach (int value in range)
+            {
+                modelManager.SetParameter(IndexVariable, value);
+                sum += Body.Evaluate(modelManager);
+                count++;
+            }
+            return count > 0 ? sum / count : 0.0;
+        }
+        
+        private IEnumerable<int> GetRange(ModelManager modelManager)
+        {
+            // Try OplRange first
+            if (modelManager.Ranges.TryGetValue(SetName, out var range))
+            {
+                return range.GetValues(modelManager);
+            }
+            
+            // Try to get from Sets dictionary
+            if (modelManager.Sets.TryGetValue(SetName, out var set))
+            {
+                return set;
+            }
+
+            // Try to get from IndexSets
+            if (modelManager.IndexSets.TryGetValue(SetName, out var indexSet))
+            {
+                return indexSet.GetIndices();
+            }
+            
+            throw new InvalidOperationException($"Set or IndexSet '{SetName}' not found");
+        }
+        
+        public override string ToString() => $"{Type}({IndexVariable} in {SetName}) {Body}";
+        public override bool IsConstant => false;
+        public override Expression Simplify(ModelManager? modelManager = null) => this;
+
+        /// <summary>
+        /// Ternary conditional: condition ? trueValue : falseValue
+        /// </summary>
+        public class ConditionalExpression : Expression
+        {
+            public Expression Condition { get; set; }
+            public Expression TrueValue { get; set; }
+            public Expression FalseValue { get; set; }
+            
+            public ConditionalExpression(Expression condition, Expression trueValue, Expression falseValue)
+            {
+                Condition = condition;
+                TrueValue = trueValue;
+                FalseValue = falseValue;
+            }
+            
+            public override double Evaluate(ModelManager modelManager)
+            {
+                double conditionResult = Condition.Evaluate(modelManager);
+                bool isTrue = Math.Abs(conditionResult - 1.0) < 1e-10; // 1.0 = true
+                
+                return isTrue 
+                    ? TrueValue.Evaluate(modelManager)
+                    : FalseValue.Evaluate(modelManager);
+            }
+            
+            public override string ToString() => $"({Condition} ? {TrueValue} : {FalseValue})";
+            public override bool IsConstant => Condition.IsConstant && TrueValue.IsConstant && FalseValue.IsConstant;
+            
+            public override Expression Simplify(ModelManager? modelManager = null)
+            {
+                var simplifiedCondition = Condition.Simplify(modelManager);
+                
+                // If condition is constant, return the appropriate branch
+                if (simplifiedCondition is ConstantExpression constCond)
+                {
+                    bool isTrue = Math.Abs(constCond.Value - 1.0) < 1e-10;
+                    return isTrue 
+                        ? TrueValue.Simplify(modelManager)
+                        : FalseValue.Simplify(modelManager);
+                }
+                
+                return new ConditionalExpression(
+                    simplifiedCondition,
+                    TrueValue.Simplify(modelManager),
+                    FalseValue.Simplify(modelManager)
+                );
+            }
+        }
+    }
+
+    public enum MathFunction
+    {
+        Abs, Ceil, Floor, Round, Sqrt, Pow, Log, Exp, Sin, Cos, Tan, Min, Max
+    }
+
+    public class MathFunctionExpression : Expression
+    {
+        public MathFunction Function { get; set; }
+        public Expression[] Arguments { get; set; }
+        
+        public override double Evaluate(ModelManager modelManager)
+        {
+            var args = Arguments.Select(a => a.Evaluate(modelManager)).ToArray();
+            
+            return Function switch
+            {
+                MathFunction.Abs => Math.Abs(args[0]),
+                MathFunction.Ceil => Math.Ceiling(args[0]),
+                MathFunction.Floor => Math.Floor(args[0]),
+                MathFunction.Round => Math.Round(args[0]),
+                MathFunction.Sqrt => Math.Sqrt(args[0]),
+                MathFunction.Pow => Math.Pow(args[0], args[1]),
+                MathFunction.Log => Math.Log(args[0]),
+                MathFunction.Exp => Math.Exp(args[0]),
+                MathFunction.Sin => Math.Sin(args[0]),
+                MathFunction.Cos => Math.Cos(args[0]),
+                MathFunction.Tan => Math.Tan(args[0]),
+                MathFunction.Min => Math.Min(args[0], args[1]),
+                MathFunction.Max => Math.Max(args[0], args[1]),
+                _ => throw new InvalidOperationException($"Unknown function: {Function}")
+            };
+        }
+        
+        public override string ToString() => $"{Function}({string.Join(", ", Arguments.AsEnumerable())})";
+        public override bool IsConstant => Arguments.All(a => a.IsConstant);
     }
 }

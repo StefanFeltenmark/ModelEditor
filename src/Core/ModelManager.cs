@@ -1,4 +1,5 @@
 ﻿using Core.Models;
+using Core.Parsing;
 
 namespace Core
 {
@@ -13,10 +14,25 @@ namespace Core
         public Dictionary<string, IndexedEquation> IndexedEquationTemplates { get; } = new Dictionary<string, IndexedEquation>();
         public Dictionary<string, LinearEquation> LabeledEquations { get; } = new Dictionary<string, LinearEquation>();
 
-      
         public Dictionary<string, DecisionExpression> DecisionExpressions { get; } = new Dictionary<string, DecisionExpression>();
 
-       
+        public void AddIndexedParameter(IndexedParameter param)
+        {
+            if (IndexedParameters.ContainsKey(param.Name))
+            {
+                throw new InvalidOperationException($"Indexed parameter '{param.Name}' is already defined");
+            }
+            IndexedParameters[param.Name] = param;
+        }
+
+        public void AddIndexedSetCollection(IndexedSetCollection setCollection)
+        {
+            if (IndexedSets.ContainsKey(setCollection.Name))
+            {
+                throw new InvalidOperationException($"Indexed set collection '{setCollection.Name}' is already defined");
+            }
+            IndexedSets[setCollection.Name] = setCollection;
+        }
 
         /// <summary>
         /// Gets a decision expression by name
@@ -75,6 +91,10 @@ namespace Core
         public Dictionary<string, TupleSet> TupleSets { get; private set; } = new Dictionary<string, TupleSet>();
 
         public Dictionary<string, PrimitiveSet> PrimitiveSets { get; } = new Dictionary<string, PrimitiveSet>();
+        // Add these properties to ModelManager class:
+
+        public Dictionary<string, IndexedParameter> IndexedParameters { get; private set; } = new Dictionary<string, IndexedParameter>();
+        public Dictionary<string, IndexedSetCollection> IndexedSets { get; private set; } = new Dictionary<string, IndexedSetCollection>();
 
         // Add this method to the ModelManager class
 
@@ -391,5 +411,139 @@ namespace Core
             var exporter = new Export.MPSExporter(this);
             return exporter.Export(problemName);
         }
+
+        /// <summary>
+        /// Validates that there are no circular dependencies in dexprs
+        /// </summary>
+        public bool ValidateDexprDependencies(out string error)
+        {
+            error = string.Empty;
+        
+            // Build dependency graph
+            foreach (var dexpr in DecisionExpressions.Values)
+            {
+                dexpr.AnalyzeDependencies(this);
+            }
+        
+            // Check for cycles using DFS
+            var visited = new HashSet<string>();
+            var recursionStack = new HashSet<string>();
+        
+            foreach (var dexprName in DecisionExpressions.Keys)
+            {
+                if (HasCycle(dexprName, visited, recursionStack, out var cycle))
+                {
+                    error = $"Circular dependency detected: {string.Join(" -> ", cycle)}";
+                    return false;
+                }
+            }
+        
+            return true;
+        }
+    
+        private bool HasCycle(string dexprName, HashSet<string> visited, 
+            HashSet<string> recursionStack, out List<string> cycle)
+        {
+            cycle = new List<string>();
+        
+            if (!visited.Contains(dexprName))
+            {
+                visited.Add(dexprName);
+                recursionStack.Add(dexprName);
+            
+                if (DecisionExpressions.TryGetValue(dexprName, out var dexpr))
+                {
+                    foreach (var dependency in dexpr.DependsOn)
+                    {
+                        if (!visited.Contains(dependency))
+                        {
+                            if (HasCycle(dependency, visited, recursionStack, out cycle))
+                            {
+                                cycle.Insert(0, dexprName);
+                                return true;
+                            }
+                        }
+                        else if (recursionStack.Contains(dependency))
+                        {
+                            cycle.Add(dexprName);
+                            cycle.Add(dependency);
+                            return true;
+                        }
+                    }
+                }
+            }
+        
+            recursionStack.Remove(dexprName);
+            return false;
+        }
+
+        // Add this property to the ModelManager class
+
+        /// <summary>
+        /// Dictionary of named ranges (OPL range type)
+        /// </summary>
+        public Dictionary<string, OplRange> Ranges { get; } = new Dictionary<string, OplRange>();
+
+        /// <summary>
+        /// Adds a range to the model
+        /// </summary>
+        public void AddRange(OplRange range)
+        {
+            if (Ranges.ContainsKey(range.Name))
+            {
+                throw new InvalidOperationException($"Range '{range.Name}' is already defined");
+            }
+    
+            Ranges[range.Name] = range;
+        }
+
+        /// <summary>
+        /// Gets a range by name
+        /// </summary>
+        public OplRange? GetRange(string name)
+        {
+            return Ranges.TryGetValue(name, out var range) ? range : null;
+        }
+
+        /// <summary>
+        /// Checks if a range is defined
+        /// </summary>
+        public bool HasRange(string name)
+        {
+            return Ranges.ContainsKey(name);
+        }
+
+        // Add this property
+        public Dictionary<string, ComputedSet> ComputedSets { get; } = new Dictionary<string, ComputedSet>();
+
+        public void AddComputedSet(ComputedSet computedSet)
+        {
+            if (ComputedSets.ContainsKey(computedSet.Name))
+            {
+                throw new InvalidOperationException($"Computed set '{computedSet.Name}' is already defined");
+            }
+    
+            ComputedSets[computedSet.Name] = computedSet;
+        }
+
+        public object? GetComputedSetValue(string name, object? index = null)
+        {
+            if (!ComputedSets.TryGetValue(name, out var computedSet))
+            {
+                return null;
+            }
+    
+            if (computedSet.IsIndexed && index != null)
+            {
+                return computedSet.EvaluateForIndex(index, this);
+            }
+            else if (!computedSet.IsIndexed)
+            {
+                return computedSet.Evaluate(this);
+            }
+    
+            return null;
+        }
+        
     }
 }

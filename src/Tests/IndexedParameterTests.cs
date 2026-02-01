@@ -66,7 +66,7 @@ namespace Tests
 
             var modelText = @"
                 range I = 1..3;
-                float cost[I] = ...;
+                float cost[i in I] = ...;
             ";
             
             var parser = new EquationParser(manager);
@@ -74,9 +74,7 @@ namespace Tests
             Assert.False(result.HasErrors);
             
             var dataText = @"
-                cost[1] = 100;
-                cost[2] = 200;
-                cost[3] = 300;
+                cost = {100,200,300};
             ";
             
             var dataParser = new DataFileParser(manager);

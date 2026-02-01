@@ -20,6 +20,7 @@ namespace Tests
 
         protected void AssertNoErrors(ParseSessionResult result)
         {
+            
             Assert.False(result.HasErrors, $"Expected no errors, but got: {string.Join("; ", result.Errors)}");
         }
 

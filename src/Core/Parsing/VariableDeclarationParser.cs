@@ -184,6 +184,30 @@ namespace Core.Parsing
                 return true;
             }
 
+            // Update TryParse to handle dvar with multi-dimensional indexing
+
+            // Add pattern for multi-dimensional dvar:
+            // dvar float+ marketSales[n in nodes0][k in priceSegment] in 0..100;
+
+            var multiDimDvarPattern = @"^dvar\s+(int|float|bool|string)(\+?)\s+([a-zA-Z][a-zA-Z0-9_]*)\s*(\[.+\])(?:\s+in\s+(.+))?$";
+            var multiDimMatch = Regex.Match(statement.Trim(), multiDimDvarPattern, RegexOptions.IgnoreCase);
+
+            if (multiDimMatch.Success)
+            {
+                // Handle multi-dimensional dvar
+                string typeStr = multiDimMatch.Groups[1].Value.ToLower();
+                bool isNonNegative = !string.IsNullOrEmpty(multiDimMatch.Groups[2].Value);
+                string varName = multiDimMatch.Groups[3].Value;
+                string dimensionsStr = multiDimMatch.Groups[4].Value;
+                string? boundsStr = multiDimMatch.Groups[5].Success ? multiDimMatch.Groups[5].Value : null;
+
+                // For now, treat as indexed variable (store as external)
+                // Full implementation would need IndexedVariable class similar to IndexedParameter
+                
+                error = "Multi-dimensional dvar parsing not yet fully implemented";
+                return false;
+            }
+
             error = "Not a variable declaration";
             return false;
         }

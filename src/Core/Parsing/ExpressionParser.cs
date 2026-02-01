@@ -23,6 +23,24 @@ namespace Core.Parsing
             tokenizationOrchestrator = new TokenizationOrchestrator();
         }
 
+        // Add method to handle tuple field access during expression parsing
+
+        private Expression? ParseTupleFieldAccessIfPresent(string exprStr, TokenManager tokenManager)
+        {
+            // Check if this is a simple tuple field access
+            if (TupleFieldAccessParser.IsTupleFieldAccess(exprStr))
+            {
+                if (TupleFieldAccessParser.TryParse(exprStr, out string varName, out string fieldName))
+                {
+                    return new DynamicTupleFieldAccessExpression(varName, fieldName);
+                }
+            }
+            
+            return null;
+        }
+
+        // Update TryParseExpression to check for tuple field access
+
         public bool TryParseExpression(
             string expression,
             out Dictionary<string, Expression> coefficients,
@@ -35,7 +53,15 @@ namespace Core.Parsing
 
             try
             {
+                // Create token manager for this parse session
                 var tokenManager = new TokenManager();
+                
+                // Tokenize tuple field accesses FIRST
+                expression = TupleFieldAccessParser.TokenizeTupleFieldAccesses(
+                    expression, 
+                    tokenManager, 
+                    modelManager
+                );
 
                 // **Apply all tokenization strategies**
                 expression = tokenizationOrchestrator.TokenizeExpression(expression, tokenManager, modelManager);
@@ -97,7 +123,7 @@ namespace Core.Parsing
             }
             catch (Exception ex)
             {
-                error = $"Error parsing expression: {ex.Message}";
+                error = $"Expression parsing error: {ex.Message}";
                 return false;
             }
         }

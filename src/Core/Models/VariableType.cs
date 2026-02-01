@@ -8,6 +8,7 @@ namespace Core.Models
         Float,
         Integer,
         Boolean,
-        String
+        String,
+        Unknown
     }
 }

@@ -197,7 +197,7 @@ namespace Tests
             var result = parser.Parse(input);
 
             // Assert
-            AssertHasError(result, "Use '==' for equality");
+            AssertHasError(result, "No relational operator (==, <=, >=, <, >) found in equation");
         }
 
         [Theory]

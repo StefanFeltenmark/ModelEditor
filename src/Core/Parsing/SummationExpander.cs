@@ -17,15 +17,22 @@ namespace Core.Parsing
             modelManager = manager;
         }
 
+        /// <summary>
+        /// Expands sum(...) expressions
+        /// Skips expansion for tuple sets and computed sets
+        /// </summary>
         public string ExpandSummations(string expression, out string error)
         {
             error = string.Empty;
-
+            
             int maxIterations = 100;
             int iterations = 0;
 
             while (iterations < maxIterations)
             {
+                iterations++;
+                
+                // Find the next sum(...) expression
                 var match = Regex.Match(expression,
                     @"sum\s*\(\s*([a-zA-Z][a-zA-Z0-9_]*)\s+in\s+([a-zA-Z][a-zA-Z0-9_]*)\s*\)",
                     RegexOptions.IgnoreCase);
@@ -33,46 +40,89 @@ namespace Core.Parsing
                 if (!match.Success)
                     break;
 
-                iterations++;
-
                 string indexVar = match.Groups[1].Value;
-                string indexSetName = match.Groups[2].Value;
+                string setName = match.Groups[2].Value;
 
-                if (!modelManager.IndexSets.TryGetValue(indexSetName, out var indexSet))
+                // CHECK: Is this a tuple set or computed set?
+                if (IsTupleSetOrComputedTupleSet(setName))
                 {
-                    error = $"Index set '{indexSetName}' not found in sum expression";
-                    return expression;
+                    // DON'T EXPAND - leave as summation expression
+                    break;
                 }
 
+                // Find the body of the summation
                 int exprStart = match.Index + match.Length;
                 int exprEnd = FindSumExpressionEnd(expression, exprStart);
 
                 if (exprEnd <= exprStart)
                 {
-                    error = $"Empty or invalid sum expression after 'sum({indexVar} in {indexSetName})'";
+                    error = $"Empty or invalid sum expression after 'sum({indexVar} in {setName})'";
                     return expression;
                 }
 
-                string sumExpr = expression.Substring(exprStart, exprEnd - exprStart).Trim();
+                string sumBody = expression.Substring(exprStart, exprEnd - exprStart).Trim();
 
-                if (string.IsNullOrWhiteSpace(sumExpr))
+                if (string.IsNullOrWhiteSpace(sumBody))
                 {
-                    error = $"Empty sum expression after 'sum({indexVar} in {indexSetName})'";
+                    error = $"Empty sum expression after 'sum({indexVar} in {setName})'";
                     return expression;
                 }
 
+                // Get the indices to iterate over
+                IEnumerable<int>? indices = null;
+                
+                // Try ranges
+                if (modelManager.Ranges.TryGetValue(setName, out var range))
+                {
+                    indices = range.GetValues(modelManager);
+                }
+                // Try index sets
+                else if (modelManager.IndexSets.TryGetValue(setName, out var indexSet))
+                {
+                    indices = indexSet.GetIndices();
+                }
+                // Try Sets dictionary
+                else if (modelManager.Sets.TryGetValue(setName, out var set))
+                {
+                    indices = set;
+                }
+                else
+                {
+                    error = $"Index set or range '{setName}' not found";
+                    return expression;
+                }
+
+                // Expand the summation
                 var terms = new List<string>();
-                foreach (int idx in indexSet.GetIndices())
+                foreach (int index in indices)
                 {
-                    string expandedTerm = ReplaceIndexVariable(sumExpr, indexVar, idx);
+                    string expandedTerm = ExpandEquationTemplate(sumBody, indexVar, index);
+                    // Don't wrap individual terms - we'll wrap the whole sum if needed
                     terms.Add(expandedTerm);
                 }
 
-                string expandedSum = terms.Count > 0
-                    ? "(" + string.Join("+", terms) + ")"
-                    : "0";
+                // Build the expanded sum
+                string expandedSum;
+                if (terms.Count == 0)
+                {
+                    expandedSum = "0";
+                }
+                else if (terms.Count == 1)
+                {
+                    // Single term doesn't need parentheses
+                    expandedSum = terms[0];
+                }
+                else
+                {
+                    // Multiple terms - wrap in parentheses to preserve operation order
+                    // This is crucial for expressions like: 2*sum(...) 
+                    expandedSum = "(" + string.Join("+", terms) + ")";
+                }
 
-                expression = expression.Substring(0, match.Index) + expandedSum + expression.Substring(exprEnd);
+                // Replace the sum expression with the expanded version
+                expression = expression.Substring(0, match.Index) + 
+                           expandedSum + 
+                           expression.Substring(exprEnd);
             }
 
             if (iterations >= maxIterations)
@@ -81,8 +131,33 @@ namespace Core.Parsing
                 return expression;
             }
 
-            expression = ExpandParenthesesMultiplication(expression);
             return expression;
+        }
+
+        /// <summary>
+        /// Checks if a set is a tuple set or computed set (which should not be expanded)
+        /// </summary>
+        private bool IsTupleSetOrComputedTupleSet(string setName)
+        {
+            // Check if it's a tuple set
+            if (modelManager.TupleSets.ContainsKey(setName))
+            {
+                return true;
+            }
+            
+            // Check if it's a computed set (which might contain tuples)
+            if (modelManager.ComputedSets.ContainsKey(setName))
+            {
+                return true;
+            }
+            
+            // Check if it's a primitive set - these can be expanded if needed
+            if (modelManager.PrimitiveSets.ContainsKey(setName))
+            {
+                return false; // Primitive sets can be expanded
+            }
+            
+            return false;
         }
 
         public string ExpandParenthesesMultiplication(string expression)
@@ -206,15 +281,24 @@ namespace Core.Parsing
             return expression.Length;
         }
 
-        private string ReplaceIndexVariable(string expr, string indexVar, int indexValue)
+        /// <summary>
+        /// Expands an equation template by replacing an index variable with a specific value
+        /// </summary>
+        public string ExpandEquationTemplate(string template, string indexVar, int indexValue)
         {
-            string escapedVar = Regex.Escape(indexVar);
+            if (string.IsNullOrWhiteSpace(template))
+                return template;
 
-            expr = Regex.Replace(expr, $@"\[{escapedVar}\]", $"[{indexValue}]");
-            expr = Regex.Replace(expr, $@"\[{escapedVar}\s*,", $"[{indexValue},");
-            expr = Regex.Replace(expr, $@",\s*{escapedVar}\]", $",{indexValue}]");
-
-            return expr;
+            // Simple replacement: replace [indexVar with [indexValue
+            return template
+                .Replace($"[{indexVar}]", $"[{indexValue}]")
+                .Replace($"[{indexVar},", $"[{indexValue},")
+                .Replace($",{indexVar}]", $",{indexValue}]")
+                .Replace($",{indexVar},", $",{indexValue},")
+                .Replace($"[ {indexVar} ]", $"[{indexValue}]")
+                .Replace($"[ {indexVar},", $"[{indexValue},")
+                .Replace($",{indexVar} ]", $",{indexValue}]")
+                .Replace($", {indexVar},", $",{indexValue},");
         }
 
         private List<string> SplitPreservingOperators(string expr)
@@ -245,27 +329,6 @@ namespace Core.Parsing
                 terms.Add(currentTerm.ToString().Trim());
 
             return terms;
-        }
-
-        /// <summary>
-        /// Expands an equation template by replacing an index variable with a specific value
-        /// </summary>
-        public string ExpandEquationTemplate(string template, string indexVar, int indexValue)
-        {
-            if (string.IsNullOrWhiteSpace(template))
-                return template;
-
-            // Simple replacement: replace [indexVar with [indexValue
-            // This handles most common cases
-            return template
-                .Replace($"[{indexVar}]", $"[{indexValue}]")
-                .Replace($"[{indexVar},", $"[{indexValue},")
-                .Replace($",{indexVar}]", $",{indexValue}]")
-                .Replace($",{indexVar},", $",{indexValue},")
-                .Replace($"[ {indexVar} ]", $"[{indexValue}]")
-                .Replace($"[ {indexVar},", $"[{indexValue},")
-                .Replace($",{indexVar} ]", $",{indexValue}]")
-                .Replace($", {indexVar},", $",{indexValue},");
         }
     }
 }

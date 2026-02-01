@@ -12,29 +12,41 @@ namespace Core.Parsing
     {
         public string ExpandParenthesesMultiplication(string expression)
         {
-            // Pattern to match: coefficient*(term1+term2+...)
-            var pattern = @"([+-]?[\d.]+)\s*\*\s*\(([^)]+)\)";
-
             int maxIterations = 100;
             int iterations = 0;
 
             while (iterations < maxIterations)
             {
-                var match = Regex.Match(expression, pattern);
+                iterations++;
+
+                // Find coefficient*( pattern
+                var coeffPattern = @"([+-]?[\d.]+)\s*\*\s*\(";
+                var match = Regex.Match(expression, coeffPattern);
 
                 if (!match.Success)
                     break;
 
-                iterations++;
-
                 string coeffStr = match.Groups[1].Value;
-                string innerExpr = match.Groups[2].Value;
 
                 // Parse the coefficient
                 if (!double.TryParse(coeffStr, NumberStyles.Float, CultureInfo.InvariantCulture, out double coeff))
                 {
                     break;
                 }
+
+                // Find the matching closing parenthesis
+                int openParenIndex = match.Index + match.Length - 1; // Position of '('
+                int closeParenIndex = FindMatchingCloseParen(expression, openParenIndex);
+
+                if (closeParenIndex == -1)
+                {
+                    break; // No matching closing paren found
+                }
+
+                // Extract the inner expression
+                int innerStart = openParenIndex + 1;
+                int innerLength = closeParenIndex - innerStart;
+                string innerExpr = expression.Substring(innerStart, innerLength);
 
                 // Split the inner expression by + and - while preserving operators
                 var terms = SplitExpressionIntoTerms(innerExpr);
@@ -71,36 +83,113 @@ namespace Core.Parsing
                 // Replace in the original expression
                 expression = expression.Substring(0, match.Index) +
                             expanded +
-                            expression.Substring(match.Index + match.Length);
+                            expression.Substring(closeParenIndex + 1);
             }
 
             return expression;
         }
 
+        /// <summary>
+        /// Finds the matching closing parenthesis, accounting for nested brackets and parens
+        /// </summary>
+        private int FindMatchingCloseParen(string expression, int openParenIndex)
+        {
+            int depth = 1;
+            int bracketDepth = 0;
+
+            for (int i = openParenIndex + 1; i < expression.Length; i++)
+            {
+                char c = expression[i];
+
+                if (c == '[')
+                {
+                    bracketDepth++;
+                }
+                else if (c == ']')
+                {
+                    bracketDepth--;
+                }
+                else if (c == '(' && bracketDepth == 0)
+                {
+                    depth++;
+                }
+                else if (c == ')' && bracketDepth == 0)
+                {
+                    depth--;
+                    if (depth == 0)
+                    {
+                        return i; // Found the matching closing paren
+                    }
+                }
+            }
+
+            return -1; // No matching paren found
+        }
+
+        /// <summary>
+        /// Splits an expression into terms, respecting bracket depth
+        /// Example: "x[1]+x[2]" -> ["x[1]", "+x[2]"]
+        /// Example: "x[i+1]+x[2]" -> ["x[i+1]", "+x[2]"] (doesn't split on + inside brackets)
+        /// </summary>
         private List<string> SplitExpressionIntoTerms(string innerExpr)
         {
             var terms = new List<string>();
             var currentTerm = new StringBuilder();
+            int bracketDepth = 0;
+            int parenDepth = 0;
             bool isFirstChar = true;
 
-            foreach (char c in innerExpr)
+            for (int i = 0; i < innerExpr.Length; i++)
             {
-                if ((c == '+' || c == '-') && !isFirstChar)
+                char c = innerExpr[i];
+                
+                // Track bracket and parenthesis depth
+                if (c == '[')
                 {
+                    bracketDepth++;
+                    currentTerm.Append(c);
+                }
+                else if (c == ']')
+                {
+                    bracketDepth--;
+                    currentTerm.Append(c);
+                }
+                else if (c == '(')
+                {
+                    parenDepth++;
+                    currentTerm.Append(c);
+                }
+                else if (c == ')')
+                {
+                    parenDepth--;
+                    currentTerm.Append(c);
+                }
+                // Only split on + or - if we're at depth 0
+                else if ((c == '+' || c == '-') && bracketDepth == 0 && parenDepth == 0 && !isFirstChar)
+                {
+                    // Save the current term
                     if (currentTerm.Length > 0)
                     {
                         terms.Add(currentTerm.ToString().Trim());
                         currentTerm.Clear();
                     }
+                    
+                    // Start a new term with the operator
                     currentTerm.Append(c);
                 }
                 else
                 {
                     currentTerm.Append(c);
+                }
+                
+                // After the first non-whitespace character, we're no longer at the start
+                if (c != ' ' && c != '\t')
+                {
                     isFirstChar = false;
                 }
             }
 
+            // Add the last term
             if (currentTerm.Length > 0)
             {
                 terms.Add(currentTerm.ToString().Trim());

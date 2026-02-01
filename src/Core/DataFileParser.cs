@@ -896,5 +896,168 @@ namespace Core
 
             return true;
         }
+
+        // In TryParseParameterAssignment or similar:
+
+private bool TryParseParameterAssignment(string statement, out string error)
+{
+    error = string.Empty;
+
+    // Pattern: paramName = value;
+    // Supports: paramName = 10;
+    //          paramName = [10, 20, 30];
+    //          paramName = {10, 20, 30};
+    
+    var pattern = @"^([a-zA-Z][a-zA-Z0-9_]*)\s*=\s*(.+)$";
+    var match = Regex.Match(statement.Trim(), pattern);
+
+    if (!match.Success)
+    {
+        error = "Not a parameter assignment";
+        return false;
+    }
+
+    string paramName = match.Groups[1].Value;
+    string valueStr = match.Groups[2].Value.Trim();
+
+    if (!modelManager.Parameters.ContainsKey(paramName))
+    {
+        error = $"Parameter '{paramName}' is not defined";
+        return false;
+    }
+
+    var param = modelManager.Parameters[paramName];
+
+    // Check if it's an indexed parameter
+    if (param.IsIndexed)
+    {
+        // Handle array notation: [10, 20, 30] or {10, 20, 30}
+        if ((valueStr.StartsWith("[") && valueStr.EndsWith("]")) ||
+            (valueStr.StartsWith("{") && valueStr.EndsWith("}")))
+        {
+            string valuesStr = valueStr.Substring(1, valueStr.Length - 2);
+            return ParseIndexedParameterValues(param, valuesStr, out error);
+        }
+        else
+        {
+            error = "Indexed parameter values must be in [...] or {...} format";
+            return false;
+        }
+    }
+    else
+    {
+        // Regular parameter - parse single value
+        return ParseSingleValue(param, valueStr, out error);
+    }
+}
+
+private bool ParseIndexedParameterValues(Parameter param, string valuesStr, out string error)
+{
+    error = string.Empty;
+
+    var values = valuesStr.Split(',').Select(v => v.Trim()).ToList();
+    var indexSet = modelManager.IndexSets[param.IndexSetName!];
+    var indices = indexSet.GetIndices().ToList();
+
+    if (values.Count != indices.Count)
+    {
+        error = $"Expected {indices.Count} values for index set '{param.IndexSetName}', but got {values.Count}";
+        return false;
+    }
+
+    for (int i = 0; i < values.Count; i++)
+    {
+        int index = indices[i];
+        string valueStr = values[i];
+
+        if (!ParseValueForType(valueStr, param.Type, out object parsedValue, out error))
+        {
+            return false;
+        }
+
+        param.SetIndexedValue(index, parsedValue);
+    }
+
+    return true;
+}
+
+/// <summary>
+/// Parses and assigns a single value to a scalar parameter
+/// </summary>
+private bool ParseSingleValue(Parameter param, string valueStr, out string error)
+{
+    error = string.Empty;
+
+    if (!param.IsScalar)
+    {
+        error = $"Parameter '{param.Name}' is not scalar";
+        return false;
+    }
+
+    object? parsedValue = ParseValueForType(valueStr, param.Type, out error);
+    
+    if (!string.IsNullOrEmpty(error))
+    {
+        return false;
+    }
+
+    param.Value = parsedValue;
+    return true;
+}
+
+private bool ParseValueForType(string valueStr, ParameterType type, out object parsedValue, out string error)
+{
+    parsedValue = null!;
+    error = string.Empty;
+
+    try
+    {
+        switch (type)
+        {
+            case ParameterType.Integer:
+                if (!int.TryParse(valueStr, out int intVal))
+                {
+                    error = $"Invalid integer value: '{valueStr}'";
+                    return false;
+                }
+                parsedValue = intVal;
+                break;
+
+            case ParameterType.Float:
+                if (!double.TryParse(valueStr, System.Globalization.NumberStyles.Float,
+                        System.Globalization.CultureInfo.InvariantCulture, out double floatVal))
+                {
+                    error = $"Invalid float value: '{valueStr}'";
+                    return false;
+                }
+                parsedValue = floatVal;
+                break;
+
+            case ParameterType.String:
+                parsedValue = valueStr.Trim('"');
+                break;
+
+            case ParameterType.Boolean:
+                if (!bool.TryParse(valueStr, out bool boolVal))
+                {
+                    error = $"Invalid boolean value: '{valueStr}'";
+                    return false;
+                }
+                parsedValue = boolVal;
+                break;
+
+            default:
+                error = $"Unsupported parameter type: {type}";
+                return false;
+        }
+
+        return true;
+    }
+    catch (Exception ex)
+    {
+        error = $"Error parsing value: {ex.Message}";
+        return false;
+    }
+}
     }
 }

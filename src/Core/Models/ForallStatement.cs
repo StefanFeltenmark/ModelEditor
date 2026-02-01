@@ -133,12 +133,25 @@ namespace Core.Models
         {
             if (SetName != null)
             {
-                // Look up a predefined set
+                // Try OplRange first
+                if (modelManager.Ranges.TryGetValue(SetName, out var range))
+                {
+                    return range.GetValues(modelManager);
+                }
+                
+                // Try Sets
                 if (modelManager.Sets.TryGetValue(SetName, out var set))
                 {
                     return set;
                 }
-                throw new InvalidOperationException($"Set '{SetName}' not found");
+                
+                // Try IndexSets
+                if (modelManager.IndexSets.TryGetValue(SetName, out var indexSet))
+                {
+                    return indexSet.GetIndices();
+                }
+                
+                throw new InvalidOperationException($"Range or Set '{SetName}' not found");
             }
             
             if (Start != null && End != null)
@@ -302,7 +315,8 @@ namespace Core.Models
             Dictionary<string, Expression> coefficients,
             ref double constant,
             double sign,
-            ModelManager modelManager)
+            ModelManager modelManager, 
+            bool inlineDexprs = true)
         {
             if (expr is IndexedVariableExpression idxVarExpr)
             {

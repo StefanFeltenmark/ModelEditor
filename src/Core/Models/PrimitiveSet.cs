@@ -61,9 +61,9 @@ namespace Core.Models
         {
             return Type switch
             {
-                PrimitiveSetType.Int => intValues.Contains(Convert.ToInt32(value)),
-                PrimitiveSetType.String => stringValues.Contains(value.ToString()!),
-                PrimitiveSetType.Float => floatValues.Contains(Convert.ToDouble(value)),
+                PrimitiveSetType.Int when value is int intVal => intValues.Contains(intVal),
+                PrimitiveSetType.String when value is string strVal => stringValues.Contains(strVal),
+                PrimitiveSetType.Float when value is double floatVal => floatValues.Contains(floatVal),
                 _ => false
             };
         }
@@ -96,6 +96,41 @@ namespace Core.Models
             if (Type != PrimitiveSetType.Float)
                 throw new InvalidOperationException($"Set '{Name}' is not a float set");
             return floatValues;
+        }
+        
+        /// <summary>
+        /// Gets all values in the set as an enumerable of objects
+        /// </summary>
+        public IEnumerable<object> GetAllValues()
+        {
+            return Type switch
+            {
+                PrimitiveSetType.Int => intValues.Cast<object>(),
+                PrimitiveSetType.String => stringValues.Cast<object>(),
+                PrimitiveSetType.Float => floatValues.Cast<object>(),
+                _ => Enumerable.Empty<object>()
+            };
+        }
+        
+        /// <summary>
+        /// Gets an element at a specific index (1-based, OPL style)
+        /// </summary>
+        public object? GetAt(int index)
+        {
+            if (index < 1)
+            {
+                throw new ArgumentOutOfRangeException(nameof(index), "Index must be 1 or greater (1-based indexing)");
+            }
+            
+            int zeroBasedIndex = index - 1;
+            
+            return Type switch
+            {
+                PrimitiveSetType.Int when zeroBasedIndex < intValues.Count => intValues.ElementAt(zeroBasedIndex),
+                PrimitiveSetType.String when zeroBasedIndex < stringValues.Count => stringValues.ElementAt(zeroBasedIndex),
+                PrimitiveSetType.Float when zeroBasedIndex < floatValues.Count => floatValues.ElementAt(zeroBasedIndex),
+                _ => null
+            };
         }
         
         /// <summary>
