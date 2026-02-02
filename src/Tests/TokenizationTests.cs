@@ -115,7 +115,7 @@ namespace Tests
             var manager = CreateModelManager();
             manager.AddIndexSet(new IndexSet("I", 1, 3));
             
-            var param = new Parameter("cost", ParameterType.Float, "I");
+            var param = new Parameter("cost", ParameterType.Float, "I", isExternal:true);
             manager.AddParameter(param);
             
             var tokenManager = new TokenManager();
@@ -148,7 +148,7 @@ namespace Tests
             
             // Setup parameters
             manager.AddIndexSet(new IndexSet("I", 1, 2));
-            var param = new Parameter("a", ParameterType.Float, "I");
+            var param = new Parameter("a", ParameterType.Float, "I", isExternal:true);
             manager.AddParameter(param);
             
             var tokenManager = new TokenManager();

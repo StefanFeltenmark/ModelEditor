@@ -501,76 +501,21 @@ namespace Core
         {
             string error = string.Empty;
 
-            // 0. Multi-dimensional indexed parameters (check FIRST)
-            if (multiDimParser.TryParseIndexedParameter(statement, out var indexedParam, out error))
+            // Try multi-dimensional indexed parameter FIRST
+            if (multiDimParser.TryParseIndexedParameter(statement, out var multiDimParam, out error))
             {
-                if (indexedParam != null)
+                if (multiDimParam != null)
                 {
-                    modelManager.AddIndexedParameter(indexedParam);
+                    modelManager.AddParameter(multiDimParam);  // Use regular AddParameter!
                     result.IncrementSuccess();
                     return;
                 }
-                else
-                {
-                    result.AddError($"\"{statement}\"\n  Error: {error}", lineNumber);
-                    return;
-                }
+                // ... handle error
             }
-
-            if (!string.IsNullOrEmpty(error) && !IsNotRecognizedError(error))
-            {
-                result.AddError($"\"{statement}\"\n  Error: {error}", lineNumber);
-                return;
-            }
-            error = string.Empty;
-
-            // 0.5 Multi-dimensional indexed sets
-            if (multiDimParser.TryParseIndexedSet(statement, out var indexedSet, out error))
-            {
-                if (indexedSet != null)
-                {
-                    modelManager.AddIndexedSetCollection(indexedSet);
-                    result.IncrementSuccess();
-                    return;
-                }
-                else
-                {
-                    result.AddError($"\"{statement}\"\n  Error: {error}", lineNumber);
-                    return;
-                }
-            }
-
-            if (!string.IsNullOrEmpty(error) && !IsNotRecognizedError(error))
-            {
-                result.AddError($"\"{statement}\"\n  Error: {error}", lineNumber);
-                return;
-            }
-            error = string.Empty;
-
-            // 0.75 External multi-dimensional parameters (simpler syntax)
-            if (multiDimParser.TryParseExternalMultiDimParameter(statement, out var externalParam, out error))
-            {
-                if (externalParam != null)
-                {
-                    modelManager.AddIndexedParameter(externalParam);
-                    result.IncrementSuccess();
-                    return;
-                }
-                else
-                {
-                    result.AddError($"\"{statement}\"\n  Error: {error}", lineNumber);
-                    return;
-                }
-            }
-
-            if (!string.IsNullOrEmpty(error) && !IsNotRecognizedError(error))
-            {
-                result.AddError($"\"{statement}\"\n  Error: {error}", lineNumber);
-                return;
-            }
-            error = string.Empty;
-
-            // Continue with existing parsers...
+            
+            // Remove all references to AddIndexedParameter and AddIndexedSetCollection
+    
+            // Continue with regular parameter parsing, etc.
             // 1. Parameters
             if (parameterParser.TryParse(statement, out Parameter param, out error))
             {
@@ -1994,6 +1939,24 @@ private Dictionary<string, Expression> CombineCoefficients(
         {
             exprStr = exprStr.Trim();
 
+            // Check for item() function FIRST
+            if (exprStr.StartsWith("item("))
+            {
+                if (ItemFunctionParser.TryParse(exprStr, modelManager, out var itemExpr, out var error))
+                {
+                    return itemExpr;
+                }
+            }
+
+            // Check for item().field pattern
+            if (exprStr.Contains("item(") && exprStr.Contains(")."))
+            {
+                if (ParseItemFieldAccess(exprStr, out var itemFieldExpr, out var error))
+                {
+                    return itemFieldExpr;
+                }
+            }
+
             // CHECK: Is this a summation expression?
             var sumMatch = Regex.Match(exprStr, 
                 @"^\s*sum\s*\(\s*([a-zA-Z][a-zA-Z0-9_]*)\s+in\s+([a-zA-Z][a-zA-Z0-9_]*)\s*\)\s*(.+)$",
@@ -2145,6 +2108,29 @@ private bool IsVariableName(string name)
     if (modelManager.DecisionExpressions.ContainsKey(name))
         return false;
     
+    return true;
+}
+
+private bool ParseItemFieldAccess(string expr, out Expression? result, out string error)
+{
+    result = null;
+    error = string.Empty;
+
+    // Pattern: item(...).field
+    var match = Regex.Match(expr, @"^(item\(.+\))\.([a-zA-Z][a-zA-Z0-9_]*)$");
+    if (!match.Success)
+    {
+        error = "Not item field access";
+        return false;
+    }
+
+    string itemPart = match.Groups[1].Value;
+    string fieldName = match.Groups[2].Value;
+
+    if (!ItemFunctionParser.TryParse(itemPart, modelManager, out var itemExpr, out error))
+        return false;
+
+    result = new ItemFieldAccessExpression((ItemFunctionExpression)itemExpr, fieldName);
     return true;
 }
 

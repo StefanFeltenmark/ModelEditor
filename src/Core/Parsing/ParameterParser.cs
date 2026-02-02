@@ -59,7 +59,7 @@ namespace Core.Parsing
                     _ => ParameterType.Float
                 };
 
-                param = new Parameter(name, paramType, null, isExternal: true);
+                param = new Parameter(name, paramType, string.Empty, isExternal: true);
                 return true;
             }
 

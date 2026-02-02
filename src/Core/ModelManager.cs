@@ -16,24 +16,9 @@ namespace Core
 
         public Dictionary<string, DecisionExpression> DecisionExpressions { get; } = new Dictionary<string, DecisionExpression>();
 
-        public void AddIndexedParameter(IndexedParameter param)
-        {
-            if (IndexedParameters.ContainsKey(param.Name))
-            {
-                throw new InvalidOperationException($"Indexed parameter '{param.Name}' is already defined");
-            }
-            IndexedParameters[param.Name] = param;
-        }
+        public Dictionary<string, TupleParameter> TupleParameters { get; } = new Dictionary<string, TupleParameter>();
 
-        public void AddIndexedSetCollection(IndexedSetCollection setCollection)
-        {
-            if (IndexedSets.ContainsKey(setCollection.Name))
-            {
-                throw new InvalidOperationException($"Indexed set collection '{setCollection.Name}' is already defined");
-            }
-            IndexedSets[setCollection.Name] = setCollection;
-        }
-
+        
         /// <summary>
         /// Gets a decision expression by name
         /// </summary>
@@ -93,9 +78,7 @@ namespace Core
         public Dictionary<string, PrimitiveSet> PrimitiveSets { get; } = new Dictionary<string, PrimitiveSet>();
         // Add these properties to ModelManager class:
 
-        public Dictionary<string, IndexedParameter> IndexedParameters { get; private set; } = new Dictionary<string, IndexedParameter>();
-        public Dictionary<string, IndexedSetCollection> IndexedSets { get; private set; } = new Dictionary<string, IndexedSetCollection>();
-
+        
         // Add this method to the ModelManager class
 
         /// <summary>

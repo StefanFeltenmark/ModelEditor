@@ -74,7 +74,7 @@ namespace Tests
             Assert.False(result.HasErrors);
             
             var dataText = @"
-                cost = {100,200,300};
+                cost = [100,200,300];
             ";
             
             var dataParser = new DataFileParser(manager);

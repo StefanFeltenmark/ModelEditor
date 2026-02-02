@@ -47,9 +47,9 @@ namespace Core.Parsing.Tokenization
                 string keyValuesStr = m.Groups[2].Value;
                 string fieldName = m.Groups[3].Value; // May be empty
                 
-                // Parse key values
-                var keyValues = ParseItemKeyValues(keyValuesStr, out string parseError);
-                if (keyValues == null)
+                // Parse key values into List<Expression>
+                var keyExpressions = ParseItemKeyExpressions(keyValuesStr, modelManager, out string parseError);
+                if (keyExpressions == null)
                 {
                     throw new Exception($"Error parsing item() key values: {parseError}");
                 }
@@ -60,8 +60,19 @@ namespace Core.Parsing.Tokenization
                     throw new Exception($"Tuple set '{setName}' not found");
                 }
                 
+                // Create composite key or single expression
+                Expression keyExpression;
+                if (keyExpressions.Count == 1)
+                {
+                    keyExpression = keyExpressions[0];
+                }
+                else
+                {
+                    keyExpression = new CompositeKeyExpression(keyExpressions);
+                }
+                
                 // Create item expression
-                var itemExpr = new ItemExpression(setName, keyValues);
+                var itemExpr = new ItemFunctionExpression(setName, keyExpression);
                 
                 Expression resultExpr;
                 if (!string.IsNullOrEmpty(fieldName))
@@ -79,12 +90,12 @@ namespace Core.Parsing.Tokenization
             });
         }
         
-        private List<object>? ParseItemKeyValues(string keyValuesStr, out string error)
+        private List<Expression>? ParseItemKeyExpressions(string keyValuesStr, ModelManager modelManager, out string error)
         {
             error = string.Empty;
-            var keyValues = new List<object>();
+            var keyExpressions = new List<Expression>();
             
-            var values = ParsingUtilities.SplitByCommaRespectingQuotes(keyValuesStr);
+            var values = SplitByCommaRespectingQuotes(keyValuesStr);
             
             foreach (var valueStr in values)
             {
@@ -93,44 +104,95 @@ namespace Core.Parsing.Tokenization
                 if (string.IsNullOrEmpty(trimmed))
                     continue;
                 
+                // Check if it's a string literal
                 if (trimmed.StartsWith("\"") && trimmed.EndsWith("\""))
                 {
-                    keyValues.Add(trimmed.Substring(1, trimmed.Length - 2));
+                    string stringValue = trimmed.Substring(1, trimmed.Length - 2);
+                    // Create a string constant expression (we'll need to handle strings specially)
+                    keyExpressions.Add(new StringConstantExpression(stringValue));
                 }
+                // Check if it's a boolean
                 else if (trimmed.Equals("true", StringComparison.OrdinalIgnoreCase) ||
                          trimmed.Equals("false", StringComparison.OrdinalIgnoreCase))
                 {
-                    keyValues.Add(bool.Parse(trimmed));
+                    keyExpressions.Add(new ConstantExpression(bool.Parse(trimmed) ? 1.0 : 0.0));
                 }
-                else if (int.TryParse(trimmed, System.Globalization.NumberStyles.Integer,
-                             System.Globalization.CultureInfo.InvariantCulture, out int intVal))
-                {
-                    keyValues.Add(intVal);
-                }
+                // Check if it's a number
                 else if (double.TryParse(trimmed, System.Globalization.NumberStyles.Float,
                              System.Globalization.CultureInfo.InvariantCulture, out double doubleVal))
                 {
-                    keyValues.Add(doubleVal);
+                    keyExpressions.Add(new ConstantExpression(doubleVal));
                 }
+                // Check if it's a field access (e.g., s.id)
+                else if (trimmed.Contains('.'))
+                {
+                    var parts = trimmed.Split('.');
+                    if (parts.Length == 2)
+                    {
+                        keyExpressions.Add(new TupleFieldAccessExpression(parts[0], parts[1]));
+                    }
+                    else
+                    {
+                        error = $"Invalid field access: '{trimmed}'";
+                        return null;
+                    }
+                }
+                // Otherwise, treat as parameter or variable reference
                 else
                 {
-                    error = $"Cannot parse key value: '{trimmed}'";
-                    return null;
+                    keyExpressions.Add(new ParameterExpression(trimmed));
                 }
             }
             
-            if (keyValues.Count == 0)
+            if (keyExpressions.Count == 0)
             {
                 error = "No key values found";
                 return null;
             }
             
-            return keyValues;
+            return keyExpressions;
+        }
+
+        private List<string> SplitByCommaRespectingQuotes(string input)
+        {
+            var result = new List<string>();
+            var current = new System.Text.StringBuilder();
+            bool inQuotes = false;
+
+            for (int i = 0; i < input.Length; i++)
+            {
+                char c = input[i];
+
+                if (c == '"')
+                {
+                    inQuotes = !inQuotes;
+                    current.Append(c);
+                }
+                else if (c == ',' && !inQuotes)
+                {
+                    if (current.Length > 0)
+                    {
+                        result.Add(current.ToString());
+                        current.Clear();
+                    }
+                }
+                else
+                {
+                    current.Append(c);
+                }
+            }
+
+            if (current.Length > 0)
+            {
+                result.Add(current.ToString());
+            }
+
+            return result;
         }
     }
     
     /// <summary>
-    /// Tokenizes tuple field access: tupleSet[index].fieldName
+    /// Tokenizes tuple field access: tupleVar.fieldName
     /// </summary>
     public class TupleFieldAccessTokenizer : ITokenizationStrategy
     {
@@ -139,35 +201,25 @@ namespace Core.Parsing.Tokenization
         
         public string Tokenize(string expression, TokenManager tokenManager, ModelManager modelManager)
         {
-            // Pattern: tupleSet[index].fieldName
-            string pattern = @"([a-zA-Z][a-zA-Z0-9_]*)\[(\d+)\]\.([a-zA-Z][a-zA-Z0-9_]*)";
+            // Pattern: variableName.fieldName (not preceded by item() or numbers)
+            string pattern = @"(?<!item\([^)]*)\b([a-zA-Z][a-zA-Z0-9_]*)\.([a-zA-Z][a-zA-Z0-9_]*)";
             
             return Regex.Replace(expression, pattern, m =>
             {
-                string setName = m.Groups[1].Value;
-                if (!int.TryParse(m.Groups[2].Value, out int index))
-                {
-                    return m.Value;
-                }
-                string fieldName = m.Groups[3].Value;
+                string varName = m.Groups[1].Value;
+                string fieldName = m.Groups[2].Value;
                 
-                // Validate tuple set exists
-                if (modelManager.TupleSets.TryGetValue(setName, out var tupleSet))
+                // Check if this looks like a tuple field access
+                // (avoid false positives with object.method calls)
+                if (modelManager.TupleSets.ContainsKey(varName))
                 {
-                    // Validate field exists in schema
-                    if (modelManager.TupleSchemas.TryGetValue(tupleSet.SchemaName, out var schema))
-                    {
-                        if (!schema.Fields.ContainsKey(fieldName))
-                        {
-                            throw new Exception($"Field '{fieldName}' not found in tuple schema '{schema.Name}'");
-                        }
-                    }
-                    
-                    var tupleExpr = new TupleFieldAccessExpression(setName, index, fieldName);
-                    return tokenManager.CreateToken(tupleExpr, "TUPLE");
+                    // It's a tuple set name - might need context to resolve
+                    return m.Value; // Keep as-is for now
                 }
                 
-                return m.Value;
+                // Create tuple field access expression
+                var tupleExpr = new TupleFieldAccessExpression(varName, fieldName);
+                return tokenManager.CreateToken(tupleExpr, "TUPLE");
             });
         }
     }
@@ -198,7 +250,9 @@ namespace Core.Parsing.Tokenization
                     {
                         if (param.IsTwoDimensional)
                         {
-                            var paramExpr = new IndexedParameterExpression(name, idx1, idx2);
+                            var index1Expr = new ConstantExpression(idx1);
+                            var index2Expr = new ConstantExpression(idx2);
+                            var paramExpr = new IndexedParameterExpression(name, index1Expr, index2Expr);
                             return tokenManager.CreateToken(paramExpr, "PARAM");
                         }
                     }
@@ -215,7 +269,16 @@ namespace Core.Parsing.Tokenization
                 }
                 else
                 {
-                    // Non-numeric indices
+                    // Non-numeric indices - create expressions
+                    Expression idx1Expr = new ParameterExpression(index1Str);
+                    Expression idx2Expr = new ParameterExpression(index2Str);
+                    
+                    if (modelManager.Parameters.ContainsKey(name))
+                    {
+                        var paramExpr = new IndexedParameterExpression(name, idx1Expr, idx2Expr);
+                        return tokenManager.CreateToken(paramExpr, "PARAM");
+                    }
+                    
                     return $"{name}_idx_{index1Str}_{index2Str}";
                 }
                 
@@ -261,7 +324,8 @@ namespace Core.Parsing.Tokenization
                         if (param.IsIndexed && !param.IsTwoDimensional)
                         {
                             ValidateParameterIndex(name, param, idx, modelManager);
-                            var paramExpr = new IndexedParameterExpression(name, idx);
+                            var indexExpr = new ConstantExpression(idx);
+                            var paramExpr = new IndexedParameterExpression(name, indexExpr);
                             return tokenManager.CreateToken(paramExpr, "PARAM");
                         }
                     }
@@ -279,6 +343,13 @@ namespace Core.Parsing.Tokenization
                 else
                 {
                     // Non-numeric index
+                    if (modelManager.Parameters.ContainsKey(name))
+                    {
+                        Expression indexExpr = new ParameterExpression(indexStr);
+                        var paramExpr = new IndexedParameterExpression(name, indexExpr);
+                        return tokenManager.CreateToken(paramExpr, "PARAM");
+                    }
+                    
                     return $"{name}_idx_{indexStr}";
                 }
                 
@@ -288,7 +359,7 @@ namespace Core.Parsing.Tokenization
         
         private void ValidateParameterIndex(string name, Parameter param, int idx, ModelManager modelManager)
         {
-            if (modelManager.IndexSets.TryGetValue(param.IndexSetName, out var indexSet))
+            if (param.IndexSetName != null && modelManager.IndexSets.TryGetValue(param.IndexSetName, out var indexSet))
             {
                 if (!indexSet.Contains(idx))
                     throw new Exception($"Index {idx} is out of range for parameter {name}");
@@ -302,6 +373,4 @@ namespace Core.Parsing.Tokenization
                 throw new Exception($"Index {idx} is out of range for variable {name}");
         }
     }
-    
-   
 }

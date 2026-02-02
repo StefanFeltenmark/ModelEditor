@@ -104,68 +104,68 @@ namespace Core.Models
     /// <summary>
     /// Reference to an indexed parameter
     /// </summary>
-    public class IndexedParameterExpression : Expression
-    {
-        public string ParameterName { get; }
-        public int Index1 { get; }
-        public int? Index2 { get; }
+    //public class IndexedParameterExpression : Expression
+    //{
+    //    public string ParameterName { get; }
+    //    public int Index1 { get; }
+    //    public int? Index2 { get; }
 
-        public IndexedParameterExpression(string parameterName, int index1, int? index2 = null)
-        {
-            ParameterName = parameterName;
-            Index1 = index1;
-            Index2 = index2;
-        }
+    //    public IndexedParameterExpression(string parameterName, int index1, int? index2 = null)
+    //    {
+    //        ParameterName = parameterName;
+    //        Index1 = index1;
+    //        Index2 = index2;
+    //    }
 
-        public override double Evaluate(ModelManager modelManager)
-        {
-            if (!modelManager.Parameters.TryGetValue(ParameterName, out var param))
-            {
-                throw new InvalidOperationException($"Parameter '{ParameterName}' not found");
-            }
+    //    public override double Evaluate(ModelManager modelManager)
+    //    {
+    //        if (!modelManager.Parameters.TryGetValue(ParameterName, out var param))
+    //        {
+    //            throw new InvalidOperationException($"Parameter '{ParameterName}' not found");
+    //        }
 
-            object? value;
-            if (Index2.HasValue)
-            {
-                value = param.GetIndexedValue(Index1, Index2.Value);
-            }
-            else
-            {
-                value = param.GetIndexedValue(Index1);
-            }
+    //        object? value;
+    //        if (Index2.HasValue)
+    //        {
+    //            value = param.GetIndexedValue(Index1, Index2.Value);
+    //        }
+    //        else
+    //        {
+    //            value = param.GetIndexedValue(Index1);
+    //        }
 
-            if (value == null)
-            {
-                throw new InvalidOperationException($"Parameter '{this}' has no value assigned");
-            }
+    //        if (value == null)
+    //        {
+    //            throw new InvalidOperationException($"Parameter '{this}' has no value assigned");
+    //        }
 
-            return Convert.ToDouble(value);
-        }
+    //        return Convert.ToDouble(value);
+    //    }
 
-        public override string ToString() => Index2.HasValue
-            ? $"{ParameterName}[{Index1},{Index2}]"
-            : $"{ParameterName}[{Index1}]";
+    //    public override string ToString() => Index2.HasValue
+    //        ? $"{ParameterName}[{Index1},{Index2}]"
+    //        : $"{ParameterName}[{Index1}]";
 
-        public override bool IsConstant => false;
+    //    public override bool IsConstant => false;
 
-        public override Expression Simplify(ModelManager? modelManager = null)
-        {
-            // If we have a model manager, try to evaluate the parameter
-            if (modelManager != null && modelManager.Parameters.TryGetValue(ParameterName, out var param))
-            {
-                object? value = Index2.HasValue
-                    ? param.GetIndexedValue(Index1, Index2.Value)
-                    : param.GetIndexedValue(Index1);
+    //    public override Expression Simplify(ModelManager? modelManager = null)
+    //    {
+    //        // If we have a model manager, try to evaluate the parameter
+    //        if (modelManager != null && modelManager.Parameters.TryGetValue(ParameterName, out var param))
+    //        {
+    //            object? value = Index2.HasValue
+    //                ? param.GetIndexedValue(Index1, Index2.Value)
+    //                : param.GetIndexedValue(Index1);
 
-                if (value != null)
-                {
-                    return new ConstantExpression(Convert.ToDouble(value));
-                }
-            }
+    //            if (value != null)
+    //            {
+    //                return new ConstantExpression(Convert.ToDouble(value));
+    //            }
+    //        }
 
-            return this; // Keep as parameter reference
-        }
-    }
+    //        return this; // Keep as parameter reference
+    //    }
+    //}
 
     /// <summary>
     /// Binary operation expression (addition, subtraction, multiplication, division)
@@ -339,67 +339,108 @@ namespace Core.Models
     }
 
     /// <summary>
+    /// Represents a string constant in an expression
+    /// Used for string keys in item() function calls
+    /// </summary>
+    public class StringConstantExpression : Expression
+    {
+        public string Value { get; set; }
+
+        public StringConstantExpression(string value)
+        {
+            Value = value;
+        }
+
+        public override double Evaluate(ModelManager manager)
+        {
+            throw new InvalidOperationException(
+                $"Cannot evaluate string constant '{Value}' to a numeric value");
+        }
+
+        public object EvaluateToValue()
+        {
+            return Value;
+        }
+
+        public override string ToString()
+        {
+            return $"\"{Value}\"";
+        }
+
+        public override bool IsConstant => true;
+    }
+
+    /// <summary>
     /// Represents accessing a field from a tuple instance
     /// Example: productData[i].cost
     /// </summary>
+    ///
     public class TupleFieldAccessExpression : Expression
+{
+    public Expression BaseExpression { get; set; }  // Changed from string
+    public string FieldName { get; set; }
+
+    // Keep old constructor for backward compatibility
+    public TupleFieldAccessExpression(string variableName, string fieldName)
+        : this(new TupleVariableExpression(variableName), fieldName)
     {
-        public string TupleSetName { get; }
-        public int Index { get; }
-        public string FieldName { get; }
-
-        public TupleFieldAccessExpression(string tupleSetName, int index, string fieldName)
-        {
-            TupleSetName = tupleSetName;
-            Index = index;
-            FieldName = fieldName;
-        }
-
-        public override double Evaluate(ModelManager modelManager)
-        {
-            if (!modelManager.TupleSets.TryGetValue(TupleSetName, out var tupleSet))
-            {
-                throw new InvalidOperationException($"Tuple set '{TupleSetName}' not found");
-            }
-
-            if (Index < 1 || Index > tupleSet.Instances.Count)
-            {
-                throw new InvalidOperationException(
-                    $"Tuple index {Index} out of range for set '{TupleSetName}' (size: {tupleSet.Instances.Count})");
-            }
-
-            var instance = tupleSet.Instances[Index - 1]; // 1-based indexing
-            var value = instance.GetValue(FieldName);
-
-            if (value == null)
-            {
-                throw new InvalidOperationException($"Field '{FieldName}' not found in tuple '{TupleSetName}'");
-            }
-
-            return Convert.ToDouble(value);
-        }
-
-        public override string ToString() => $"{TupleSetName}[{Index}].{FieldName}";
-
-        public override bool IsConstant => true; // Tuple data is constant
-
-        public override Expression Simplify(ModelManager? modelManager = null)
-        {
-            if (modelManager != null)
-            {
-                try
-                {
-                    return new ConstantExpression(Evaluate(modelManager));
-                }
-                catch
-                {
-                    // If evaluation fails, return as-is
-                }
-            }
-
-            return this;
-        }
     }
+
+    // New constructor accepting any expression
+    public TupleFieldAccessExpression(Expression baseExpr, string fieldName)
+    {
+        BaseExpression = baseExpr;
+        FieldName = fieldName;
+    }
+
+    public override double Evaluate(ModelManager manager)
+    {
+        // Get the tuple instance from the base expression
+        TupleInstance tuple;
+        
+        if (BaseExpression is TupleVariableExpression varExpr)
+        {
+            // Look up in iteration context or tuple parameters
+            tuple = GetTupleFromContext(varExpr.VariableName, manager);
+        }
+        else if (BaseExpression is IndexedTupleParameterExpression indexedExpr)
+        {
+            tuple = indexedExpr.EvaluateToTuple(manager);
+        }
+        else if (BaseExpression is IndexedParameterExpression paramExpr)
+        {
+            var value = paramExpr.EvaluateToObject(manager);
+            if (value is TupleInstance t)
+                tuple = t;
+            else
+                throw new InvalidOperationException($"Parameter is not a tuple");
+        }
+        else
+        {
+            throw new InvalidOperationException(
+                $"Cannot access field on expression type {BaseExpression.GetType().Name}");
+        }
+
+        var fieldValue = tuple.GetValue(FieldName);
+        return Convert.ToDouble(fieldValue);
+    }
+
+    public override string ToString()
+    {
+        throw new NotImplementedException();
+    }
+
+    public override bool IsConstant { get; }
+
+    private TupleInstance GetTupleFromContext(string varName, ModelManager manager)
+    {
+        // This would be populated by forall loop context
+        // For now, throw - actual implementation needs iteration context
+        throw new NotImplementedException(
+            "Tuple field access in iteration context not yet implemented");
+    }
+}
+    
 
     /// <summary>
     /// Represents an item() lookup expression for tuples
@@ -448,56 +489,49 @@ namespace Core.Models
     /// Represents accessing a field from an item() expression
     /// Example: item(Products, <1>).price
     /// </summary>
+   
     public class ItemFieldAccessExpression : Expression
     {
-        public ItemExpression ItemExpression { get; }
-        public string FieldName { get; }
+        public ItemFunctionExpression ItemExpression { get; set; }
+        public string FieldName { get; set; }
 
-        public ItemFieldAccessExpression(ItemExpression itemExpr, string fieldName)
+        public ItemFieldAccessExpression(ItemFunctionExpression itemExpr, string fieldName)
         {
             ItemExpression = itemExpr;
             FieldName = fieldName;
         }
 
-        public override double Evaluate(ModelManager modelManager)
+        public override double Evaluate(ModelManager manager)
         {
-            var instance = ItemExpression.GetTupleInstance(modelManager);
-
-            if (instance == null)
-                throw new InvalidOperationException(
-                    $"No tuple found for {ItemExpression}");
-
-            var value = instance.GetValue(FieldName);
+            var tuple = ItemExpression.EvaluateToTuple(manager);
+            var value = tuple.GetValue(FieldName);
 
             if (value == null)
-                throw new InvalidOperationException(
-                    $"Field '{FieldName}' not found in tuple");
+                throw new InvalidOperationException($"Field '{FieldName}' not found in tuple");
 
-            return Convert.ToDouble(value);
+            // Convert to double if numeric
+            if (value is int i) return i;
+            if (value is float f) return f;
+            if (value is double d) return d;
+
+            throw new InvalidOperationException(
+                $"Field '{FieldName}' has non-numeric value of type {value.GetType().Name}");
         }
 
-        public override string ToString() => $"{ItemExpression}.{FieldName}";
-
-        public override bool IsConstant => true;
-
-        public override Expression Simplify(ModelManager? modelManager = null)
+        public object EvaluateToValue(ModelManager manager)
         {
-            if (modelManager != null)
-            {
-                try
-                {
-                    return new ConstantExpression(Evaluate(modelManager));
-                }
-                catch
-                {
-                    // If evaluation fails, return as-is
-                }
-            }
-
-            return this;
+            var tuple = ItemExpression.EvaluateToTuple(manager);
+            return tuple.GetValue(FieldName) 
+                   ?? throw new InvalidOperationException($"Field '{FieldName}' not found");
         }
-    }
 
+        public override string ToString()
+        {
+            return $"{ItemExpression}.{FieldName}";
+        }
+
+        public override bool IsConstant { get; }
+    }
     /// <summary>
     /// Represents dynamic tuple field access where the tuple comes from a context variable
     /// Example: n.prob, j.arcindex, s.id (where n, j, s are iterator variables)

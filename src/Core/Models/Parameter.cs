@@ -8,167 +8,217 @@ namespace Core.Models
         Boolean
     }
 
+    /// <summary>
+    /// Represents a parameter in the optimization model
+    /// Supports scalar, 1D, 2D, and N-dimensional parameters
+    /// </summary>
     public class Parameter
     {
         public string Name { get; set; }
         public ParameterType Type { get; set; }
-        public object? Value { get; set; }
+        public object? Value { get; set; }  // For scalar parameters
         
-        // For indexed parameters
+        // Indexing information
         public bool IsIndexed { get; set; }
-        public string? IndexSetName { get; set; }
-        public string? SecondIndexSetName { get; set; }  // ADD THIS - for 2D parameters
+        public List<string> IndexSetNames { get; set; }  // List of index set names for multi-dimensional
         public bool IsExternal { get; set; }
         
-        private Dictionary<int, object>? indexedValues;
-        private Dictionary<string, object>? twoDimensionalValues;  // ADD THIS - for 2D storage
+        // Storage for indexed values
+        private Dictionary<string, object>? indexedValues;  // Generic storage for any dimensionality
 
-        // ADD THESE COMPUTED PROPERTIES:
-        
-        /// <summary>
-        /// Returns true if this is a scalar (non-indexed) parameter
-        /// </summary>
+        // Computed properties
         public bool IsScalar => !IsIndexed;
+        public bool IsOneDimensional => IsIndexed && IndexSetNames.Count == 1;
+        public bool IsTwoDimensional => IsIndexed && IndexSetNames.Count == 2;
+        public int Dimensionality => IsIndexed ? IndexSetNames.Count : 0;
 
-        /// <summary>
-        /// Returns true if this parameter is indexed over one dimension
-        /// </summary>
-        public bool IsOneDimensional => IsIndexed && string.IsNullOrEmpty(SecondIndexSetName);
+        // Legacy accessors for backward compatibility
+        public string? IndexSetName => IndexSetNames.Count > 0 ? IndexSetNames[0] : null;
+        public string? SecondIndexSetName => IndexSetNames.Count > 1 ? IndexSetNames[1] : null;
 
-        /// <summary>
-        /// Returns true if this parameter is indexed over two dimensions
-        /// </summary>
-        public bool IsTwoDimensional => IsIndexed && !string.IsNullOrEmpty(SecondIndexSetName);
-
-        /// <summary>
-        /// Returns true if the parameter has a value assigned
-        /// </summary>
         public bool HasValue
         {
             get
             {
                 if (IsScalar)
-                {
                     return Value != null;
-                }
-                else if (IsTwoDimensional)
-                {
-                    return twoDimensionalValues != null && twoDimensionalValues.Count > 0;
-                }
-                else // OneDimensional
-                {
+                else
                     return indexedValues != null && indexedValues.Count > 0;
-                }
             }
         }
 
-        // Regular parameter constructor
+        // Constructors
+
+        /// <summary>
+        /// Creates a scalar (non-indexed) parameter
+        /// </summary>
         public Parameter(string name, ParameterType type, object value)
         {
             Name = name;
             Type = type;
             Value = value;
             IsIndexed = false;
+            IndexSetNames = new List<string>();
         }
 
-        // Indexed parameter constructor (1D)
+        /// <summary>
+        /// Creates an indexed parameter (1D, 2D, or N-dimensional)
+        /// </summary>
+        public Parameter(string name, ParameterType type, IEnumerable<string> indexSetNames, bool isExternal)
+        {
+            Name = name;
+            Type = type;
+            IsIndexed = true;
+            IndexSetNames = new List<string>(indexSetNames);
+            IsExternal = isExternal;
+            indexedValues = new Dictionary<string, object>();
+        }
+
+        /// <summary>
+        /// Creates a 1D indexed parameter (convenience constructor)
+        /// </summary>
         public Parameter(string name, ParameterType type, string indexSetName, bool isExternal)
+            : this(name, type, new[] { indexSetName }, isExternal)
         {
-            Name = name;
-            Type = type;
-            IsIndexed = true;
-            IndexSetName = indexSetName;
-            IsExternal = isExternal;
-            indexedValues = new Dictionary<int, object>();
         }
 
-        // ADD THIS - Two-dimensional parameter constructor
+        /// <summary>
+        /// Creates a 2D indexed parameter (convenience constructor)
+        /// </summary>
         public Parameter(string name, ParameterType type, string indexSetName, string secondIndexSetName, bool isExternal)
+            : this(name, type, new[] { indexSetName, secondIndexSetName }, isExternal)
         {
-            Name = name;
-            Type = type;
-            IsIndexed = true;
-            IndexSetName = indexSetName;
-            SecondIndexSetName = secondIndexSetName;
-            IsExternal = isExternal;
-            twoDimensionalValues = new Dictionary<string, object>();
         }
 
-        // 1D indexed parameter methods
+        // Value accessors
+
+        /// <summary>
+        /// Sets a value for a 1D indexed parameter
+        /// </summary>
         public void SetIndexedValue(int index, object value)
         {
             if (!IsIndexed)
                 throw new InvalidOperationException($"Parameter '{Name}' is not indexed");
 
-            if (IsTwoDimensional)
-                throw new InvalidOperationException($"Parameter '{Name}' is two-dimensional, use SetIndexedValue(int, int, object)");
+            if (Dimensionality != 1)
+                throw new InvalidOperationException($"Parameter '{Name}' has {Dimensionality} dimensions, use SetIndexedValue with {Dimensionality} indices");
 
-            indexedValues ??= new Dictionary<int, object>();
-            indexedValues[index] = value;
+            indexedValues ??= new Dictionary<string, object>();
+            indexedValues[index.ToString()] = value;
         }
 
+        /// <summary>
+        /// Gets a value for a 1D indexed parameter
+        /// </summary>
         public object? GetIndexedValue(int index)
         {
             if (!IsIndexed)
                 throw new InvalidOperationException($"Parameter '{Name}' is not indexed");
 
-            if (IsTwoDimensional)
-                throw new InvalidOperationException($"Parameter '{Name}' is two-dimensional, use GetIndexedValue(int, int)");
+            if (Dimensionality != 1)
+                throw new InvalidOperationException($"Parameter '{Name}' has {Dimensionality} dimensions, use GetIndexedValue with {Dimensionality} indices");
 
-            return indexedValues?.TryGetValue(index, out var value) == true ? value : null;
+            return indexedValues?.TryGetValue(index.ToString(), out var value) == true ? value : null;
         }
 
-        // ADD THESE - 2D indexed parameter methods
+        /// <summary>
+        /// Sets a value for a 2D indexed parameter
+        /// </summary>
         public void SetIndexedValue(int index1, int index2, object value)
         {
-            if (!IsTwoDimensional)
-                throw new InvalidOperationException($"Parameter '{Name}' is not two-dimensional");
+            if (!IsIndexed)
+                throw new InvalidOperationException($"Parameter '{Name}' is not indexed");
 
-            twoDimensionalValues ??= new Dictionary<string, object>();
+            if (Dimensionality != 2)
+                throw new InvalidOperationException($"Parameter '{Name}' has {Dimensionality} dimensions, use SetIndexedValue with {Dimensionality} indices");
+
+            indexedValues ??= new Dictionary<string, object>();
             string key = BuildKey(index1, index2);
-            twoDimensionalValues[key] = value;
+            indexedValues[key] = value;
         }
 
+        /// <summary>
+        /// Gets a value for a 2D indexed parameter
+        /// </summary>
         public object? GetIndexedValue(int index1, int index2)
         {
-            if (!IsTwoDimensional)
-                throw new InvalidOperationException($"Parameter '{Name}' is not two-dimensional");
+            if (!IsIndexed)
+                throw new InvalidOperationException($"Parameter '{Name}' is not indexed");
+
+            if (Dimensionality != 2)
+                throw new InvalidOperationException($"Parameter '{Name}' has {Dimensionality} dimensions, use GetIndexedValue with {Dimensionality} indices");
 
             string key = BuildKey(index1, index2);
-            return twoDimensionalValues?.TryGetValue(key, out var value) == true ? value : null;
+            return indexedValues?.TryGetValue(key, out var value) == true ? value : null;
         }
 
-        private string BuildKey(int index1, int index2)
+        /// <summary>
+        /// Sets a value for an N-dimensional indexed parameter
+        /// </summary>
+        public void SetIndexedValue(object value, params int[] indices)
         {
-            return $"{index1}_{index2}";
+            if (!IsIndexed)
+                throw new InvalidOperationException($"Parameter '{Name}' is not indexed");
+
+            if (indices.Length != Dimensionality)
+                throw new InvalidOperationException($"Parameter '{Name}' requires {Dimensionality} indices, but {indices.Length} were provided");
+
+            indexedValues ??= new Dictionary<string, object>();
+            string key = BuildKey(indices);
+            indexedValues[key] = value;
         }
 
-        // ADD THIS - Get all indices that have values
+        /// <summary>
+        /// Gets a value for an N-dimensional indexed parameter
+        /// </summary>
+        public object? GetIndexedValue(params int[] indices)
+        {
+            if (!IsIndexed)
+                throw new InvalidOperationException($"Parameter '{Name}' is not indexed");
+
+            if (indices.Length != Dimensionality)
+                throw new InvalidOperationException($"Parameter '{Name}' requires {Dimensionality} indices, but {indices.Length} were provided");
+
+            string key = BuildKey(indices);
+            return indexedValues?.TryGetValue(key, out var value) == true ? value : null;
+        }
+
+        // Helper methods
+
+        private string BuildKey(params int[] indices)
+        {
+            return string.Join("_", indices);
+        }
+
         public IEnumerable<int> GetDefinedIndices()
         {
             if (IsScalar)
                 return Enumerable.Empty<int>();
 
-            if (IsTwoDimensional)
-                throw new InvalidOperationException($"Parameter '{Name}' is two-dimensional, use GetDefinedIndexPairs()");
+            if (Dimensionality != 1)
+                throw new InvalidOperationException($"Parameter '{Name}' has {Dimensionality} dimensions, use GetDefinedKeys()");
 
-            return indexedValues?.Keys ?? Enumerable.Empty<int>();
+            return indexedValues?.Keys.Select(int.Parse) ?? Enumerable.Empty<int>();
         }
 
-        // ADD THIS - Get all index pairs that have values (for 2D parameters)
         public IEnumerable<(int, int)> GetDefinedIndexPairs()
         {
-            if (!IsTwoDimensional)
-                throw new InvalidOperationException($"Parameter '{Name}' is not two-dimensional");
+            if (Dimensionality != 2)
+                throw new InvalidOperationException($"Parameter '{Name}' has {Dimensionality} dimensions, not 2");
 
-            if (twoDimensionalValues == null)
+            if (indexedValues == null)
                 return Enumerable.Empty<(int, int)>();
 
-            return twoDimensionalValues.Keys.Select(key =>
+            return indexedValues.Keys.Select(key =>
             {
                 var parts = key.Split('_');
                 return (int.Parse(parts[0]), int.Parse(parts[1]));
             });
+        }
+
+        public IEnumerable<string> GetDefinedKeys()
+        {
+            return indexedValues?.Keys ?? Enumerable.Empty<string>();
         }
 
         public override string ToString()
@@ -177,13 +227,10 @@ namespace Core.Models
             {
                 return $"{Type} {Name} = {Value}";
             }
-            else if (IsTwoDimensional)
-            {
-                return $"{Type} {Name}[{IndexSetName}][{SecondIndexSetName}] = {(IsExternal ? "..." : "computed")}";
-            }
             else
             {
-                return $"{Type} {Name}[{IndexSetName}] = {(IsExternal ? "..." : "computed")}";
+                string indexSpec = string.Join("][", IndexSetNames.Select(s => s));
+                return $"{Type} {Name}[{indexSpec}] = {(IsExternal ? "..." : "computed")}";
             }
         }
     }
