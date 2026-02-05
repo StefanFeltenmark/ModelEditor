@@ -190,39 +190,122 @@ namespace Core.Parsing.Tokenization
             return result;
         }
     }
-    
+
     /// <summary>
-    /// Tokenizes tuple field access: tupleVar.fieldName
-    /// </summary>
-    public class TupleFieldAccessTokenizer : ITokenizationStrategy
+/// Tokenizes tuple field access: tupleVar.fieldName or tupleSet[index].fieldName
+/// </summary>
+public class TupleFieldAccessTokenizer : ITokenizationStrategy
+{
+    private ITokenizationStrategy tokenizationStrategyImplementation;
+
+    public string Tokenize(string expression, TokenManager tokenManager, ModelManager modelManager)
     {
-        public int Priority => 2;
-        public string Name => "TupleFieldAccess";
+        // Pattern 1: Indexed tuple with NUMERIC index: tupleSet[123].field
+        string numericPattern = @"([a-zA-Z][a-zA-Z0-9_]*)\[([0-9]+)\]\.([a-zA-Z][a-zA-Z0-9_]*)";
         
-        public string Tokenize(string expression, TokenManager tokenManager, ModelManager modelManager)
+        expression = Regex.Replace(expression, numericPattern, m =>
         {
-            // Pattern: variableName.fieldName (not preceded by item() or numbers)
-            string pattern = @"(?<!item\([^)]*)\b([a-zA-Z][a-zA-Z0-9_]*)\.([a-zA-Z][a-zA-Z0-9_]*)";
+            string setName = m.Groups[1].Value;
+            string indexStr = m.Groups[2].Value;
+            string fieldName = m.Groups[3].Value;
             
-            return Regex.Replace(expression, pattern, m =>
+            if (!int.TryParse(indexStr, out int index))
+                return m.Value;
+            
+            if (modelManager.TupleSets.TryGetValue(setName, out var tupleSet))
             {
-                string varName = m.Groups[1].Value;
-                string fieldName = m.Groups[2].Value;
-                
-                // Check if this looks like a tuple field access
-                // (avoid false positives with object.method calls)
-                if (modelManager.TupleSets.ContainsKey(varName))
+                // Validate field exists in schema
+                if (modelManager.TupleSchemas.TryGetValue(tupleSet.SchemaName, out var schema))
                 {
-                    // It's a tuple set name - might need context to resolve
-                    return m.Value; // Keep as-is for now
+                    if (!schema.Fields.ContainsKey(fieldName))
+                    {
+                        throw new Exception($"Field '{fieldName}' not found in tuple schema '{schema.Name}'");
+                    }
                 }
                 
-                // Create tuple field access expression
-                var tupleExpr = new TupleFieldAccessExpression(varName, fieldName);
-                return tokenManager.CreateToken(tupleExpr, "TUPLE");
-            });
-        }
+                // FIXED: Validate against index set, not instance count
+                if (tupleSet.IsIndexed)
+                {
+                    // Tuple set is indexed - validate against index set
+                    if (!modelManager.IndexSets.TryGetValue(tupleSet.IndexSetName!, out var indexSet))
+                    {
+                        throw new Exception($"Index set '{tupleSet.IndexSetName}' not found for tuple set '{setName}'");
+                    }
+                
+                    if (!indexSet.Contains(index))
+                    {
+                        throw new Exception(
+                            $"Index {index} is out of range for tuple set '{setName}' " +
+                            $"(valid range: {indexSet.StartIndex}..{indexSet.EndIndex})");
+                    }
+                
+                    // Map index set value to tuple instance position
+                    int instanceIndex = indexSet.GetPosition(index);
+                    if (instanceIndex < 0 || instanceIndex >= tupleSet.Instances.Count)
+                    {
+                        throw new Exception(
+                            $"Index {index} maps to position {instanceIndex} which is out of bounds " +
+                            $"for tuple set '{setName}' (instance count: {tupleSet.Instances.Count})");
+                    }
+                
+                    var tupleExpr = new IndexedTupleFieldAccessExpression(setName, instanceIndex, fieldName);
+                    return tokenManager.CreateToken(tupleExpr, "TUPLE");
+                }
+                else
+                {
+                    // No index set - use direct indexing (0-based)
+                    if (index < 0 || index >= tupleSet.Instances.Count)
+                    {
+                        throw new Exception(
+                            $"Index {index} is out of range for tuple set '{setName}' " +
+                            $"(count: {tupleSet.Instances.Count})");
+                    }
+                
+                    var tupleExpr = new IndexedTupleFieldAccessExpression(setName, index, fieldName);
+                    return tokenManager.CreateToken(tupleExpr, "TUPLE");
+                }
+                
+            }
+            
+            return m.Value;
+        });
+        
+        // Pattern 2: NEW - Iterator variable index: tupleSet[varName].field
+        string iteratorPattern = @"([a-zA-Z][a-zA-Z0-9_]*)\[([a-zA-Z][a-zA-Z0-9_]*)\]\.([a-zA-Z][a-zA-Z0-9_]*)";
+        
+        expression = Regex.Replace(expression, iteratorPattern, m =>
+        {
+            string setName = m.Groups[1].Value;
+            string iteratorVar = m.Groups[2].Value;
+            string fieldName = m.Groups[3].Value;
+            
+            if (modelManager.TupleSets.TryGetValue(setName, out var tupleSet))
+            {
+                // Validate field exists
+                if (modelManager.TupleSchemas.TryGetValue(tupleSet.SchemaName, out var schema))
+                {
+                    if (!schema.Fields.ContainsKey(fieldName))
+                    {
+                        throw new Exception($"Field '{fieldName}' not found in schema '{schema.Name}'");
+                    }
+                }
+                
+                // Create iterator-based expression
+                var iterExpr = new IteratorIndexedTupleFieldAccessExpression(setName, iteratorVar, fieldName);
+                return tokenManager.CreateToken(iterExpr, "TUPLE_ITER");
+            }
+            
+            return m.Value;
+        });
+        
+        return expression;
     }
+
+    public int Priority { get; }
+    public string Name { get; }
+}
+    
+   
     
     /// <summary>
     /// Tokenizes two-dimensional indexed parameters and variables: x[i,j]

@@ -17,318 +17,312 @@ namespace Core.Parsing
             modelManager = manager;
         }
 
-        /// <summary>
-        /// Expands sum(...) expressions
-        /// Skips expansion for tuple sets and computed sets
-        /// </summary>
         public string ExpandSummations(string expression, out string error)
         {
             error = string.Empty;
+
+            // Check for empty sum bodies first
+            var emptySumPattern = @"sum\s*\(\s*([a-zA-Z][a-zA-Z0-9_]*)\s+in\s+([a-zA-Z][a-zA-Z0-9_]*)\s*\)(?:\s*(?:$|<=|>=|==|<|>|;|\)|,))";
+            var emptyMatch = Regex.Match(expression, emptySumPattern);
             
-            int maxIterations = 100;
-            int iterations = 0;
-
-            while (iterations < maxIterations)
+            if (emptyMatch.Success)
             {
-                iterations++;
-                
-                // Find the next sum(...) expression
-                var match = Regex.Match(expression,
-                    @"sum\s*\(\s*([a-zA-Z][a-zA-Z0-9_]*)\s+in\s+([a-zA-Z][a-zA-Z0-9_]*)\s*\)",
-                    RegexOptions.IgnoreCase);
+                string indexVar = emptyMatch.Groups[1].Value;
+                string setName = emptyMatch.Groups[2].Value;
+                error = $"Empty sum expression: 'sum({indexVar} in {setName})' has no body. Expected: sum({indexVar} in {setName}) <expression>";
+                return expression;
+            }
 
+            // Process sums from left to right
+            while (true)
+            {
+                var sumPattern = @"sum\s*\(\s*([a-zA-Z][a-zA-Z0-9_]*)\s+in\s+([a-zA-Z][a-zA-Z0-9_]*)\s*\)";
+                var match = Regex.Match(expression, sumPattern);
+                
                 if (!match.Success)
                     break;
-
-                string indexVar = match.Groups[1].Value;
-                string setName = match.Groups[2].Value;
-
-                // CHECK: Is this a tuple set or computed set?
-                if (IsTupleSetOrComputedTupleSet(setName))
-                {
-                    // DON'T EXPAND - leave as summation expression
-                    break;
-                }
-
-                // Find the body of the summation
-                int exprStart = match.Index + match.Length;
-                int exprEnd = FindSumExpressionEnd(expression, exprStart);
-
-                if (exprEnd <= exprStart)
-                {
-                    error = $"Empty or invalid sum expression after 'sum({indexVar} in {setName})'";
-                    return expression;
-                }
-
-                string sumBody = expression.Substring(exprStart, exprEnd - exprStart).Trim();
-
-                if (string.IsNullOrWhiteSpace(sumBody))
-                {
-                    error = $"Empty sum expression after 'sum({indexVar} in {setName})'";
-                    return expression;
-                }
-
-                // Get the indices to iterate over
-                IEnumerable<int>? indices = null;
                 
-                // Try ranges
-                if (modelManager.Ranges.TryGetValue(setName, out var range))
+                string iterVar = match.Groups[1].Value;
+                string setName = match.Groups[2].Value;
+                int sumEndIndex = match.Index + match.Length;
+                
+                // Extract the body
+                string body = ExtractSumBody(expression, sumEndIndex, out int bodyLength);
+                
+                if (string.IsNullOrWhiteSpace(body))
                 {
-                    indices = range.GetValues(modelManager);
+                    error = $"Empty sum expression: 'sum({iterVar} in {setName})' has no body";
+                    return expression;
                 }
-                // Try index sets
-                else if (modelManager.IndexSets.TryGetValue(setName, out var indexSet))
+
+                // Get indices
+                IEnumerable<int> indices;
+                if (modelManager.IndexSets.TryGetValue(setName, out var indexSet))
                 {
                     indices = indexSet.GetIndices();
                 }
-                // Try Sets dictionary
-                else if (modelManager.Sets.TryGetValue(setName, out var set))
+                else if (modelManager.Ranges != null && modelManager.Ranges.TryGetValue(setName, out var range))
                 {
-                    indices = set;
+                    indices = range.GetValues(modelManager);
                 }
                 else
                 {
-                    error = $"Index set or range '{setName}' not found";
+                    error = $"Set or range '{setName}' not found";
                     return expression;
                 }
 
-                // Expand the summation
-                var terms = new List<string>();
+                // Expand
+                var expandedTerms = new List<string>();
                 foreach (int index in indices)
                 {
-                    string expandedTerm = ExpandEquationTemplate(sumBody, indexVar, index);
-                    // Don't wrap individual terms - we'll wrap the whole sum if needed
-                    terms.Add(expandedTerm);
+                    string expandedTerm = SubstituteIterator(body, iterVar, index);
+                    expandedTerms.Add(expandedTerm);
                 }
 
-                // Build the expanded sum
-                string expandedSum;
-                if (terms.Count == 0)
+                if (expandedTerms.Count == 0)
                 {
-                    expandedSum = "0";
-                }
-                else if (terms.Count == 1)
-                {
-                    // Single term doesn't need parentheses
-                    expandedSum = terms[0];
-                }
-                else
-                {
-                    // Multiple terms - wrap in parentheses to preserve operation order
-                    // This is crucial for expressions like: 2*sum(...) 
-                    expandedSum = "(" + string.Join("+", terms) + ")";
+                    error = $"Set '{setName}' is empty - cannot expand summation";
+                    return expression;
                 }
 
-                // Replace the sum expression with the expanded version
-                expression = expression.Substring(0, match.Index) + 
-                           expandedSum + 
-                           expression.Substring(exprEnd);
-            }
+                string expandedSum = string.Join("+", expandedTerms);
+                
+                // Wrap in parentheses if multiple terms
+                if (expandedTerms.Count > 1)
+                {
+                    expandedSum = $"({expandedSum})";
+                }
 
-            if (iterations >= maxIterations)
-            {
-                error = "Maximum sum expansion iterations exceeded - possible nested sums issue";
-                return expression;
+                // Replace
+                int sumStartIndex = match.Index;
+                int totalLength = sumEndIndex - sumStartIndex + bodyLength;
+                
+                expression = expression.Substring(0, sumStartIndex) + 
+                            expandedSum + 
+                            expression.Substring(sumStartIndex + totalLength);
             }
 
             return expression;
         }
 
         /// <summary>
-        /// Checks if a set is a tuple set or computed set (which should not be expanded)
+        /// Extracts sum body using proper precedence rules.
+        /// 
+        /// Rules:
+        /// 1. Body = one multiplicative term (or parenthesized expression followed by *, /)
+        /// 2. Stops at: top-level +, -, relational operators, semicolon
+        /// 3. Continues past ) or ] if followed by *, /, or [
+        /// 4. Handles unary +/- at start or after operators
         /// </summary>
-        private bool IsTupleSetOrComputedTupleSet(string setName)
+        private string ExtractSumBody(string expression, int startIndex, out int length)
         {
-            // Check if it's a tuple set
-            if (modelManager.TupleSets.ContainsKey(setName))
+            length = 0;
+            
+            // Skip initial whitespace
+            int originalStart = startIndex;
+            while (startIndex < expression.Length && char.IsWhiteSpace(expression[startIndex]))
             {
-                return true;
+                startIndex++;
+                length++;
             }
             
-            // Check if it's a computed set (which might contain tuples)
-            if (modelManager.ComputedSets.ContainsKey(setName))
+            if (startIndex >= expression.Length)
+                return string.Empty;
+            
+            var body = new StringBuilder();
+            int i = startIndex;
+            int depth = 0;
+            
+            while (i < expression.Length)
             {
-                return true;
+                char c = expression[i];
+                
+                // Handle opening brackets/parens
+                if (c == '(' || c == '[')
+                {
+                    depth++;
+                    body.Append(c);
+                    i++;
+                    length++;
+                    continue;
+                }
+                
+                // Handle closing brackets/parens
+                if (c == ')' || c == ']')
+                {
+                    depth--;
+                    
+                    // If closing more than we opened, exit
+                    if (depth < 0)
+                        break;
+                    
+                    body.Append(c);
+                    i++;
+                    length++;
+                    
+                    // At depth 0, check what follows
+                    if (depth == 0)
+                    {
+                        int j = i;
+                        // Skip whitespace
+                        while (j < expression.Length && char.IsWhiteSpace(expression[j]))
+                            j++;
+                        
+                        if (j < expression.Length)
+                        {
+                            char next = expression[j];
+                            
+                            // Continue if: *, /, [ (indexing)
+                            if (next == '*' || next == '/' || next == '[')
+                            {
+                                // Include whitespace and continue
+                                while (i < j)
+                                {
+                                    body.Append(expression[i]);
+                                    i++;
+                                    length++;
+                                }
+                                continue;
+                            }
+                            
+                            // Stop if: relational, semicolon, comma, or additive operators
+                            if (IsStoppingCharacter(next))
+                            {
+                                break;
+                            }
+                        }
+                        else
+                        {
+                            // End of expression
+                            break;
+                        }
+                    }
+                    
+                    continue;
+                }
+                
+                // At depth 0, check for stopping conditions
+                if (depth == 0)
+                {
+                    // Whitespace: append and continue
+                    if (char.IsWhiteSpace(c))
+                    {
+                        body.Append(c);
+                        i++;
+                        length++;
+                        continue;
+                    }
+                    
+                    // Relational operators always stop
+                    if (c == '<' || c == '>' || c == '=' || c == '!' || c == ';' || c == ',')
+                    {
+                        break;
+                    }
+                    
+                    // Plus or minus: check if unary or binary
+                    if (c == '+' || c == '-')
+                    {
+                        // If body is empty or ends with operator/opening bracket, it's unary
+                        if (IsUnaryPosition(body, startIndex, i, expression))
+                        {
+                            // Unary: continue
+                            body.Append(c);
+                            i++;
+                            length++;
+                            continue;
+                        }
+                        else
+                        {
+                            // Binary: stop (end of term)
+                            break;
+                        }
+                    }
+                }
+                
+                // Default: append character
+                body.Append(c);
+                i++;
+                length++;
             }
             
-            // Check if it's a primitive set - these can be expanded if needed
-            if (modelManager.PrimitiveSets.ContainsKey(setName))
+            return body.ToString().Trim();
+        }
+
+        /// <summary>
+        /// Checks if a + or - at position i is in unary position
+        /// </summary>
+        private bool IsUnaryPosition(StringBuilder body, int startIndex, int currentPos, string fullExpression)
+        {
+            // If body is empty, it's unary
+            if (body.Length == 0)
+                return true;
+            
+            // Look back at the last non-whitespace character in the body
+            string bodyStr = body.ToString();
+            int j = bodyStr.Length - 1;
+            while (j >= 0 && char.IsWhiteSpace(bodyStr[j]))
+                j--;
+            
+            if (j < 0)
+                return true; // Only whitespace before, treat as unary
+            
+            char lastChar = bodyStr[j];
+            
+            // If last char is operator or opening bracket, this is unary
+            if (lastChar == '*' || lastChar == '/' || lastChar == '(' || lastChar == '[' ||
+                lastChar == '+' || lastChar == '-')
             {
-                return false; // Primitive sets can be expanded
+                return true;
             }
             
             return false;
         }
 
-        public string ExpandParenthesesMultiplication(string expression)
-        {
-            var pattern = @"([+-]?[\d.]+)\s*\*\s*\(([^)]+)\)";
-
-            int maxIterations = 100;
-            int iterations = 0;
-
-            while (iterations < maxIterations)
-            {
-                var match = Regex.Match(expression, pattern);
-
-                if (!match.Success)
-                    break;
-
-                iterations++;
-
-                string coeffStr = match.Groups[1].Value;
-                string innerExpr = match.Groups[2].Value;
-
-                if (!double.TryParse(coeffStr, NumberStyles.Float, CultureInfo.InvariantCulture, out double coeff))
-                    break;
-
-                var terms = SplitPreservingOperators(innerExpr);
-                var expandedTerms = new List<string>();
-
-                foreach (var term in terms)
-                {
-                    string trimmedTerm = term.Trim();
-
-                    double termSign = 1.0;
-                    if (trimmedTerm.StartsWith("-"))
-                    {
-                        termSign = -1.0;
-                        trimmedTerm = trimmedTerm.Substring(1).Trim();
-                    }
-                    else if (trimmedTerm.StartsWith("+"))
-                    {
-                        trimmedTerm = trimmedTerm.Substring(1).Trim();
-                    }
-
-                    double newCoeff = coeff * termSign;
-
-                    string expandedTerm;
-                    if (Math.Abs(newCoeff - 1.0) < 1e-10)
-                        expandedTerm = trimmedTerm;
-                    else if (Math.Abs(newCoeff + 1.0) < 1e-10)
-                        expandedTerm = "-" + trimmedTerm;
-                    else
-                        expandedTerm = $"{newCoeff:G}*{trimmedTerm}";
-
-                    expandedTerms.Add(expandedTerm);
-                }
-
-                string expanded = string.Join("+", expandedTerms);
-                expression = expression.Substring(0, match.Index) +
-                            expanded +
-                            expression.Substring(match.Index + match.Length);
-            }
-
-            return expression;
-        }
-
-        private int FindSumExpressionEnd(string expression, int start)
-        {
-            int parenDepth = 0;
-            int bracketDepth = 0;
-            bool inNumber = false;
-
-            for (int i = start; i < expression.Length; i++)
-            {
-                char c = expression[i];
-
-                if (c == '(')
-                    parenDepth++;
-                else if (c == ')')
-                {
-                    parenDepth--;
-                    if (parenDepth < 0)
-                        return i;
-                }
-                else if (c == '[')
-                    bracketDepth++;
-                else if (c == ']')
-                    bracketDepth--;
-
-                if (parenDepth == 0 && bracketDepth == 0)
-                {
-                    if (char.IsDigit(c) || c == '.')
-                    {
-                        inNumber = true;
-                        continue;
-                    }
-
-                    if (i + 1 < expression.Length)
-                    {
-                        string twoChar = expression.Substring(i, 2);
-                        if (twoChar == "==" || twoChar == "<=" || twoChar == ">=" || twoChar == "≥" || twoChar == "≤")
-                            return i;
-                    }
-
-                    if (c == '<' || c == '>' || c == '=')
-                        return i;
-
-                    if ((c == '+' || c == '-') && !inNumber)
-                    {
-                        if (i > start)
-                        {
-                            char prev = expression[i - 1];
-                            if (prev != '*' && prev != '/' && prev != '(' && prev != '[' && prev != ',')
-                                return i;
-                        }
-                    }
-
-                    if (c != ' ' && c != '\t')
-                        inNumber = false;
-                }
-            }
-
-            return expression.Length;
-        }
-
         /// <summary>
-        /// Expands an equation template by replacing an index variable with a specific value
+        /// Checks if a character should stop sum body extraction at depth 0
         /// </summary>
-        public string ExpandEquationTemplate(string template, string indexVar, int indexValue)
+        private bool IsStoppingCharacter(char c)
         {
-            if (string.IsNullOrWhiteSpace(template))
-                return template;
-
-            // Simple replacement: replace [indexVar with [indexValue
-            return template
-                .Replace($"[{indexVar}]", $"[{indexValue}]")
-                .Replace($"[{indexVar},", $"[{indexValue},")
-                .Replace($",{indexVar}]", $",{indexValue}]")
-                .Replace($",{indexVar},", $",{indexValue},")
-                .Replace($"[ {indexVar} ]", $"[{indexValue}]")
-                .Replace($"[ {indexVar},", $"[{indexValue},")
-                .Replace($",{indexVar} ]", $",{indexValue}]")
-                .Replace($", {indexVar},", $",{indexValue},");
+            return c == '+' || c == '-' || c == '<' || c == '>' || 
+                   c == '=' || c == '!' || c == ';' || c == ')' || c == ',';
         }
 
-        private List<string> SplitPreservingOperators(string expr)
+        private string SubstituteIterator(string expression, string iteratorVar, int value)
         {
-            var terms = new List<string>();
-            var currentTerm = new StringBuilder();
-            bool isFirstChar = true;
-
-            foreach (char c in expr)
+            // 1. Replace tupleSet[iterator].field
+            string pattern = $@"([a-zA-Z][a-zA-Z0-9_]*)\[{Regex.Escape(iteratorVar)}\]\.([a-zA-Z][a-zA-Z0-9_]*)";
+            string result = Regex.Replace(expression, pattern, m =>
             {
-                if ((c == '+' || c == '-') && !isFirstChar)
+                return $"{m.Groups[1].Value}[{value}].{m.Groups[2].Value}";
+            });
+
+            // 2. Replace indexed variables: var[iterator]
+            string varPattern = $@"([a-zA-Z][a-zA-Z0-9_]*)\[{Regex.Escape(iteratorVar)}\]";
+            result = Regex.Replace(result, varPattern, m =>
+            {
+                string varName = m.Groups[1].Value;
+                
+                if (modelManager.IndexedVariables.ContainsKey(varName))
                 {
-                    if (currentTerm.Length > 0)
-                    {
-                        terms.Add(currentTerm.ToString().Trim());
-                        currentTerm.Clear();
-                    }
-                    currentTerm.Append(c);
+                    // Variable: no brackets
+                    return $"{varName}{value}";
                 }
                 else
                 {
-                    currentTerm.Append(c);
-                    isFirstChar = false;
+                    // Parameter or tuple: keep brackets
+                    return $"{varName}[{value}]";
                 }
-            }
+            });
 
-            if (currentTerm.Length > 0)
-                terms.Add(currentTerm.ToString().Trim());
+            // 3. Replace bare iterator
+            result = Regex.Replace(result, $@"\b{Regex.Escape(iteratorVar)}\b", value.ToString());
 
-            return terms;
+            return result;
+        }
+
+        public string ExpandEquationTemplate(string template, string iteratorVar, int value)
+        {
+            return SubstituteIterator(template, iteratorVar, value);
         }
     }
 }

@@ -10,6 +10,9 @@ namespace Core.Models
         public bool IsExternal { get; }
         public List<TupleInstance> Instances { get; }
         
+        public string? IndexSetName { get; set; }  // Optional: which index set indexes this
+        public bool IsIndexed => !string.IsNullOrEmpty(IndexSetName);
+
         /// <summary>
         /// Creates a tuple set based on a schema
         /// </summary>
@@ -24,6 +27,11 @@ namespace Core.Models
             Instances = new List<TupleInstance>();
         }
         
+        public TupleSet(string name, string schemaName, string indexSetName, bool isExternal)
+            : this(name, schemaName, isExternal)
+        {
+            IndexSetName = indexSetName;
+        }
         /// <summary>
         /// Number of tuple instances in this set
         /// </summary>

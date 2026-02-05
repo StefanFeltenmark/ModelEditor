@@ -76,7 +76,7 @@ namespace Tests
             manager.AddTupleSchema(schema);
             
             // Setup tuple set with data
-            var tupleSet = new TupleSet("products", "Product", false);
+            var tupleSet = new TupleSet("products", "Product", "I", false);
             var instance1 = new TupleInstance("Product");
             instance1.SetValue("cost", 10.0);
             instance1.SetValue("price", 15.0);
@@ -146,6 +146,43 @@ namespace Tests
             var result = parser.Parse(input);
 
             // Assert
+            AssertNoErrors(result);
+            Assert.Single(manager.TupleSchemas);
+            Assert.Single(manager.TupleSets);
+            Assert.True(manager.IndexedVariables.ContainsKey("production"));
+        }
+
+        [Fact(Skip = "Requires full tuple field access and dvar implementation")]
+        public void Parse_ComplexTupleModel_WithTupleFieldAccessInObjective()
+        {
+            // This test will be enabled once tuple field access is fully implemented
+            var manager = CreateModelManager();
+            var parser = CreateParser(manager);
+            string input = @"
+                tuple Product {
+                    string name;
+                    float cost;
+                    float price;
+                    int minProd;
+                }
+                
+                int n = 3;
+                range Products = 1..n;
+                {Product} productData = ...;
+                
+                dvar float+ production[Products];
+                
+                maximize sum(p in Products) (productData[p].price - productData[p].cost) * production[p];
+                
+                subject to{
+                forall(p in Products)
+                    minProduction:
+                        production[p] >= productData[p].minProd;
+                }
+            ";
+
+            var result = parser.Parse(input);
+            
             AssertNoErrors(result);
             Assert.Single(manager.TupleSchemas);
             Assert.Single(manager.TupleSets);

@@ -45,6 +45,19 @@ namespace Tests
             manager.AddTupleSchema(schema);
             
             var tupleSet = new TupleSet("data", "Data");
+            // Add some instances so the index validation passes
+            var instance1 = new TupleInstance("Data");
+            instance1.SetValue("value", 10.0);
+            tupleSet.AddInstance(instance1);
+            
+            var instance2 = new TupleInstance("Data");
+            instance2.SetValue("value", 20.0);
+            tupleSet.AddInstance(instance2);
+            
+            var instance3 = new TupleInstance("Data");
+            instance3.SetValue("value", 30.0);
+            tupleSet.AddInstance(instance3);
+            
             manager.AddTupleSet(tupleSet);
             
             var tokenManager = new TokenManager();

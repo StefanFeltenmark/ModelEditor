@@ -765,7 +765,47 @@ namespace Core
             tupleSet = null;
             error = string.Empty;
 
-            // Pattern: {SchemaName} setName = ...;  or  {SchemaName} setName = {<...>, <...>};
+            // Pattern 1: Indexed tuple set: {SchemaName} setName[indexSet] = ...;
+            string indexedPattern = @"^\s*\{([a-zA-Z][a-zA-Z0-9_]*)\}\s+([a-zA-Z][a-zA-Z0-9_]*)\s*\[([a-zA-Z][a-zA-Z0-9_]*)\]\s*=\s*(.+)$";
+            var indexedMatch = Regex.Match(statement.Trim(), indexedPattern);
+
+            if (indexedMatch.Success)
+            {
+                string schemaName = indexedMatch.Groups[1].Value;
+                string setName = indexedMatch.Groups[2].Value;
+                string indexSetName = indexedMatch.Groups[3].Value;
+                string value = indexedMatch.Groups[4].Value.Trim();
+
+                // Validate schema exists
+                if (!modelManager.TupleSchemas.ContainsKey(schemaName))
+                {
+                    error = $"Tuple schema '{schemaName}' is not defined";
+                    return false;
+                }
+
+                // Validate index set exists
+                if (!modelManager.IndexSets.ContainsKey(indexSetName))
+                {
+                    error = $"Index set '{indexSetName}' is not defined";
+                    return false;
+                }
+
+                bool isExternal = value == "...";
+                tupleSet = new TupleSet(setName, schemaName, indexSetName, isExternal);
+
+                if (!isExternal)
+                {
+                    // Parse inline tuple data if provided
+                    if (!ParseInlineTupleData(value, modelManager.TupleSchemas[schemaName], tupleSet, out error))
+                    {
+                        return false;
+                    }
+                }
+
+                return true;
+            }
+
+            // Pattern 2: Non-indexed tuple set: {SchemaName} setName = ...;
             string pattern = @"^\s*\{([a-zA-Z][a-zA-Z0-9_]*)\}\s+([a-zA-Z][a-zA-Z0-9_]*)\s*=\s*(.+)$";
             var match = Regex.Match(statement.Trim(), pattern);
 
@@ -775,42 +815,42 @@ namespace Core
                 return false;
             }
 
-            string schemaName = match.Groups[1].Value;
-            string setName = match.Groups[2].Value;
-            string value = match.Groups[3].Value.Trim();
+            string schemaName2 = match.Groups[1].Value;
+            string setName2 = match.Groups[2].Value;
+            string value2 = match.Groups[3].Value.Trim();
 
             // CRITICAL: Check if this is actually a set comprehension
             // Set comprehensions have a pipe character: {a | a in Set: condition}
-            if (value.Contains('|'))
+            if (value2.Contains('|'))
             {
                 error = "Not a tuple set declaration"; // It's a set comprehension
                 return false;
             }
 
-            if (!modelManager.TupleSchemas.ContainsKey(schemaName))
+            if (!modelManager.TupleSchemas.ContainsKey(schemaName2))
             {
-                error = $"Tuple schema '{schemaName}' is not defined";
+                error = $"Tuple schema '{schemaName2}' is not defined";
                 return false;
             }
 
-            var schema = modelManager.TupleSchemas[schemaName];
-            bool isExternal = value == "...";
-            tupleSet = new TupleSet(setName, schemaName, isExternal);
+            var schema2 = modelManager.TupleSchemas[schemaName2];
+            bool isExternal2 = value2 == "...";
+            tupleSet = new TupleSet(setName2, schemaName2, isExternal2);  // No index set
 
             // Parse inline tuple data if provided
-            if (!isExternal)
+            if (!isExternal2)
             {
-                if (!value.StartsWith("{") || !value.EndsWith("}"))
+                if (!value2.StartsWith("{") || !value2.EndsWith("}"))
                 {
                     error = "Tuple set data must be enclosed in braces: {<...>, <...>}";
                     return false;
                 }
 
-                string tupleData = value.Substring(1, value.Length - 2).Trim();
+                string tupleData = value2.Substring(1, value2.Length - 2).Trim();
 
                 if (!string.IsNullOrEmpty(tupleData))
                 {
-                    if (!ParseInlineTupleData(tupleData, schema, tupleSet, out error))
+                    if (!ParseInlineTupleData(tupleData, schema2, tupleSet, out error))
                     {
                         return false;
                     }
@@ -1265,16 +1305,18 @@ namespace Core
             var indexSet1 = modelManager.IndexSets[indexedEquation.IndexSetName];
             var indexSet2 = modelManager.IndexSets[indexedEquation.SecondIndexSetName!];
 
-            string indexVar1 = indexedEquation.IndexSetName.ToLower();
-            string indexVar2 = indexedEquation.SecondIndexSetName!.ToLower();
+            // Extract iterator variables from the template
+            string indexVar1 = ExtractIteratorVariable(indexedEquation.Template, 0);
+            string indexVar2 = ExtractIteratorVariable(indexedEquation.Template, 1);
 
             foreach (int index1 in indexSet1.GetIndices())
             {
                 foreach (int index2 in indexSet2.GetIndices())
                 {
-                    string expandedEquation = summationExpander.ExpandEquationTemplate(
+                    // Use the local method instead of summationExpander
+                    string expandedEquation = SubstituteIteratorInTemplate(
                         indexedEquation.Template, indexVar1, index1);
-                    expandedEquation = summationExpander.ExpandEquationTemplate(
+                    expandedEquation = SubstituteIteratorInTemplate(
                         expandedEquation, indexVar2, index2);
 
                     if (TryParseEquation(expandedEquation, out var eq, out var eqError))
@@ -1301,12 +1343,18 @@ namespace Core
         private void ExpandSingleDimensionalEquation(IndexedEquation indexedEquation, ParseSessionResult result)
         {
             var indexSet = modelManager.IndexSets[indexedEquation.IndexSetName];
-            string indexVar = indexedEquation.IndexSetName.ToLower();
+            
+            // Extract the iterator variable ONCE before the loop
+            // For single-dimensional, we always want the first (and only) iterator at position 0
+            string indexVar = ExtractIteratorVariable(indexedEquation.Template, 0);
 
             foreach (int index in indexSet.GetIndices())
             {
-                string expandedEquation = summationExpander.ExpandEquationTemplate(
-                    indexedEquation.Template, indexVar, index);
+                // Substitute iterator in template
+                string expandedEquation = SubstituteIteratorInTemplate(
+                    indexedEquation.Template, 
+                    indexVar,   // Use the extracted iterator variable name
+                    index);     // Use the actual index value (1, 2, 3...)
 
                 if (TryParseEquation(expandedEquation, out var eq, out var eqError))
                 {
@@ -1320,13 +1368,48 @@ namespace Core
                 }
                 else
                 {
-                    result.AddError(
-                        $"Error expanding equation '{indexedEquation.BaseName}[{index}]': {eqError}",
-                        0);
+                    result.AddError($"Error expanding equation '{indexedEquation.BaseName}[{index}]': {eqError}", 0);
                 }
             }
         }
 
+        private string SubstituteIteratorInTemplate(string template, string iteratorVar, int value)
+        {
+            // Replace tupleSet[iterator].field with tupleSet[value].field
+            string pattern = $@"([a-zA-Z][a-zA-Z0-9_]*)\[{Regex.Escape(iteratorVar)}\]\.([a-zA-Z][a-zA-Z0-9_]*)";
+    
+            string result = Regex.Replace(template, pattern, m =>
+            {
+                string setName = m.Groups[1].Value;
+                string fieldName = m.Groups[2].Value;
+                return $"{setName}[{value}].{fieldName}";
+            });
+
+            // NEW: Replace indexed VARIABLES: var[iterator] -> var{value} (no brackets!)
+            string varPattern = $@"([a-zA-Z][a-zA-Z0-9_]*)\[{Regex.Escape(iteratorVar)}\]";
+            result = Regex.Replace(result, varPattern, m =>
+            {
+                string varName = m.Groups[1].Value;
+        
+                // Check if it's an indexed variable (not parameter)
+                if (modelManager.IndexedVariables.ContainsKey(varName))
+                {
+                    // Use variable naming convention: x1, x2, etc. (no brackets)
+                    return $"{varName}{value}";
+                }
+                else
+                {
+                    // It's a parameter or tuple set - keep brackets
+                    return $"{varName}[{value}]";
+                }
+            });
+
+    // Replace simple iterator variable references
+    result = Regex.Replace(result, $@"\b{Regex.Escape(iteratorVar)}\b", value.ToString());
+
+    return result;
+}
+        
 /// <summary>
 /// Tries to parse a regular (non-indexed) equation
 /// Examples: 
@@ -1812,7 +1895,7 @@ private Dictionary<string, Expression> CombineCoefficients(
             // Example: "i in 1..n" or "j in Cities"
             var match = System.Text.RegularExpressions.Regex.Match(
                 iterDecl,
-                @"(\w+)\s+in\s+(.+)");
+                @"(\w+)\s+in\s+(.+)" );
 
             if (!match.Success)
                 throw new InvalidOperationException($"Invalid iterator syntax: {iterDecl}");
@@ -1987,6 +2070,23 @@ private Dictionary<string, Expression> CombineCoefficients(
                 if (TupleFieldAccessParser.TryParse(exprStr, out string varName, out string fieldName))
                 {
                     return new DynamicTupleFieldAccessExpression(varName, fieldName);
+                }
+            }
+
+            // NEW: Check for iterator-indexed tuple field access: tupleSet[iterator].field
+            if (Regex.IsMatch(exprStr, @"^([a-zA-Z][a-zA-Z0-9_]*)\[([a-zA-Z][a-zA-Z0-9_]*)\]\.([a-zA-Z][a-zA-Z0-9_]*)$"))
+            {
+                var match = Regex.Match(exprStr, @"^([a-zA-Z][a-zA-Z0-9_]*)\[([a-zA-Z][a-zA-Z0-9_]*)\]\.([a-zA-Z][a-zA-Z0-9_]*)$");
+        
+                string setName = match.Groups[1].Value;
+                string indexVar = match.Groups[2].Value;
+                string fieldName = match.Groups[3].Value;
+
+                // Check if it's a tuple set
+                if (modelManager.TupleSets.ContainsKey(setName))
+                {
+                    // It's iterator-based tuple field access
+                    return new IteratorIndexedTupleFieldAccessExpression(setName, indexVar, fieldName);
                 }
             }
 
@@ -2177,11 +2277,13 @@ private int FindOperatorIndex(string expr, string op)
 
     for (int i = 0; i < expr.Length; i++)
     {
-        if (expr[i] == '(' || expr[i] == '[')
+        char c = expr[i];
+        
+        if (c == '(' || c == '[')
         {
             depth++;
         }
-        else if (expr[i] == ')' || expr[i] == ']')
+        else if (c == ')' || c == ']')
         {
             depth--;
         }
@@ -2402,5 +2504,35 @@ private bool IsValidOplSyntax(string firstWord, string secondWord)
     return false;
 }
 
+/// <summary>
+/// Extracts the Nth iterator variable from a template (for multi-dimensional equations)
+/// </summary>
+private string ExtractIteratorVariable(string template, int iteratorIndex)
+{
+    // Find all indexed access patterns: something[iterator]
+    var matches = Regex.Matches(template, @"\[([a-zA-Z][a-zA-Z0-9_]*)\]");
+    
+    // Collect unique iterator variables
+    var iteratorVars = new HashSet<string>();
+    foreach (Match match in matches)
+    {
+        string varName = match.Groups[1].Value;
+        // Only add if it looks like an iterator (not a number)
+        if (!int.TryParse(varName, out _))
+        {
+            iteratorVars.Add(varName);
+        }
+    }
+    
+    var iteratorList = iteratorVars.ToList();
+    
+    if (iteratorIndex < iteratorList.Count)
+    {
+        return iteratorList[iteratorIndex];
+    }
+    
+    // Fallback to default names
+    return iteratorIndex == 0 ? "i" : "j";
+}
     }
 }
