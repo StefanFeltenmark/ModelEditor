@@ -24,7 +24,7 @@ namespace Tests
 
             // Act
             var result = parser.Parse(input);
-            parser.ExpandIndexedEquations(result);
+            parser.ExpandIndexedEquations(new ParseSessionResult());
 
             // Assert
             AssertNoErrors(result);
@@ -58,7 +58,7 @@ namespace Tests
 
             // Act
             var result = parser.Parse(input);
-            parser.ExpandIndexedEquations(result);
+            parser.ExpandIndexedEquations(new ParseSessionResult());
             
             // Assert
             AssertNoErrors(result);
@@ -110,7 +110,7 @@ namespace Tests
 
             // Act
             var result = parser.Parse(input);
-            parser.ExpandIndexedEquations(result);
+            parser.ExpandIndexedEquations(new ParseSessionResult());
 
             // Assert
             AssertNoErrors(result);
@@ -144,7 +144,7 @@ namespace Tests
 
             // Act
             var result = parser.Parse(input);
-            parser.ExpandIndexedEquations(result);
+            parser.ExpandIndexedEquations(new ParseSessionResult());
 
             // Assert
             AssertNoErrors(result);
@@ -170,7 +170,7 @@ namespace Tests
 
             // Act
             var result = parser.Parse(input);
-            parser.ExpandIndexedEquations(result);
+            parser.ExpandIndexedEquations(new ParseSessionResult());
 
             // Assert
             AssertNoErrors(result);

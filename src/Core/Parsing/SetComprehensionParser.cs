@@ -1,323 +1,289 @@
+using System;
+using System.Collections.Generic;
+using System.Linq;
 using System.Text.RegularExpressions;
 using Core.Models;
 
 namespace Core.Parsing
 {
     /// <summary>
-    /// Parses OPL set comprehension declarations
+    /// Parses advanced set comprehensions with multiple iterators, conditions, and projections
+    /// Examples:
+    ///   {n | n in nodes: n.stage >= 1}
+    ///   {c | c in contracts: c.type == "Buy"}
+    ///   {s | s in stations, d in defs: s.id == d.stationId && d.id == g}
+    ///   {i.id | i in HydroNodes}
+    ///   {Station} filtered[g in groups] = {s | s in stations: s.groupId == g}
     /// </summary>
     public class SetComprehensionParser
     {
         private readonly ModelManager modelManager;
-        
+
         public SetComprehensionParser(ModelManager manager)
         {
             modelManager = manager;
         }
-        
-        /// <summary>
-        /// Tries to parse a set comprehension declaration
-        /// </summary>
-        public bool TryParse(string statement, out ComputedSet? computedSet, out string error)
+
+        public bool TryParse(string statement, out ComputedSet? result, out string error)
         {
-            computedSet = null;
+            result = null;
             error = string.Empty;
-            
+
             statement = statement.Trim();
-            
-            // Early exit: Set comprehensions MUST have a pipe character |
-            if (!statement.Contains('|'))
-            {
-                error = "Not a set comprehension declaration";
-                return false;
-            }
-            
-            // Early exit: Reject if content starts with angle bracket (tuple data)
-            var contentMatch = Regex.Match(statement, @"=\s*\{(.+)\}");
-            if (contentMatch.Success)
-            {
-                string content = contentMatch.Groups[1].Value.Trim();
-                if (content.StartsWith("<"))
-                {
-                    error = "Not a set comprehension declaration";
-                    return false;
-                }
-            }
-            
-            // Pattern 1: Indexed set comprehension
-            // {Type} name[indexVar in IndexSet] = {expr | ...}
-            string indexedPattern = @"^\s*\{([a-zA-Z][a-zA-Z0-9_]*)\}\s+([a-zA-Z][a-zA-Z0-9_]*)\s*\[\s*([a-zA-Z][a-zA-Z0-9_]*)\s+in\s+([a-zA-Z][a-zA-Z0-9_]*)\s*\]\s*=\s*\{(.+)\}$";
+
+            // Pattern 1: Indexed set collection
+            // {Type} setName[index] = {...}
+            var indexedPattern = @"^\s*\{([a-zA-Z][a-zA-Z0-9_]*)\}\s+([a-zA-Z][a-zA-Z0-9_]*)\s*\[([a-zA-Z][a-zA-Z0-9_]*)\s+in\s+([a-zA-Z][a-zA-Z0-9_]*)\]\s*=\s*(.+)$";
             var indexedMatch = Regex.Match(statement, indexedPattern);
-            
+
             if (indexedMatch.Success)
             {
-                return ParseIndexedSetComprehension(indexedMatch, out computedSet, out error);
+                return ParseIndexedSetCollection(indexedMatch, out result, out error);
             }
-            
+
             // Pattern 2: Simple set comprehension
-            // {Type} name = {expr | ...}
-            string simplePattern = @"^\s*\{([a-zA-Z][a-zA-Z0-9_]*)\}\s+([a-zA-Z][a-zA-Z0-9_]*)\s*=\s*\{(.+)\}$";
+            // {Type} setName = {expr | iterators: condition}
+            var simplePattern = @"^\s*\{([a-zA-Z][a-zA-Z0-9_]*)\}\s+([a-zA-Z][a-zA-Z0-9_]*)\s*=\s*(.+)$";
             var simpleMatch = Regex.Match(statement, simplePattern);
-            
-            if (simpleMatch.Success)
+
+            if (!simpleMatch.Success)
             {
-                return ParseSimpleSetComprehension(simpleMatch, out computedSet, out error);
-            }
-            
-            error = "Not a set comprehension declaration";
-            return false;
-        }
-        
-        private bool ParseSimpleSetComprehension(Match match, out ComputedSet? computedSet, out string error)
-        {
-            computedSet = null;
-            error = string.Empty;
-            
-            string elementType = match.Groups[1].Value;
-            string setName = match.Groups[2].Value;
-            string comprehensionBody = match.Groups[3].Value.Trim();
-            
-            // Parse the comprehension body: expr | iterators : condition
-            if (!ParseComprehensionBody(comprehensionBody, out var expression, out var iterators, out var condition, out error))
-            {
+                error = "Not a set comprehension";
                 return false;
             }
-            
-            var comprehension = new SetComprehension(elementType, expression, iterators, condition);
-            computedSet = new ComputedSet(setName, elementType, comprehension, isIndexed: false);
-            
-            return true;
+
+            string elementType = simpleMatch.Groups[1].Value;
+            string setName = simpleMatch.Groups[2].Value;
+            string comprehensionExpr = simpleMatch.Groups[3].Value.Trim();
+
+            // Must start with '{'
+            if (!comprehensionExpr.StartsWith("{"))
+            {
+                error = "Not a set comprehension";
+                return false;
+            }
+
+            // Must contain '|' for comprehension syntax
+            if (!comprehensionExpr.Contains('|'))
+            {
+                error = "Not a set comprehension";
+                return false;
+            }
+
+            return ParseSetComprehension(setName, elementType, comprehensionExpr, out result, out error);
         }
-        
-        private bool ParseIndexedSetComprehension(Match match, out ComputedSet? computedSet, out string error)
+
+        private bool ParseIndexedSetCollection(Match match, out ComputedSet? result, out string error)
         {
-            computedSet = null;
+            result = null;
             error = string.Empty;
-            
+
             string elementType = match.Groups[1].Value;
             string setName = match.Groups[2].Value;
             string indexVar = match.Groups[3].Value;
-            string indexSetName = match.Groups[4].Value;
-            string comprehensionBody = match.Groups[5].Value.Trim();
-            
+            string indexSet = match.Groups[4].Value;
+            string comprehensionExpr = match.Groups[5].Value.Trim();
+
             // Validate index set exists
-            if (!modelManager.Ranges.ContainsKey(indexSetName) && 
-                !modelManager.IndexSets.ContainsKey(indexSetName) &&
-                !modelManager.Sets.ContainsKey(indexSetName))
+            if (!modelManager.IndexSets.ContainsKey(indexSet) &&
+                !modelManager.Ranges.ContainsKey(indexSet) &&
+                !modelManager.PrimitiveSets.ContainsKey(indexSet))
             {
-                error = $"Index set '{indexSetName}' not found";
+                error = $"Index set '{indexSet}' not found";
                 return false;
             }
-            
-            // Parse the comprehension body
-            if (!ParseComprehensionBody(comprehensionBody, out var expression, out var iterators, out var condition, out error))
+
+            // Parse the comprehension expression
+            if (!ParseSetComprehension(setName, elementType, comprehensionExpr, out var comprehension, out error))
             {
                 return false;
             }
-            
-            var comprehension = new SetComprehension(elementType, expression, iterators, condition);
-            computedSet = new ComputedSet(setName, elementType, comprehension, isIndexed: true, indexVar, indexSetName);
-            
+
+            // Create an indexed computed set
+            result = new IndexedComputedSet(setName, elementType, indexVar, indexSet, comprehension!);
             return true;
         }
-        
-        private bool ParseComprehensionBody(
-            string body, 
-            out string expression, 
-            out List<SetIterator> iterators,
-            out string? condition,
-            out string error)
+
+        private bool ParseSetComprehension(string setName, string elementType, string comprehensionExpr, 
+            out ComputedSet? result, out string error)
         {
-            expression = string.Empty;
-            iterators = new List<SetIterator>();
-            condition = null;
+            result = null;
             error = string.Empty;
-            
-            // Split by pipe: expr | iterators : condition
-            var pipeIndex = body.IndexOf('|');
-            if (pipeIndex == -1)
+
+            // Remove outer braces
+            if (!comprehensionExpr.StartsWith("{") || !comprehensionExpr.EndsWith("}"))
             {
-                error = "Invalid set comprehension syntax. Expected: {expr | var in Set}";
+                error = "Set comprehension must be enclosed in braces";
                 return false;
             }
-            
-            expression = body.Substring(0, pipeIndex).Trim();
-            string rest = body.Substring(pipeIndex + 1).Trim();
-            
-            // Split by colon to separate iterators from condition
-            var colonIndex = rest.IndexOf(':');
-            string iteratorsPart;
-            
-            if (colonIndex != -1)
+
+            string content = comprehensionExpr.Substring(1, comprehensionExpr.Length - 2).Trim();
+
+            // Split by pipe '|'
+            int pipeIndex = FindTopLevelChar(content, '|');
+            if (pipeIndex == -1)
             {
-                iteratorsPart = rest.Substring(0, colonIndex).Trim();
-                condition = rest.Substring(colonIndex + 1).Trim();
+                error = "Set comprehension missing '|' separator";
+                return false;
+            }
+
+            string outputExpr = content.Substring(0, pipeIndex).Trim();
+            string iteratorsPart = content.Substring(pipeIndex + 1).Trim();
+
+            // Parse iterators and condition
+            // Format: "i in Set" or "i in Set: condition" or "i in Set1, j in Set2: condition"
+            List<SetIterator> iterators;
+            Expression? condition = null;
+
+            int colonIndex = FindTopLevelChar(iteratorsPart, ':');
+            if (colonIndex >= 0)
+            {
+                string iteratorsStr = iteratorsPart.Substring(0, colonIndex).Trim();
+                string conditionStr = iteratorsPart.Substring(colonIndex + 1).Trim();
+
+                iterators = ParseIterators(iteratorsStr, out error);
+                if (iterators == null)
+                    return false;
+
+                condition = ParseCondition(conditionStr, out error);
+                if (condition == null && !string.IsNullOrEmpty(error))
+                    return false;
             }
             else
             {
-                iteratorsPart = rest;
-            }
-            
-            // Parse iterators: var1 in Set1, var2 in Set2, ...
-            var iteratorStrings = SplitByComma(iteratorsPart);
-            
-            foreach (var iterStr in iteratorStrings)
-            {
-                var iterMatch = Regex.Match(iterStr.Trim(), @"([a-zA-Z][a-zA-Z0-9_]*)\s+in\s+([a-zA-Z][a-zA-Z0-9_]*)");
-                if (!iterMatch.Success)
-                {
-                    error = $"Invalid iterator syntax: '{iterStr}'";
+                iterators = ParseIterators(iteratorsPart, out error);
+                if (iterators == null)
                     return false;
-                }
-                
-                string varName = iterMatch.Groups[1].Value;
-                string setName = iterMatch.Groups[2].Value;
-                
-                iterators.Add(new SetIterator(varName, setName));
             }
-            
-            if (iterators.Count == 0)
-            {
-                error = "Set comprehension must have at least one iterator";
-                return false;
-            }
-            
+
+            // Determine if it's a projection or filter
+            bool isProjection = IsProjectionExpression(outputExpr);
+
+            result = new ComputedSet(setName, elementType, iterators, outputExpr, condition, isProjection);
             return true;
         }
-        
-        private List<string> SplitByComma(string input)
+
+        private List<SetIterator>? ParseIterators(string iteratorsStr, out string error)
         {
-            var result = new List<string>();
+            error = string.Empty;
+            var iterators = new List<SetIterator>();
+
+            // Split by comma at top level
+            var parts = SplitByCommaTopLevel(iteratorsStr);
+
+            foreach (var part in parts)
+            {
+                // Format: "varName in SetName"
+                var match = Regex.Match(part.Trim(), @"^([a-zA-Z][a-zA-Z0-9_]*)\s+in\s+([a-zA-Z][a-zA-Z0-9_]*)$");
+                if (!match.Success)
+                {
+                    error = $"Invalid iterator syntax: '{part}'";
+                    return null;
+                }
+
+                string varName = match.Groups[1].Value;
+                string setName = match.Groups[2].Value;
+
+                iterators.Add(new SetIterator(varName, setName));
+            }
+
+            return iterators;
+        }
+
+        private Expression? ParseCondition(string conditionStr, out string error)
+        {
+            error = string.Empty;
+
+            try
+            {
+                // Use EquationParser's expression parsing
+                var parser = new EquationParser(modelManager);
+                return parser.ParseExpression(conditionStr);
+            }
+            catch (Exception ex)
+            {
+                error = $"Error parsing condition: {ex.Message}";
+                return null;
+            }
+        }
+
+        private bool IsProjectionExpression(string expr)
+        {
+            // Projection if it's accessing a field: variable.field
+            return Regex.IsMatch(expr, @"^[a-zA-Z][a-zA-Z0-9_]*\.[a-zA-Z][a-zA-Z0-9_]*$");
+        }
+
+        private int FindTopLevelChar(string text, char target)
+        {
+            int depth = 0;
+            int angleDepth = 0;
+            bool inQuotes = false;
+
+            for (int i = 0; i < text.Length; i++)
+            {
+                char c = text[i];
+
+                if (c == '"' && (i == 0 || text[i - 1] != '\\'))
+                {
+                    inQuotes = !inQuotes;
+                }
+                else if (!inQuotes)
+                {
+                    if (c == '(') depth++;
+                    else if (c == ')') depth--;
+                    else if (c == '<') angleDepth++;
+                    else if (c == '>') angleDepth--;
+                    else if (c == target && depth == 0 && angleDepth == 0)
+                    {
+                        return i;
+                    }
+                }
+            }
+
+            return -1;
+        }
+
+        private List<string> SplitByCommaTopLevel(string text)
+        {
+            var parts = new List<string>();
             var current = new System.Text.StringBuilder();
             int depth = 0;
-            
-            for (int i = 0; i < input.Length; i++)
+            bool inQuotes = false;
+
+            for (int i = 0; i < text.Length; i++)
             {
-                char c = input[i];
-                
-                if (c == '(' || c == '<' || c == '[')
+                char c = text[i];
+
+                if (c == '"' && (i == 0 || text[i - 1] != '\\'))
                 {
-                    depth++;
+                    inQuotes = !inQuotes;
                     current.Append(c);
                 }
-                else if (c == ')' || c == '>' || c == ']')
+                else if (!inQuotes)
                 {
-                    depth--;
+                    if (c == '(' || c == '<' || c == '[') depth++;
+                    else if (c == ')' || c == '>' || c == ']') depth--;
+                    else if (c == ',' && depth == 0)
+                    {
+                        parts.Add(current.ToString());
+                        current.Clear();
+                        continue;
+                    }
+
                     current.Append(c);
-                }
-                else if (c == ',' && depth == 0)
-                {
-                    result.Add(current.ToString().Trim());
-                    current.Clear();
                 }
                 else
                 {
                     current.Append(c);
                 }
             }
-            
+
             if (current.Length > 0)
             {
-                result.Add(current.ToString().Trim());
+                parts.Add(current.ToString());
             }
-            
-            return result;
-        }
-    }
-    
-    /// <summary>
-    /// Represents a computed set (result of a set comprehension)
-    /// </summary>
-    public class ComputedSet
-    {
-        public string Name { get; set; }
-        public string ElementType { get; set; }
-        public SetComprehension Comprehension { get; set; }
-        public bool IsIndexed { get; set; }
-        public string? IndexVariable { get; set; }
-        public string? IndexSetName { get; set; }
-        
-        // Cache for computed values
-        private Dictionary<object, object>? cachedSets;
-        
-        public ComputedSet(
-            string name, 
-            string elementType, 
-            SetComprehension comprehension,
-            bool isIndexed = false,
-            string? indexVariable = null,
-            string? indexSetName = null)
-        {
-            Name = name;
-            ElementType = elementType;
-            Comprehension = comprehension;
-            IsIndexed = isIndexed;
-            IndexVariable = indexVariable;
-            IndexSetName = indexSetName;
-        }
-        
-        /// <summary>
-        /// Evaluates the set comprehension for a specific index (if indexed)
-        /// </summary>
-        public object EvaluateForIndex(object indexValue, ModelManager modelManager)
-        {
-            if (!IsIndexed)
-            {
-                throw new InvalidOperationException($"Set '{Name}' is not indexed");
-            }
-            
-            // Check cache
-            if (cachedSets != null && cachedSets.TryGetValue(indexValue, out var cached))
-            {
-                return cached;
-            }
-            
-            // Create context with index variable
-            var context = new Dictionary<string, object>
-            {
-                { IndexVariable!, indexValue }
-            };
-            
-            var result = Comprehension.EvaluateSet(modelManager, context);
-            
-            // Cache result
-            if (cachedSets == null)
-            {
-                cachedSets = new Dictionary<object, object>();
-            }
-            cachedSets[indexValue] = result;
-            
-            return result;
-        }
-        
-        /// <summary>
-        /// Evaluates the set comprehension (for non-indexed sets)
-        /// </summary>
-        public object Evaluate(ModelManager modelManager)
-        {
-            if (IsIndexed)
-            {
-                throw new InvalidOperationException($"Set '{Name}' is indexed. Use EvaluateForIndex instead");
-            }
-            
-            return Comprehension.EvaluateSet(modelManager);
-        }
-        
-        public void InvalidateCache()
-        {
-            cachedSets?.Clear();
-        }
-        
-        public override string ToString()
-        {
-            if (IsIndexed)
-            {
-                return $"{{{ElementType}}} {Name}[{IndexVariable} in {IndexSetName}] = {Comprehension}";
-            }
-            else
-            {
-                return $"{{{ElementType}}} {Name} = {Comprehension}";
-            }
+
+            return parts;
         }
     }
 }

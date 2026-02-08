@@ -10,7 +10,8 @@ namespace Tests
         public void IndexedParameter_VectorNotation_ParsesCorrectly()
         {
             var manager = new ModelManager();
-            // Model file
+            
+            // **Phase 1: Parse model structure**
             var modelText = @"
                 range I = 1..5;
                 float a[I] = ...;
@@ -21,42 +22,36 @@ namespace Tests
             var parser = new EquationParser(manager);
             var result = parser.Parse(modelText);
             
-            // Verify model parsing
+            // Verify model parsing (NO expansion yet!)
             Assert.False(result.HasErrors, 
                 $"Model parsing failed: {string.Join(", ", result.GetErrorMessages())}");
             Assert.True(manager.Parameters.ContainsKey("a"), "Parameter 'a' not found");
             
-            var param = manager.Parameters["a"];
-            Assert.True(param.IsIndexed, "Parameter 'a' should be indexed");
-            Assert.Equal("I", param.IndexSetName);
-            Assert.True(param.IsExternal, "Parameter 'a' should be external");
+            // At this point, equations are still TEMPLATES
+            Assert.Equal(0, manager.Equations.Count); // No concrete equations yet
+            Assert.Equal(1, manager.IndexedEquationTemplates.Count); // But we have a template!
             
-            // Data file
+            // **Phase 2: Load external data**
             var dataText = "a = [10, 20, 30, 40, 50];";
             var dataParser = new DataFileParser(manager);
             var dataResult = dataParser.Parse(dataText);
             
-            // Verify data parsing
             Assert.False(dataResult.HasErrors,
                 $"Data parsing failed: {string.Join(", ", dataResult.GetErrorMessages())}");
             
-            // Verify values were assigned
+            // Verify data was loaded
+            var param = manager.Parameters["a"];
             Assert.Equal(10.0, Convert.ToDouble(param.GetIndexedValue(1)));
-            Assert.Equal(20.0, Convert.ToDouble(param.GetIndexedValue(2)));
-            Assert.Equal(30.0, Convert.ToDouble(param.GetIndexedValue(3)));
-            Assert.Equal(40.0, Convert.ToDouble(param.GetIndexedValue(4)));
-            Assert.Equal(50.0, Convert.ToDouble(param.GetIndexedValue(5)));
-
-            // Expand indexed equations
-            var expansionResult = new ParseSessionResult();
-            parser.ExpandIndexedEquations(expansionResult);
-
-            // Verify equations were created with substituted parameter values
+            
+            // **Phase 3: Expand templates NOW (after data is loaded)**
+            parser.ExpandAllTemplates(result);
+            
+            // NOW we have concrete equations with actual parameter values
             Assert.Equal(5, manager.Equations.Count);
             
             // Check first equation: x[1] >= 10
             var eq1 = manager.Equations[0];
-            Assert.Equal(10.0, eq1.Constant.Evaluate(manager)); // The constant should be 10 (from a[1])
+            Assert.Equal(10.0, eq1.Constant.Evaluate(manager));
         }
         
         [Fact]

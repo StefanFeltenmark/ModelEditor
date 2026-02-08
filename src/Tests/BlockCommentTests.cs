@@ -217,7 +217,7 @@ namespace Tests
 
             // Act
             var result = parser.Parse(input);
-            parser.ExpandIndexedEquations(result);
+          
 
             // Assert
             AssertNoErrors(result);

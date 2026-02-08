@@ -26,6 +26,15 @@ namespace Core.Export
         {
             var sb = new StringBuilder();
             
+            // **Warn if templates exist but aren't expanded**
+            if (modelManager.IndexedEquationTemplates.Count > 0 || 
+                modelManager.ForallStatements.Count > 0)
+            {
+                throw new InvalidOperationException(
+                    "Cannot export: Model has unexpanded templates. " +
+                    "Call ExpandAllTemplates() after loading external data.");
+            }
+    
             // Validate model
             if (modelManager.Objective == null)
             {
@@ -57,6 +66,26 @@ namespace Core.Export
             sb.AppendLine("ENDATA");
             
             return sb.ToString();
+        }
+        
+        /// <summary>
+        /// Prepares the model for export by expanding all templates
+        /// </summary>
+        private void PrepareModelForExport()
+        {
+            // Expand forall statements if not already done
+            if (modelManager.ForallStatements.Count > 0)
+            {
+                modelManager.ExpandForallStatements();
+            }
+            
+            // Expand indexed equation templates if not already done
+            if (modelManager.IndexedEquationTemplates.Count > 0)
+            {
+                var parser = new EquationParser(modelManager);
+                var result = new ParseSessionResult();
+                parser.ExpandIndexedEquations(result);
+            }
         }
         
         private void BuildUniqueRowNames()

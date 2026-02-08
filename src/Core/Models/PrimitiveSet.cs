@@ -1,4 +1,4 @@
-namespace Core.Models
+    namespace Core.Models
 {
     /// <summary>
     /// Represents a set of primitive values (int, string, float) compatible with OPL syntax

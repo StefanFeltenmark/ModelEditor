@@ -1,42 +1,46 @@
+using System;
+using System.Collections.Generic;
+using System.Linq;
+
 namespace Core.Models
 {
     /// <summary>
-    /// Represents a forall loop for generating multiple constraints
-    /// Example: forall(i in 1..n) constraint[i] <= capacity[i];
+    /// Represents a forall statement with optional filters
+    /// Examples:
+    ///   forall(i in stations: i.isRunOfRiver == 1, n in nodes)
+    ///   forall(i in I, j in J: i != j)
     /// </summary>
     public class ForallStatement
     {
         public List<ForallIterator> Iterators { get; set; } = new List<ForallIterator>();
         public Expression? Condition { get; set; }
-        public ConstraintTemplate ConstraintTemplate { get; set; } = null!;
-        
-        public ForallStatement() { }
-        
+        public ConstraintTemplate? ConstraintTemplate { get; set; }
+
+        public string? Label { get; set; }
+
+
         /// <summary>
-        /// Expands the forall statement into concrete constraints
+        /// Expands the forall into concrete constraints
         /// </summary>
-        public List<LinearEquation> Expand(ModelManager modelManager)
+        public List<LinearEquation> Expand(ModelManager manager)
         {
             var constraints = new List<LinearEquation>();
-            var context = new Dictionary<string, int>();
-            
-            ExpandRecursive(modelManager, 0, context, constraints);
-            
+
+            // Generate all combinations of iterator values
+            ExpandRecursive(manager, 0, new Dictionary<string, object>(), constraints);
+
             return constraints;
         }
-        
-        private void ExpandRecursive(
-            ModelManager modelManager, 
-            int iteratorIndex, 
-            Dictionary<string, int> context,
-            List<LinearEquation> constraints)
+
+        private void ExpandRecursive(ModelManager manager, int iteratorIndex, 
+            Dictionary<string, object> context, List<LinearEquation> constraints)
         {
             if (iteratorIndex >= Iterators.Count)
             {
-                // All iterators processed - check condition and generate constraint
-                if (Condition == null || EvaluateCondition(context, modelManager))
+                // All iterators bound - check global condition and generate constraint
+                if (EvaluateGlobalCondition(manager, context))
                 {
-                    var constraint = ConstraintTemplate.Instantiate(context, modelManager);
+                    var constraint = GenerateConstraint(manager, context);
                     if (constraint != null)
                     {
                         constraints.Add(constraint);
@@ -44,518 +48,364 @@ namespace Core.Models
                 }
                 return;
             }
-            
+
             var iterator = Iterators[iteratorIndex];
-            var range = iterator.GetRange(modelManager);
-            
+            var range = GetIteratorRange(manager, iterator);
+
             foreach (var value in range)
             {
+                // Set context for this iteration
                 context[iterator.VariableName] = value;
-                ExpandRecursive(modelManager, iteratorIndex + 1, context, constraints);
+                SetTemporaryParameter(manager, iterator.VariableName, value);
+
+                try
+                {
+                    // Check iterator-specific filter
+                    if (iterator.Filter != null)
+                    {
+                        if (!EvaluateFilter(manager, iterator.Filter, context))
+                        {
+                            // Skip this iteration
+                            continue;
+                        }
+                    }
+
+                    // Recurse to next iterator
+                    ExpandRecursive(manager, iteratorIndex + 1, context, constraints);
+                }
+                finally
+                {
+                    // Clean up temporary parameter
+                    manager.Parameters.Remove(iterator.VariableName);
+                }
             }
-            
-            context.Remove(iterator.VariableName);
         }
-        
-        private bool EvaluateCondition(Dictionary<string, int> context, ModelManager modelManager)
+
+        private bool EvaluateGlobalCondition(ModelManager manager, Dictionary<string, object> context)
         {
             if (Condition == null)
                 return true;
-            
-            // Create temporary parameters for condition evaluation
-            var tempParams = new Dictionary<string, double>();
+
+            return EvaluateFilter(manager, Condition, context);
+        }
+
+        private bool EvaluateFilter(ModelManager manager, Expression filter, Dictionary<string, object> context)
+        {
+            try
+            {
+                if (filter is ComparisonExpression comparison)
+                {
+                    return EvaluateComparison(manager, comparison, context);
+                }
+                else if (filter is BinaryExpression binary)
+                {
+                    // Handle logical AND (&&)
+                    if (binary.Operator == BinaryOperator.Multiply) // Sometimes && is parsed as *
+                    {
+                        bool left = EvaluateFilter(manager, binary.Left, context);
+                        bool right = EvaluateFilter(manager, binary.Right, context);
+                        return left && right;
+                    }
+                }
+
+                double result = filter.Evaluate(manager);
+                return Math.Abs(result - 1.0) < 1e-10; // 1.0 = true
+            }
+            catch
+            {
+                return false;
+            }
+        }
+
+        private bool EvaluateComparison(ModelManager manager, ComparisonExpression comparison, 
+            Dictionary<string, object> context)
+        {
+            object? leftValue = GetExpressionValue(comparison.Left, manager, context);
+            object? rightValue = GetExpressionValue(comparison.Right, manager, context);
+
+            if (leftValue == null || rightValue == null)
+                return false;
+
+            switch (comparison.Operator)
+            {
+                case BinaryOperator.Equal:
+                    return AreValuesEqual(leftValue, rightValue);
+                
+                case BinaryOperator.NotEqual:
+                    return !AreValuesEqual(leftValue, rightValue);
+                
+                case BinaryOperator.LessThan:
+                    return CompareValues(leftValue, rightValue) < 0;
+                
+                case BinaryOperator.LessThanOrEqual:
+                    return CompareValues(leftValue, rightValue) <= 0;
+                
+                case BinaryOperator.GreaterThan:
+                    return CompareValues(leftValue, rightValue) > 0;
+                
+                case BinaryOperator.GreaterThanOrEqual:
+                    return CompareValues(leftValue, rightValue) >= 0;
+                
+                default:
+                    return false;
+            }
+        }
+
+        private object? GetExpressionValue(Expression expr, ModelManager manager, Dictionary<string, object> context)
+        {
+            if (expr is DynamicTupleFieldAccessExpression fieldAccess)
+            {
+                if (context.TryGetValue(fieldAccess.VariableName, out var obj))
+                {
+                    if (obj is TupleInstance tuple)
+                    {
+                        return tuple.GetValue(fieldAccess.FieldName);
+                    }
+                }
+            }
+            else if (expr is ParameterExpression paramExpr)
+            {
+                if (context.TryGetValue(paramExpr.ParameterName, out var value))
+                {
+                    return value;
+                }
+                if (manager.Parameters.TryGetValue(paramExpr.ParameterName, out var param))
+                {
+                    return param.Value;
+                }
+            }
+            else if (expr is ConstantExpression constExpr)
+            {
+                return constExpr.Value;
+            }
+            else if (expr is StringConstantExpression strConst)
+            {
+                return strConst.Value;
+            }
+
+            try
+            {
+                return expr.Evaluate(manager);
+            }
+            catch
+            {
+                return null;
+            }
+        }
+
+        private bool AreValuesEqual(object v1, object v2)
+        {
+            if (v1.Equals(v2))
+                return true;
+
+            string s1 = v1.ToString() ?? "";
+            string s2 = v2.ToString() ?? "";
+
+            return s1.Equals(s2, StringComparison.OrdinalIgnoreCase);
+        }
+
+        private int CompareValues(object v1, object v2)
+        {
+            if (v1 is IComparable c1 && v2.GetType() == v1.GetType())
+            {
+                return c1.CompareTo(v2);
+            }
+
+            if (double.TryParse(v1.ToString(), out double d1) &&
+                double.TryParse(v2.ToString(), out double d2))
+            {
+                return d1.CompareTo(d2);
+            }
+
+            return string.Compare(v1.ToString(), v2.ToString(), StringComparison.Ordinal);
+        }
+
+        private LinearEquation? GenerateConstraint(ModelManager manager, Dictionary<string, object> context)
+        {
+            if (ConstraintTemplate == null)
+                return null;
+
+            // Substitute all iterator variables in the constraint
+            string leftExpr = SubstituteIterators(ConstraintTemplate.LeftSide.ToString(), context, manager);
+            string rightExpr = SubstituteIterators(ConstraintTemplate.RightSide.ToString(), context, manager);
+
+            // Parse as equation
+            var parser = new EquationParser(manager);
+            string equationStr = $"{leftExpr} {OperatorToString(ConstraintTemplate.Operator)} {rightExpr}";
+
+            if (parser.TryParseEquation(equationStr, out var equation, out var error))
+            {
+                if (!string.IsNullOrEmpty(Label) && equation != null)
+                {
+                    // Generate indexed label: capacity_1, capacity_2, etc.
+                    string indexSuffix = GenerateIndexSuffix(context);
+                    equation.Label = string.IsNullOrEmpty(indexSuffix) 
+                        ? Label 
+                        : $"{Label}_{indexSuffix}";
+                    equation.BaseName = Label;
+                }
+
+                return equation;
+            }
+
+            return null;
+        }
+
+        /// <summary>
+        /// Generates an index suffix from the context (e.g., "1" or "1_2" for multi-dimensional)
+        /// </summary>
+        private string GenerateIndexSuffix(Dictionary<string, object> context)
+        {
+            var indices = new List<string>();
+    
+            foreach (var iterator in Iterators)
+            {
+                if (context.TryGetValue(iterator.VariableName, out var value))
+                {
+                    if (value is int intVal)
+                    {
+                        indices.Add(intVal.ToString());
+                    }
+                    else if (value is TupleInstance tuple)
+                    {
+                        // For tuple iterators, we might want to use a specific key field
+                        // For now, use a counter or omit
+                        continue;
+                    }
+                }
+            }
+    
+            return string.Join("_", indices);
+        }
+
+        private string SubstituteIterators(string template, Dictionary<string, object> context, ModelManager manager)
+        {
+            string result = template;
+
             foreach (var kvp in context)
             {
-                tempParams[kvp.Key] = kvp.Value;
-            }
-            
-            // Store original parameters
-            var originalParams = new Dictionary<string, double>();
-            foreach (var kvp in tempParams)
-            {
-                if (modelManager.Parameters.TryGetValue(kvp.Key, out var param))
+                string iteratorName = kvp.Key;
+                object value = kvp.Value;
+
+                if (value is TupleInstance tuple)
                 {
-                    originalParams[kvp.Key] = Convert.ToDouble(param.Value);
+                    // For tuple iterators, keep as-is (already bound in parameters)
+                    // Field access will work through the temporary parameter
+                }
+                else if (value is int intValue)
+                {
+                    // Simple integer substitution
+                    result = System.Text.RegularExpressions.Regex.Replace(
+                        result,
+                        $@"\b{System.Text.RegularExpressions.Regex.Escape(iteratorName)}\b",
+                        intValue.ToString()
+                    );
                 }
             }
-            
-            // Set temporary values
-            foreach (var kvp in tempParams)
+
+            return result;
+        }
+
+        private string OperatorToString(RelationalOperator op)
+        {
+            return op switch
             {
-                modelManager.SetParameter(kvp.Key, kvp.Value);
+                RelationalOperator.Equal => "==",
+                RelationalOperator.LessThanOrEqual => "<=",
+                RelationalOperator.GreaterThanOrEqual => ">=",
+                RelationalOperator.LessThan => "<",
+                RelationalOperator.GreaterThan => ">",
+                _ => "=="
+            };
+        }
+
+        private List<object> GetIteratorRange(ModelManager manager, ForallIterator iterator)
+        {
+            var range = new List<object>();
+
+            // Check various sources
+            if (manager.TupleSets.TryGetValue(iterator.Range.SetName ?? "", out var tupleSet))
+            {
+                range.AddRange(tupleSet.Instances.Cast<object>());
             }
-            
-            // Evaluate condition
-            double result = Condition.Evaluate(modelManager);
-            
-            // Restore original parameters
-            foreach (var kvp in originalParams)
+            else if (manager.ComputedSets.TryGetValue(iterator.Range.SetName ?? "", out var computedSet))
             {
-                modelManager.SetParameter(kvp.Key, kvp.Value);
-            }
-            foreach (var kvp in tempParams)
-            {
-                if (!originalParams.ContainsKey(kvp.Key))
+                var computed = computedSet.Evaluate(manager);
+                if (computed is IEnumerable<object> enumerable)
                 {
-                    modelManager.Parameters.Remove(kvp.Key);
+                    range.AddRange(enumerable);
                 }
             }
-            
-            return Math.Abs(result - 1.0) < 1e-10; // True if result is 1.0
+            else if (manager.IndexSets.TryGetValue(iterator.Range.SetName ?? "", out var indexSet))
+            {
+                range.AddRange(indexSet.GetIndices().Cast<object>());
+            }
+            else if (manager.Ranges.TryGetValue(iterator.Range.SetName ?? "", out var oplRange))
+            {
+                range.AddRange(oplRange.GetValues(manager).Cast<object>());
+            }
+            else if (manager.PrimitiveSets.TryGetValue(iterator.Range.SetName ?? "", out var primitiveSet))
+            {
+                range.AddRange(primitiveSet.GetAllValues());
+            }
+
+            return range;
+        }
+
+        private void SetTemporaryParameter(ModelManager manager, string name, object value)
+        {
+            ParameterType type = value switch
+            {
+                int => ParameterType.Integer,
+                double => ParameterType.Float,
+                string => ParameterType.String,
+                bool => ParameterType.Boolean,
+                _ => ParameterType.String
+            };
+
+            var param = new Parameter(name, type, value);
+            manager.Parameters[name] = param;
         }
     }
-    
+
     /// <summary>
-    /// Represents an iterator in a forall statement
-    /// Example: "i in 1..n" or "j in Cities"
+    /// Represents a single iterator in a forall statement
     /// </summary>
     public class ForallIterator
     {
         public string VariableName { get; set; } = "";
-        public RangeExpression Range { get; set; } = null!;
-        
-        public IEnumerable<int> GetRange(ModelManager modelManager)
+        public RangeExpression Range { get; set; } = new RangeExpression();
+        public Expression? Filter { get; set; }
+
+        public ForallIterator()
         {
-            return Range.GetValues(modelManager);
+        }
+
+        public ForallIterator(string varName, string setName)
+        {
+            VariableName = varName;
+            Range = new RangeExpression { SetName = setName };
+        }
+
+        public ForallIterator(string varName, string setName, Expression filter)
+        {
+            VariableName = varName;
+            Range = new RangeExpression { SetName = setName };
+            Filter = filter;
         }
     }
-    
-    /// <summary>
-    /// Represents a range expression (e.g., 1..n, Cities)
-    /// </summary>
+
+    public class ConstraintTemplate
+    {
+        public Expression LeftSide { get; set; } = new ConstantExpression(0);
+        public RelationalOperator Operator { get; set; }
+        public Expression RightSide { get; set; } = new ConstantExpression(0);
+    }
+
     public class RangeExpression
     {
         public Expression? Start { get; set; }
         public Expression? End { get; set; }
         public string? SetName { get; set; }
-        
-        public IEnumerable<int> GetValues(ModelManager modelManager)
-        {
-            if (SetName != null)
-            {
-                // Try OplRange first
-                if (modelManager.Ranges.TryGetValue(SetName, out var range))
-                {
-                    return range.GetValues(modelManager);
-                }
-                
-                // Try Sets
-                if (modelManager.Sets.TryGetValue(SetName, out var set))
-                {
-                    return set;
-                }
-                
-                // Try IndexSets
-                if (modelManager.IndexSets.TryGetValue(SetName, out var indexSet))
-                {
-                    return indexSet.GetIndices();
-                }
-                
-                throw new InvalidOperationException($"Range or Set '{SetName}' not found");
-            }
-            
-            if (Start != null && End != null)
-            {
-                int start = (int)Start.Evaluate(modelManager);
-                int end = (int)End.Evaluate(modelManager);
-                
-                return Enumerable.Range(start, end - start + 1);
-            }
-            
-            throw new InvalidOperationException("Invalid range expression");
-        }
-    }
-    
-    /// <summary>
-    /// Template for generating constraints with index substitution
-    /// </summary>
-    public class ConstraintTemplate
-    {
-        public string? Label { get; set; }
-        public Expression LeftSide { get; set; } = null!;
-        public RelationalOperator Operator { get; set; }
-        public Expression RightSide { get; set; } = null!;
-        
-        public LinearEquation? Instantiate(Dictionary<string, int> indices, ModelManager modelManager)
-        {
-            try
-            {
-                // Create context for index substitution
-                var context = new IndexSubstitutionContext(indices);
-                
-                // Substitute indices in expressions
-                var leftWithIndices = SubstituteIndices(LeftSide, context);
-                var rightWithIndices = SubstituteIndices(RightSide, context);
-                
-                // Create the equation
-                var equation = new LinearEquation
-                {
-                    Label = Label,
-                    BaseName = Label ?? "constraint",
-                    Operator = Operator
-                };
-                
-                // Set index if single index
-                if (indices.Count == 1)
-                {
-                    equation.Index = indices.Values.First();
-                }
-                else if (indices.Count == 2)
-                {
-                    var values = indices.Values.ToList();
-                    equation.Index = values[0];
-                    equation.SecondIndex = values[1];
-                }
-                
-                // Evaluate and build the linear equation
-                BuildLinearEquation(equation, leftWithIndices, rightWithIndices, modelManager);
-                
-                return equation;
-            }
-            catch (Exception ex)
-            {
-                System.Diagnostics.Debug.WriteLine($"Error instantiating constraint: {ex.Message}");
-                return null;
-            }
-        }
-        
-        private Expression SubstituteIndices(Expression expr, IndexSubstitutionContext context)
-        {
-            return expr switch
-            {
-                ConstantExpression constExpr => constExpr,
-                
-                ParameterExpression paramExpr => 
-                    context.TryGetIndex(paramExpr.ParameterName, out int value) 
-                        ? new ConstantExpression(value) 
-                        : paramExpr,
-                
-                VariableExpression varExpr => varExpr,
-                
-                // ADD: Handle DecisionExpressionExpression
-                DecisionExpressionExpression dexprExpr => 
-                    SubstituteDexprIndices(dexprExpr, context),
-                
-                IndexedVariableExpression idxVarExpr => new IndexedVariableExpression(
-                    idxVarExpr.BaseName,
-                    SubstituteIndices(idxVarExpr.Index1, context),
-                    idxVarExpr.Index2 != null ? SubstituteIndices(idxVarExpr.Index2, context) : null
-                ),
-                
-                BinaryExpression binExpr => new BinaryExpression(
-                    SubstituteIndices(binExpr.Left, context),
-                    binExpr.Operator,
-                    SubstituteIndices(binExpr.Right, context)
-                ),
-                
-                UnaryExpression unaryExpr => new UnaryExpression(
-                    unaryExpr.Operator,
-                    SubstituteIndices(unaryExpr.Operand, context)
-                ),
-                
-                SummationExpression sumExpr => SubstituteSummation(sumExpr, context),
-                
-                _ => expr
-            };
-        }
-
-        private Expression SubstituteDexprIndices(DecisionExpressionExpression dexprExpr, IndexSubstitutionContext context)
-        {
-            // If the dexpr has an index expression, substitute it
-            if (dexprExpr.IndexExpression != null)
-            {
-                var substitutedIndex = SubstituteIndices(dexprExpr.IndexExpression, context);
-                
-                // If the index became a constant, use it
-                if (substitutedIndex is ConstantExpression constIndex)
-                {
-                    return new DecisionExpressionExpression(
-                        dexprExpr.Name, 
-                        (int)Math.Round(constIndex.Value)
-                    );
-                }
-                else
-                {
-                    return new DecisionExpressionExpression(dexprExpr.Name, substitutedIndex);
-                }
-            }
-            
-            // No substitution needed
-            return dexprExpr;
-        }
-        
-        private Expression SubstituteSummation(SummationExpression sumExpr, IndexSubstitutionContext context)
-        {
-            // This is complex - for now, return as-is
-            // Full implementation would need to evaluate the summation with substituted indices
-            return sumExpr;
-        }
-        
-        private void BuildLinearEquation(
-            LinearEquation equation, 
-            Expression left, 
-            Expression right,
-            ModelManager modelManager)
-        {
-            // Move all terms to left side: left - right = 0
-            // Then extract coefficients and constant
-            
-            var coefficients = new Dictionary<string, Expression>();
-            double constant = 0.0;
-            
-            ExtractTerms(left, coefficients, ref constant, 1.0, modelManager);
-            ExtractTerms(right, coefficients, ref constant, -1.0, modelManager);
-            
-            equation.Coefficients = coefficients;
-            equation.Constant = new ConstantExpression(-constant);
-        }
-        
-        private void ExtractTerms(
-            Expression expr,
-            Dictionary<string, Expression> coefficients,
-            ref double constant,
-            double sign,
-            ModelManager modelManager, 
-            bool inlineDexprs = true)
-        {
-            if (expr is IndexedVariableExpression idxVarExpr)
-            {
-                // FIX: Use GetFullName on the IndexedVariableExpression itself
-                string varName = idxVarExpr.GetFullName(modelManager);
-                
-                if (!coefficients.ContainsKey(varName))
-                {
-                    coefficients[varName] = new ConstantExpression(0);
-                }
-                
-                double currentCoeff = coefficients[varName].Evaluate(modelManager);
-                coefficients[varName] = new ConstantExpression(currentCoeff + sign);
-            }
-            else if (expr is VariableExpression varExpr)
-            {
-                string varName = varExpr.GetFullName();
-                if (!coefficients.ContainsKey(varName))
-                {
-                    coefficients[varName] = new ConstantExpression(0);
-                }
-                
-                double currentCoeff = coefficients[varName].Evaluate(modelManager);
-                coefficients[varName] = new ConstantExpression(currentCoeff + sign);
-            }
-            else if (expr is DecisionExpressionExpression dexprExpr)
-            {
-                // Evaluate the dexpr and then extract terms from its result
-                try
-                {
-                    // For now, treat dexpr as a constant contribution
-                    // In a full implementation, you'd expand the dexpr's expression
-                    double value = dexprExpr.Evaluate(modelManager);
-                    constant += sign * value;
-                }
-                catch
-                {
-                    // If we can't evaluate, try to expand the dexpr's underlying expression
-                    if (modelManager.DecisionExpressions.TryGetValue(dexprExpr.Name, out var dexpr))
-                    {
-                        ExtractTerms(dexpr.Expression, coefficients, ref constant, sign, modelManager);
-                    }
-                }
-            }
-            else if (expr is ConstantExpression constExpr)
-            {
-                constant += sign * constExpr.Value;
-            }
-            else if (expr is BinaryExpression binExpr)
-            {
-                if (binExpr.Operator == BinaryOperator.Add)
-                {
-                    ExtractTerms(binExpr.Left, coefficients, ref constant, sign, modelManager);
-                    ExtractTerms(binExpr.Right, coefficients, ref constant, sign, modelManager);
-                }
-                else if (binExpr.Operator == BinaryOperator.Subtract)
-                {
-                    ExtractTerms(binExpr.Left, coefficients, ref constant, sign, modelManager);
-                    ExtractTerms(binExpr.Right, coefficients, ref constant, -sign, modelManager);
-                }
-                else if (binExpr.Operator == BinaryOperator.Multiply)
-                {
-                    // Check if it's coefficient * variable
-                    if (binExpr.Left is ConstantExpression leftConst)
-                    {
-                        // Handle: constant * variable or constant * indexedVariable
-                        if (binExpr.Right is VariableExpression rightVar)
-                        {
-                            string varName = rightVar.GetFullName();
-                            if (!coefficients.ContainsKey(varName))
-                            {
-                                coefficients[varName] = new ConstantExpression(0);
-                            }
-                            
-                            double currentCoeff = coefficients[varName].Evaluate(modelManager);
-                            coefficients[varName] = new ConstantExpression(currentCoeff + sign * leftConst.Value);
-                        }
-                        else if (binExpr.Right is IndexedVariableExpression rightIdxVar)
-                        {
-                            string varName = rightIdxVar.GetFullName(modelManager);
-                            if (!coefficients.ContainsKey(varName))
-                            {
-                                coefficients[varName] = new ConstantExpression(0);
-                            }
-                            
-                            double currentCoeff = coefficients[varName].Evaluate(modelManager);
-                            coefficients[varName] = new ConstantExpression(currentCoeff + sign * leftConst.Value);
-                        }
-                        else
-                        {
-                            // Complex multiplication - try to evaluate
-                            double value = expr.Evaluate(modelManager);
-                            constant += sign * value;
-                        }
-                    }
-                    else if (binExpr.Right is ConstantExpression rightConst)
-                    {
-                        // Handle: variable * constant or indexedVariable * constant
-                        if (binExpr.Left is VariableExpression leftVar)
-                        {
-                            string varName = leftVar.GetFullName();
-                            if (!coefficients.ContainsKey(varName))
-                            {
-                                coefficients[varName] = new ConstantExpression(0);
-                            }
-                            
-                            double currentCoeff = coefficients[varName].Evaluate(modelManager);
-                            coefficients[varName] = new ConstantExpression(currentCoeff + sign * rightConst.Value);
-                        }
-                        else if (binExpr.Left is IndexedVariableExpression leftIdxVar)
-                        {
-                            string varName = leftIdxVar.GetFullName(modelManager);
-                            if (!coefficients.ContainsKey(varName))
-                            {
-                                coefficients[varName] = new ConstantExpression(0);
-                            }
-                            
-                            double currentCoeff = coefficients[varName].Evaluate(modelManager);
-                            coefficients[varName] = new ConstantExpression(currentCoeff + sign * rightConst.Value);
-                        }
-                        else
-                        {
-                            // Complex multiplication - try to evaluate
-                            double value = expr.Evaluate(modelManager);
-                            constant += sign * value;
-                        }
-                    }
-                    // NEW: Handle parameter/expression * variable
-                    else if (binExpr.Left is ParameterExpression leftParam || binExpr.Left is DecisionExpressionExpression)
-                    {
-                        if (binExpr.Right is VariableExpression rightVar)
-                        {
-                            string varName = rightVar.GetFullName();
-                            if (!coefficients.ContainsKey(varName))
-                            {
-                                coefficients[varName] = new ConstantExpression(0);
-                            }
-                            
-                            // Coefficient is the parameter/dexpr expression
-                            if (coefficients[varName] is ConstantExpression currentConstCoeff)
-                            {
-                                // If current is constant, create binary expression
-                                double evaluated = binExpr.Left.Evaluate(modelManager);
-                                coefficients[varName] = new ConstantExpression(currentConstCoeff.Value + sign * evaluated);
-                            }
-                            else
-                            {
-                                // Current is already an expression, add to it
-                                coefficients[varName] = new BinaryExpression(
-                                    coefficients[varName],
-                                    BinaryOperator.Add,
-                                    new BinaryExpression(
-                                        new ConstantExpression(sign),
-                                        BinaryOperator.Multiply,
-                                        binExpr.Left
-                                    )
-                                );
-                            }
-                        }
-                        else if (binExpr.Right is IndexedVariableExpression rightIdxVar)
-                        {
-                            string varName = rightIdxVar.GetFullName(modelManager);
-                            if (!coefficients.ContainsKey(varName))
-                            {
-                                coefficients[varName] = new ConstantExpression(0);
-                            }
-                            
-                            double evaluated = binExpr.Left.Evaluate(modelManager);
-                            double currentCoeff = coefficients[varName].Evaluate(modelManager);
-                            coefficients[varName] = new ConstantExpression(currentCoeff + sign * evaluated);
-                        }
-                        else
-                        {
-                            // Complex - try to evaluate whole thing
-                            double value = expr.Evaluate(modelManager);
-                            constant += sign * value;
-                        }
-                    }
-                    else
-                    {
-                        // Complex multiplication - try to evaluate
-                        double value = expr.Evaluate(modelManager);
-                        constant += sign * value;
-                    }
-                }
-                else
-                {
-                    // Other operators - evaluate the whole expression
-                    double value = expr.Evaluate(modelManager);
-                    constant += sign * value;
-                }
-            }
-            else if (expr is SummationExpression sumExpr)
-            {
-                // Expand summation and extract terms
-                var expandedTerms = sumExpr.ExpandTerms(modelManager);
-                foreach (var term in expandedTerms)
-                {
-                    ExtractTerms(term, coefficients, ref constant, sign, modelManager);
-                }
-            }
-            else if (expr is ParameterExpression paramExpr)
-            {
-                // Evaluate parameter as constant
-                double value = paramExpr.Evaluate(modelManager);
-                constant += sign * value;
-            }
-            else
-            {
-                // Try to evaluate as constant
-                try
-                {
-                    double value = expr.Evaluate(modelManager);
-                    constant += sign * value;
-                }
-                catch (Exception ex)
-                {
-                    // Cannot evaluate - log warning and skip
-                    System.Diagnostics.Debug.WriteLine($"Warning: Could not extract terms from expression type {expr.GetType().Name}: {ex.Message}");
-                }
-            }
-        }
-    }
-    
-    /// <summary>
-    /// Context for substituting index variables in expressions
-    /// </summary>
-    public class IndexSubstitutionContext
-    {
-        public Dictionary<string, int> Indices { get; }
-        
-        public IndexSubstitutionContext(Dictionary<string, int> indices)
-        {
-            Indices = new Dictionary<string, int>(indices);
-        }
-        
-        public bool TryGetIndex(string name, out int value)
-        {
-            return Indices.TryGetValue(name, out value);
-        }
     }
 }

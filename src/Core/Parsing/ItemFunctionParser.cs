@@ -1,256 +1,225 @@
-using System.Text;
+using System;
+using System.Collections.Generic;
 using System.Text.RegularExpressions;
 using Core.Models;
 
 namespace Core.Parsing
 {
-    public class ItemFunctionParser
+    /// <summary>
+    /// Parses item() function calls
+    /// Syntax: item(setName, keyExpression)
+    /// Examples:
+    ///   item(nodes, 0)
+    ///   item(HydroArcs, <"A1">)
+    ///   item(HydroArcTs, <s.id, t>)
+    /// </summary>
+    public static class ItemFunctionParser
     {
-        /// <summary>
-        /// Parses item(setName, key) expressions
-        /// Supports nested item() and composite keys
-        /// </summary>
-        public static bool TryParse(string expression, ModelManager manager, 
-            out Expression? result, out string error)
+        public static bool TryParse(string expression, ModelManager manager, out Expression? result, out string error)
         {
             result = null;
             error = string.Empty;
 
-            // Pattern: item(setName, keyExpression)
-            var pattern = @"^item\s*\(\s*([a-zA-Z][a-zA-Z0-9_]*)\s*,\s*(.+)\s*\)$";
-            var match = Regex.Match(expression.Trim(), pattern);
+            expression = expression.Trim();
 
-            if (!match.Success)
+            // Pattern: item(setName, keyExpression)
+            if (!expression.StartsWith("item(", StringComparison.OrdinalIgnoreCase))
             {
-                error = "Not an item() function call";
+                error = "Not an item() function";
                 return false;
             }
 
-            string setName = match.Groups[1].Value;
-            string keyPart = match.Groups[2].Value.Trim();
-
-            // Parse the key expression (may be <...> composite key)
-            Expression keyExpr;
-            if (keyPart.StartsWith("<") && keyPart.EndsWith(">"))
+            if (!expression.EndsWith(")"))
             {
-                // Composite key
-                if (!ParseCompositeKey(keyPart, manager, out keyExpr, out error))
+                error = "item() function must end with ')'";
+                return false;
+            }
+
+            // Extract content between parentheses
+            string content = expression.Substring(5, expression.Length - 6).Trim();
+
+            // Split by comma at top level (not inside <>, (), [])
+            var parts = SplitTopLevel(content, ',');
+
+            if (parts.Count != 2)
+            {
+                error = $"item() expects 2 arguments (setName, key), got {parts.Count}";
+                return false;
+            }
+
+            string setName = parts[0].Trim();
+            string keyExpr = parts[1].Trim();
+
+            // Validate set name
+            if (!Regex.IsMatch(setName, @"^[a-zA-Z][a-zA-Z0-9_]*$"))
+            {
+                error = $"Invalid set name: '{setName}'";
+                return false;
+            }
+
+            // Parse key expression
+            Expression keyExpression;
+
+            if (keyExpr.StartsWith("<") && keyExpr.EndsWith(">"))
+            {
+                // Composite key: <expr1, expr2, ...>
+                keyExpression = ParseCompositeKey(keyExpr, manager, out error);
+                if (keyExpression == null)
                     return false;
             }
             else
             {
-                // Single key expression
-                if (!ParseSingleKeyExpression(keyPart, manager, out keyExpr, out error))
+                // Simple key expression
+                keyExpression = ParseKeyExpression(keyExpr, manager, out error);
+                if (keyExpression == null)
                     return false;
             }
 
-            result = new ItemFunctionExpression(setName, keyExpr);
+            result = new ItemFunctionExpression(setName, keyExpression);
             return true;
         }
 
-        private static bool ParseCompositeKey(string keyExpression, ModelManager manager,
-            out Expression? result, out string error)
+        private static Expression? ParseCompositeKey(string keyExpr, ModelManager manager, out string error)
         {
-            result = null;
             error = string.Empty;
 
             // Remove angle brackets
-            string inner = keyExpression.Substring(1, keyExpression.Length - 2).Trim();
+            string content = keyExpr.Substring(1, keyExpr.Length - 2).Trim();
 
-            // Split by commas (respecting nested structures)
-            var parts = SplitByComma(inner);
-            var keyExpressions = new List<Expression>();
+            // Split by comma at top level
+            var parts = SplitTopLevel(content, ',');
+
+            if (parts.Count == 0)
+            {
+                error = "Empty composite key";
+                return null;
+            }
+
+            var keyParts = new List<Expression>();
 
             foreach (var part in parts)
             {
-                if (!ParseSingleKeyExpression(part.Trim(), manager, out var expr, out error))
-                    return false;
+                var expr = ParseKeyExpression(part.Trim(), manager, out error);
+                if (expr == null)
+                    return null;
 
-                keyExpressions.Add(expr);
+                keyParts.Add(expr);
             }
 
-            result = new CompositeKeyExpression(keyExpressions);
-            return true;
+            return new CompositeKeyExpression(keyParts);
         }
 
-        private static bool ParseSingleKeyExpression(string expr, ModelManager manager,
-            out Expression? result, out string error)
+        private static Expression? ParseKeyExpression(string exprStr, ModelManager manager, out string error)
         {
-            result = null;
             error = string.Empty;
+            exprStr = exprStr.Trim();
 
-            expr = expr.Trim();
-
-            // Check for nested item() function
-            if (expr.StartsWith("item("))
+            // Check for nested item()
+            if (exprStr.StartsWith("item(", StringComparison.OrdinalIgnoreCase))
             {
-                return TryParse(expr, manager, out result, out error);
+                if (TryParse(exprStr, manager, out var nestedItem, out error))
+                    return nestedItem;
+                return null;
             }
 
-            // Check for field access: var.field OR array[i].field OR array[i][j].field
-            if (expr.Contains('.'))
+            // Check for item().field
+            if (exprStr.Contains("item(") && exprStr.Contains(")."))
             {
-                // Find the LAST dot (to handle cases like item(...).field)
-                int lastDotIndex = expr.LastIndexOf('.');
-                if (lastDotIndex > 0 && lastDotIndex < expr.Length - 1)
+                var match = Regex.Match(exprStr, @"^(item\([^)]+\))\.([a-zA-Z][a-zA-Z0-9_]*)$");
+                if (match.Success)
                 {
-                    string variablePart = expr.Substring(0, lastDotIndex);
-                    string fieldName = expr.Substring(lastDotIndex + 1);
+                    string itemPart = match.Groups[1].Value;
+                    string fieldName = match.Groups[2].Value;
 
-                    // Parse the variable part - it might have indices
-                    Expression baseExpression;
-                    
-                    // Check if variable part has indexing: array[i] or array[i][j]
-                    if (variablePart.Contains('['))
+                    if (TryParse(itemPart, manager, out var itemExpr, out error))
                     {
-                        // Parse indexed access
-                        if (!ParseIndexedExpression(variablePart, manager, out baseExpression, out error))
-                            return false;
+                        return new ItemFieldAccessExpression((ItemFunctionExpression)itemExpr!, fieldName);
                     }
-                    else
-                    {
-                        // Simple variable reference
-                        if (manager.Parameters.ContainsKey(variablePart))
-                        {
-                            baseExpression = new ParameterExpression(variablePart);
-                        }
-                        else if (manager.TupleParameters != null && 
-                                 manager.TupleParameters.ContainsKey(variablePart))
-                        {
-                            // It's a tuple parameter (iterator variable or tuple param)
-                            baseExpression = new TupleVariableExpression(variablePart);
-                        }
-                        else
-                        {
-                            // Assume it's an iterator variable from forall context
-                            baseExpression = new TupleVariableExpression(variablePart);
-                        }
-                    }
-
-                    // Create field access on the base expression
-                    result = new TupleFieldAccessExpression(baseExpression, fieldName);
-                    return true;
+                    return null;
                 }
             }
 
-            // Check for numeric constant
-            if (double.TryParse(expr, out double value))
+            // Check for tuple field access: variable.field
+            if (Regex.IsMatch(exprStr, @"^([a-zA-Z][a-zA-Z0-9_]*)\.([a-zA-Z][a-zA-Z0-9_]*)$"))
             {
-                result = new ConstantExpression(value);
-                return true;
+                var match = Regex.Match(exprStr, @"^([a-zA-Z][a-zA-Z0-9_]*)\.([a-zA-Z][a-zA-Z0-9_]*)$");
+                string varName = match.Groups[1].Value;
+                string fieldName = match.Groups[2].Value;
+
+                return new DynamicTupleFieldAccessExpression(varName, fieldName);
+            }
+
+            // Check for string literal
+            if ((exprStr.StartsWith("\"") && exprStr.EndsWith("\"")) ||
+                (exprStr.StartsWith("'") && exprStr.EndsWith("'")))
+            {
+                return new StringConstantExpression(exprStr.Trim('"', '\''));
+            }
+
+            // Check for numeric literal
+            if (double.TryParse(exprStr, System.Globalization.NumberStyles.Float,
+                System.Globalization.CultureInfo.InvariantCulture, out double numValue))
+            {
+                return new ConstantExpression(numValue);
             }
 
             // Check for parameter
-            if (manager.Parameters.ContainsKey(expr))
+            if (manager.Parameters.ContainsKey(exprStr))
             {
-                result = new ParameterExpression(expr);
-                return true;
+                return new ParameterExpression(exprStr);
             }
 
-            // Assume it's a variable/iterator reference
-            result = new ParameterExpression(expr);
-            return true;
+            // Assume it's an iterator variable
+            return new ParameterExpression(exprStr);
         }
 
-        /// <summary>
-        /// Parses indexed expressions like array[i], array[i][j], param[n.stage]
-        /// </summary>
-        private static bool ParseIndexedExpression(string expr, ModelManager manager,
-            out Expression? result, out string error)
+        private static List<string> SplitTopLevel(string input, char delimiter)
         {
-            result = null;
-            error = string.Empty;
-
-            // Pattern: baseName[index1][index2]...
-            var match = Regex.Match(expr, @"^([a-zA-Z][a-zA-Z0-9_]*)((?:\[[^\]]+\])+)$");
-            
-            if (!match.Success)
-            {
-                error = $"Invalid indexed expression: {expr}";
-                return false;
-            }
-
-            string baseName = match.Groups[1].Value;
-            string indicesPart = match.Groups[2].Value;
-
-            // Extract individual indices
-            var indexMatches = Regex.Matches(indicesPart, @"\[([^\]]+)\]");
-            var indices = new List<Expression>();
-
-            foreach (Match indexMatch in indexMatches)
-            {
-                string indexExpr = indexMatch.Groups[1].Value.Trim();
-                
-                // Parse each index expression recursively
-                if (!ParseSingleKeyExpression(indexExpr, manager, out var indexExpression, out error))
-                    return false;
-
-                indices.Add(indexExpression);
-            }
-
-            // Create appropriate indexed expression based on what we're indexing
-            if (manager.Parameters.ContainsKey(baseName))
-            {
-                var param = manager.Parameters[baseName];
-                
-                if (indices.Count == 1)
-                {
-                    result = new IndexedParameterExpression(baseName, indices[0]);
-                }
-                else if (indices.Count == 2)
-                {
-                    result = new IndexedParameterExpression(baseName, indices[0], indices[1]);
-                }
-                else
-                {
-                    // N-dimensional
-                    result = new IndexedParameterExpression(baseName, indices);
-                }
-            }
-            else if (manager.TupleParameters != null && 
-                     manager.TupleParameters.ContainsKey(baseName))
-            {
-                // Indexed tuple parameter
-                result = new IndexedTupleParameterExpression(baseName, indices);
-            }
-            else
-            {
-                // Assume it's an indexed variable or tuple set access
-                result = new IndexedTupleParameterExpression(baseName, indices);
-            }
-
-            return true;
-        }
-
-        private static List<string> SplitByComma(string input)
-        {
-            var result = new List<string>();
-            var current = new StringBuilder();
+            var parts = new List<string>();
+            var current = new System.Text.StringBuilder();
             int depth = 0;
-            int angleBracketDepth = 0;
+            int angleDepth = 0;
+            int bracketDepth = 0;
+            bool inQuotes = false;
 
             for (int i = 0; i < input.Length; i++)
             {
                 char c = input[i];
 
-                if (c == '(') depth++;
-                else if (c == ')') depth--;
-                else if (c == '<') angleBracketDepth++;
-                else if (c == '>') angleBracketDepth--;
-                else if (c == ',' && depth == 0 && angleBracketDepth == 0)
+                if (c == '"' && (i == 0 || input[i - 1] != '\\'))
                 {
-                    result.Add(current.ToString().Trim());
-                    current.Clear();
-                    continue;
+                    inQuotes = !inQuotes;
+                    current.Append(c);
                 }
+                else if (!inQuotes)
+                {
+                    if (c == '(') depth++;
+                    else if (c == ')') depth--;
+                    else if (c == '<') angleDepth++;
+                    else if (c == '>') angleDepth--;
+                    else if (c == '[') bracketDepth++;
+                    else if (c == ']') bracketDepth--;
+                    else if (c == delimiter && depth == 0 && angleDepth == 0 && bracketDepth == 0)
+                    {
+                        parts.Add(current.ToString());
+                        current.Clear();
+                        continue;
+                    }
 
-                current.Append(c);
+                    current.Append(c);
+                }
+                else
+                {
+                    current.Append(c);
+                }
             }
 
             if (current.Length > 0)
-                result.Add(current.ToString().Trim());
+            {
+                parts.Add(current.ToString());
+            }
 
-            return result;
+            return parts;
         }
     }
 }

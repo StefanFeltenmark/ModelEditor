@@ -24,7 +24,7 @@ namespace Tests
             ";
             
             var parseResult = parser.Parse(input);
-            parser.ExpandIndexedEquations(parseResult);
+            
 
             // Act
             var exporter = new MPSExporter(manager);
@@ -57,13 +57,15 @@ namespace Tests
                     limit: x[i] <= 10;
             ";
             
-            parser.Parse(input);
-            parser.ExpandIndexedEquations(new ParseSessionResult());
+            var result = parser.Parse(input);
+            
+            // **Explicit expansion BEFORE export**
+            parser.ExpandAllTemplates(result);
 
             // Act
             var exporter = new MPSExporter(manager);
             string mps = exporter.Export();
-
+            
             // Assert
             Assert.Contains("X1", mps);
             Assert.Contains("X2", mps);
@@ -257,7 +259,7 @@ namespace Tests
             ";
             
             parser.Parse(input);
-            parser.ExpandIndexedEquations(new ParseSessionResult());
+            parser.ExpandAllTemplates(new ParseSessionResult());
 
             // Act
             var exporter = new MPSExporter(manager);

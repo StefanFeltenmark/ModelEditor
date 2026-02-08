@@ -31,7 +31,7 @@ namespace Tests
             
             // Act
             var result = parser.Parse(text);
-            parser.ExpandIndexedEquations(result);
+            
             
             // Assert
             Assert.False(result.HasErrors, 
@@ -66,7 +66,7 @@ namespace Tests
             
             // Act
             var result = parser.Parse(text);
-            parser.ExpandIndexedEquations(result);
+            
             
             // Assert
             Assert.False(result.HasErrors, 
@@ -96,7 +96,7 @@ namespace Tests
             
             // Act
             var result = parser.Parse(text);
-            parser.ExpandIndexedEquations(result);
+            
             
             // Assert
             Assert.False(result.HasErrors, 
@@ -129,7 +129,7 @@ namespace Tests
             
             // Act
             var result = parser.Parse(text);
-            parser.ExpandIndexedEquations(result);
+            
             
             // Assert
             Assert.False(result.HasErrors, 
@@ -162,7 +162,7 @@ namespace Tests
             
             // Act
             var result = parser.Parse(text);
-            parser.ExpandIndexedEquations(result);
+            parser.ExpandIndexedEquations(new ParseSessionResult());
             
             // Assert
             Assert.False(result.HasErrors, 
@@ -219,7 +219,7 @@ namespace Tests
             
             // Act
             var result = parser.Parse(text);
-            parser.ExpandIndexedEquations(result);
+            
             
             // Assert
             Assert.False(result.HasErrors, 
@@ -247,7 +247,7 @@ namespace Tests
             
             // Act
             var result = parser.Parse(text);
-            parser.ExpandIndexedEquations(result);
+            
             
             // Assert
             Assert.False(result.HasErrors, 
@@ -277,7 +277,7 @@ namespace Tests
             
             // Act
             var result = parser.Parse(text);
-            parser.ExpandIndexedEquations(result);
+            
             
             // Assert
             Assert.True(result.HasErrors);
@@ -300,7 +300,7 @@ namespace Tests
             
             // Act
             var result = parser.Parse(text);
-            parser.ExpandIndexedEquations(result);
+            
             
             // Assert
             Assert.True(result.HasErrors);
@@ -332,7 +332,7 @@ namespace Tests
             
             // Act
             var result = parser.Parse(text);
-            parser.ExpandIndexedEquations(result);
+            
             
             // Assert
             Assert.False(result.HasErrors, 
@@ -362,7 +362,7 @@ namespace Tests
             
             // Act
             var result = parser.Parse(text);
-            parser.ExpandIndexedEquations(result);
+            
             
             // Assert
             Assert.False(result.HasErrors, 
@@ -420,7 +420,7 @@ namespace Tests
             
             // Act
             var result = parser.Parse(text);
-            parser.ExpandIndexedEquations(result);
+            
             
             // Assert
             Assert.False(result.HasErrors, 

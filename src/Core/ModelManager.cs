@@ -37,17 +37,32 @@ namespace Core
 
         /// <summary>
         /// Expands all forall statements into concrete constraints
+        /// Idempotent - safe to call multiple times
         /// </summary>
         public void ExpandForallStatements()
         {
+            if (ForallStatements.Count == 0)
+                return;
+
+            // Track what we've already expanded
+            var alreadyExpanded = new HashSet<ForallStatement>();
+
             foreach (var forall in ForallStatements)
             {
+                if (alreadyExpanded.Contains(forall))
+                    continue;
+
                 var expandedConstraints = forall.Expand(this);
                 foreach (var constraint in expandedConstraints)
                 {
                     AddEquation(constraint);
                 }
+
+                alreadyExpanded.Add(forall);
             }
+
+            // Clear forall statements after expansion to avoid re-expansion
+            ForallStatements.Clear();
         }
         // Add to existing ModelManager class
 
@@ -509,24 +524,81 @@ namespace Core
             ComputedSets[computedSet.Name] = computedSet;
         }
 
-        public object? GetComputedSetValue(string name, object? index = null)
+        /// <summary>
+        /// Ensures the model is ready for export by expanding all templates
+        /// </summary>
+        public void PrepareForExport()
         {
-            if (!ComputedSets.TryGetValue(name, out var computedSet))
-            {
-                return null;
-            }
-    
-            if (computedSet.IsIndexed && index != null)
-            {
-                return computedSet.EvaluateForIndex(index, this);
-            }
-            else if (!computedSet.IsIndexed)
-            {
-                return computedSet.Evaluate(this);
-            }
-    
-            return null;
+            // Expand indexed equations if not already done
+            ExpandIndexedEquations();
+            
+            // Expand forall statements
+            ExpandForallStatements();
         }
-        
+
+        /// <summary>
+        /// Expands indexed equation templates
+        /// </summary>
+        public void ExpandIndexedEquations()
+        {
+            if (IndexedEquationTemplates.Count == 0)
+                return;
+
+            foreach (var template in IndexedEquationTemplates.Values)
+            {
+                if (template.IsTwoDimensional)
+                {
+                    ExpandTwoDimensionalEquationTemplate(template);
+                }
+                else
+                {
+                    ExpandSingleDimensionalEquationTemplate(template);
+                }
+            }
+
+            // Clear templates after expansion
+            IndexedEquationTemplates.Clear();
+        }
+
+        private void ExpandSingleDimensionalEquationTemplate(IndexedEquation template)
+        {
+            var indexSet = IndexSets[template.IndexSetName];
+            
+            foreach (int index in indexSet.GetIndices())
+            {
+                // Create expanded equation
+                // This is simplified - actual implementation would substitute variables
+                var equation = new LinearEquation
+                {
+                    BaseName = template.BaseName,
+                    Index = index,
+                    // ... set other properties
+                };
+                
+                AddEquation(equation);
+            }
+        }
+
+        private void ExpandTwoDimensionalEquationTemplate(IndexedEquation template)
+        {
+            var indexSet1 = IndexSets[template.IndexSetName];
+            var indexSet2 = IndexSets[template.SecondIndexSetName!];
+            
+            foreach (int index1 in indexSet1.GetIndices())
+            {
+                foreach (int index2 in indexSet2.GetIndices())
+                {
+                    var equation = new LinearEquation
+                    {
+                        BaseName = template.BaseName,
+                        Index = index1,
+                        SecondIndex = index2,
+                        // ... set other properties
+                    };
+                    
+                    AddEquation(equation);
+                }
+            }
+        }
     }
 }

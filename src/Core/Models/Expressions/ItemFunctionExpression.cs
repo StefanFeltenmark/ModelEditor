@@ -1,13 +1,9 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Linq;
 
 namespace Core.Models
 {
-    /// <summary>
-    /// Represents the item() function: item(setName, keyExpression)
-    /// Example: item(nodes, 0) or item(HydroArcTs, <s.id, t>)
-    /// </summary>
     public class ItemFunctionExpression : Expression
     {
         public string SetName { get; set; }
@@ -21,15 +17,28 @@ namespace Core.Models
 
         public override double Evaluate(ModelManager manager)
         {
-            // For now, item() typically returns a tuple, not a numeric value
-            // This will be called when item() result is used in numeric context
             throw new InvalidOperationException(
                 $"item({SetName}, ...) returns a tuple. Use field access: item(...).fieldName");
         }
 
+        public override bool IsConstant => false;
+
+        public override string ToString()
+        {
+            return $"item({SetName}, {KeyExpression})";
+        }
+
         /// <summary>
-        /// Evaluates item() with iterator context
-        /// Substitutes iterator variables in the key expression before lookup
+        /// Evaluates and returns the tuple instance (no context)
+        /// </summary>
+        public TupleInstance EvaluateToTuple(ModelManager manager)
+        {
+            return EvaluateWithContext(manager, new EvaluationContext()) as TupleInstance
+                ?? throw new InvalidOperationException($"item({SetName}, ...) did not return a tuple");
+        }
+
+        /// <summary>
+        /// Evaluates with iterator context
         /// </summary>
         public object EvaluateWithContext(ModelManager manager, EvaluationContext context)
         {
@@ -54,23 +63,8 @@ namespace Core.Models
             return instance;
         }
 
-        /// <summary>
-        /// Evaluates the item() function and returns the tuple instance
-        /// </summary>
-        public TupleInstance EvaluateToTuple(ModelManager manager)
-        {
-            // Simple evaluation without context (for non-iterator keys)
-            return EvaluateWithContext(manager, new EvaluationContext()) as TupleInstance
-                ?? throw new InvalidOperationException($"item({SetName}, ...) did not return a tuple");
-        }
-
-        /// <summary>
-        /// Resolves a key expression by substituting iterator variables
-        /// </summary>
         private object ResolveKeyWithContext(Expression keyExpr, ModelManager manager, EvaluationContext context)
         {
-            // Handle different key expression types
-            
             if (keyExpr is CompositeKeyExpression compositeKey)
             {
                 // Multi-part key: <field1, field2, ...>
@@ -84,67 +78,62 @@ namespace Core.Models
                 
                 return resolvedParts;
             }
-            else if (keyExpr is TupleFieldAccessExpression fieldAccess)
+            else if (keyExpr is ItemFunctionExpression nestedItem)
             {
-                // Field access: variable.field
-                // Extract the variable name from the base expression
-                string? variableName = null;
-                
-                if (fieldAccess.BaseExpression is TupleVariableExpression tupleVar)
-                {
-                    variableName = tupleVar.VariableName;
-                }
-                else if (fieldAccess.BaseExpression is ParameterExpression paramExpr)
-                {
-                    variableName = paramExpr.ParameterName;
-                }
-                
-                // Check if it's an iterator variable
-                if (variableName != null && context.TryGetIterator(variableName, out int iterValue))
-                {
-                    // The iterator refers to a tuple set - we need to get the tuple instance
-                    // and then access the field
-                    
-                    // First, try to find which tuple set this iterator belongs to
-                    // This is complex - for now, we need the tuple instance to be in the context
-                    
-                    // Try to get the tuple from a temporary parameter set by the iteration
-                    if (manager.Parameters.TryGetValue(variableName, out var param) && 
-                        param.Value is TupleInstance tupleInstance)
-                    {
-                        // Get the field value from the tuple
-                        var fieldValue = tupleInstance.GetValue(fieldAccess.FieldName);
-                        return fieldValue ?? throw new InvalidOperationException(
-                            $"Field '{fieldAccess.FieldName}' not found in tuple '{variableName}'");
-                    }
-                    
-                    throw new InvalidOperationException(
-                        $"Iterator variable '{variableName}' does not resolve to a tuple instance");
-                }
-                
-                // Not an iterator, evaluate normally
-                return fieldAccess.Evaluate(manager);
+                // Nested item() call
+                return nestedItem.EvaluateWithContext(manager, context);
             }
-            else if (keyExpr is DynamicTupleFieldAccessExpression dynamicFieldAccess)
+            else if (keyExpr is ItemFieldAccessExpression itemField)
             {
-                // Dynamic field access: iterator.field (where iterator is from forall/sum context)
-                if (context.TryGetIterator(dynamicFieldAccess.VariableName, out int iterValue))
+                // item(...).field
+                var tuple = ((ItemFunctionExpression)itemField.ItemExpression).EvaluateWithContext(manager, context) as TupleInstance;
+                return tuple?.GetValue(itemField.FieldName) 
+                    ?? throw new InvalidOperationException($"Field '{itemField.FieldName}' not found");
+            }
+            else if (keyExpr is DynamicTupleFieldAccessExpression dynamicField)
+            {
+                // variable.field where variable is an iterator
+                if (context.TryGetIterator(dynamicField.VariableName, out int iterValue))
                 {
-                    // Try to get the tuple from a temporary parameter
-                    if (manager.Parameters.TryGetValue(dynamicFieldAccess.VariableName, out var param) && 
+                    // Get tuple from temporary parameter
+                    if (manager.Parameters.TryGetValue(dynamicField.VariableName, out var param) && 
                         param.Value is TupleInstance tupleInstance)
                     {
-                        var fieldValue = tupleInstance.GetValue(dynamicFieldAccess.FieldName);
+                        var fieldValue = tupleInstance.GetValue(dynamicField.FieldName);
                         return fieldValue ?? throw new InvalidOperationException(
-                            $"Field '{dynamicFieldAccess.FieldName}' not found in tuple '{dynamicFieldAccess.VariableName}'");
+                            $"Field '{dynamicField.FieldName}' not found in tuple '{dynamicField.VariableName}'");
                     }
                     
-                    throw new InvalidOperationException(
-                        $"Iterator variable '{dynamicFieldAccess.VariableName}' does not resolve to a tuple instance");
+                    // ✅ NEW: Try to look up in tuple sets by index
+                    // This handles cases where iterator is numeric but refers to a tuple set position
+                    foreach (var tupleSet in manager.TupleSets.Values)
+                    {
+                        if (iterValue >= 1 && iterValue <= tupleSet.Instances.Count)
+                        {
+                            var tuple = tupleSet.Instances[iterValue - 1]; // 1-based
+                            var fieldValue = tuple.GetValue(dynamicField.FieldName);
+                            if (fieldValue != null)
+                            {
+                                return fieldValue;
+                            }
+                        }
+                    }
                 }
                 
-                // Evaluate normally
-                return dynamicFieldAccess.Evaluate(manager);
+                // Try to evaluate normally
+                var dict = new Dictionary<string, object>();
+                if (manager.Parameters.TryGetValue(dynamicField.VariableName, out var p) && p.Value != null)
+                {
+                    dict[dynamicField.VariableName] = p.Value;
+                }
+                
+                var resolvedValue = dynamicField.GetFieldValueWithContext(dict);
+                if (resolvedValue != null)
+                {
+                    return resolvedValue;
+                }
+                
+                throw new InvalidOperationException($"Cannot resolve {dynamicField}");
             }
             else if (keyExpr is ParameterExpression paramExpr)
             {
@@ -154,7 +143,7 @@ namespace Core.Models
                     return iterValue;
                 }
                 
-                // It's a regular parameter
+                // Regular parameter
                 if (manager.Parameters.TryGetValue(paramExpr.ParameterName, out var param))
                 {
                     return param.Value ?? throw new InvalidOperationException(
@@ -176,9 +165,6 @@ namespace Core.Models
             return keyExpr.Evaluate(manager);
         }
 
-        /// <summary>
-        /// Finds a tuple instance by matching its key fields
-        /// </summary>
         private TupleInstance? FindTupleByKey(TupleSet tupleSet, object key, ModelManager manager)
         {
             if (!manager.TupleSchemas.TryGetValue(tupleSet.SchemaName, out var schema))
@@ -240,9 +226,6 @@ namespace Core.Models
             return null;
         }
 
-        /// <summary>
-        /// Compares two values for equality, handling type conversions
-        /// </summary>
         private bool AreValuesEqual(object value1, object? value2)
         {
             if (value2 == null)
@@ -269,9 +252,6 @@ namespace Core.Models
             return false;
         }
 
-        /// <summary>
-        /// Formats a key for error messages
-        /// </summary>
         private string FormatKey(object key)
         {
             if (key is List<object> list)
@@ -279,13 +259,6 @@ namespace Core.Models
                 return $"<{string.Join(", ", list)}>";
             }
             return key.ToString() ?? "";
-        }
-
-        public override bool IsConstant => false;
-
-        public override string ToString()
-        {
-            return $"item({SetName}, {KeyExpression})";
         }
     }
 }
