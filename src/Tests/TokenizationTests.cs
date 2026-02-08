@@ -80,8 +80,8 @@ namespace Tests
             var manager = CreateModelManager();
             manager.AddIndexSet(new IndexSet("I", 1, 3));
             manager.AddIndexSet(new IndexSet("J", 1, 2));
-            
-            var param = new Parameter("cost", ParameterType.Float, "I", "J", isExternal:false);
+
+            var param = new Parameter("cost", ParameterType.Float, ["I", "J"], isExternal: false);
             manager.AddParameter(param);
             
             var tokenManager = new TokenManager();

@@ -46,7 +46,7 @@ namespace Core.Models
             else
             {
                 var indexValues = Indices.Select(i => (int)i.Evaluate(manager)).ToArray();
-                var value = param.GetIndexedValue(indexValues);
+                var value = param.GetMultiDimValue(indexValues);
                 return Convert.ToDouble(value);
             }
         }
@@ -76,7 +76,7 @@ namespace Core.Models
             else
             {
                 var indexValues = Indices.Select(i => (int)i.Evaluate(manager)).ToArray();
-                return param.GetIndexedValue(indexValues);
+                return param.GetMultiDimValue(indexValues);
             }
         }
     }

@@ -210,7 +210,7 @@ namespace Tests
             var parser = CreateParser(manager);
             string input = @"
                 range I = 1..3;
-                var float x[I];
+                dvar float x[I];
                 /* Cost constraint */
                 constraint: sum(i in I) x[i] <= 100;
             ";

@@ -31,6 +31,12 @@ namespace Core
         // Add field to EquationParser class:
         private readonly MultiDimensionalParser multiDimParser;
 
+        // Add field to EquationParser class
+        private readonly DvarParser dvarParser;
+
+        // In constructor, add:
+        private readonly MultiDimensionalParameterParser multiDimParamParser;
+
         public EquationParser(ModelManager manager)
         {
             modelManager = manager;
@@ -50,6 +56,12 @@ namespace Core
 
             // ADD THIS
             multiDimParser = new MultiDimensionalParser(manager);
+
+            // In constructor:
+            dvarParser = new DvarParser(manager, evaluator);
+
+            // In constructor, add:
+            multiDimParamParser = new MultiDimensionalParameterParser(manager, evaluator);
         }
 
 
@@ -516,6 +528,29 @@ namespace Core
             // Remove all references to AddIndexedParameter and AddIndexedSetCollection
     
             // Continue with regular parameter parsing, etc.
+            // 0.5. Multi-dimensional parameters (before regular parameters)
+            if (multiDimParamParser.TryParse(statement, out var multiDimParam1, out error))
+            {
+                if (multiDimParam1 != null)
+                {
+                    modelManager.AddParameter(multiDimParam1);
+                    result.IncrementSuccess();
+                    return;
+                }
+                else
+                {
+                    result.AddError($"\"{statement}\"\n  Error: {error}", lineNumber);
+                    return;
+                }
+            }
+            
+            if (!string.IsNullOrEmpty(error) && !IsNotRecognizedError(error))
+            {
+                result.AddError($"\"{statement}\"\n  Error: {error}", lineNumber);
+                return;
+            }
+            error = string.Empty;
+
             // 1. Parameters
             if (parameterParser.TryParse(statement, out Parameter param, out error))
             {
@@ -545,6 +580,29 @@ namespace Core
                 if (indexSet != null)
                 {
                     modelManager.AddIndexSet(indexSet);
+                    result.IncrementSuccess();
+                    return;
+                }
+                else
+                {
+                    result.AddError($"\"{statement}\"\n  Error: {error}", lineNumber);
+                    return;
+                }
+            }
+            
+            if (!string.IsNullOrEmpty(error) && !IsNotRecognizedError(error))
+            {
+                result.AddError($"\"{statement}\"\n  Error: {error}", lineNumber);
+                return;
+            }
+            error = string.Empty;
+
+            // 2.5. Dvar declarations (before regular var)
+            if (dvarParser.TryParse(statement, out var dvar, out error))
+            {
+                if (dvar != null)
+                {
+                    modelManager.AddIndexedVariable(dvar);
                     result.IncrementSuccess();
                     return;
                 }
@@ -747,6 +805,7 @@ namespace Core
             return error.Contains("Not a parameter", StringComparison.OrdinalIgnoreCase) ||
                    error.Contains("Not an index set", StringComparison.OrdinalIgnoreCase) ||
                    error.Contains("Not a variable", StringComparison.OrdinalIgnoreCase) ||
+                   error.Contains("Not a dvar declaration", StringComparison.OrdinalIgnoreCase) ||
                    error.Contains("Not a tuple", StringComparison.OrdinalIgnoreCase) ||
                    error.Contains("Not a primitive set", StringComparison.OrdinalIgnoreCase) ||
                    error.Contains("Not a set comprehension", StringComparison.OrdinalIgnoreCase) ||
@@ -755,6 +814,7 @@ namespace Core
                    error.Contains("Not an indexed parameter", StringComparison.OrdinalIgnoreCase) ||  
                    error.Contains("Not an indexed set", StringComparison.OrdinalIgnoreCase) ||        
                    error.Contains("Not an external multi-dimensional", StringComparison.OrdinalIgnoreCase) || 
+                   error.Contains("Not a multi-dimensional parameter", StringComparison.OrdinalIgnoreCase) || 
                    error.Contains("Not an equation", StringComparison.OrdinalIgnoreCase) ||
                    error.Contains("Not an objective", StringComparison.OrdinalIgnoreCase);
         }
@@ -843,6 +903,7 @@ namespace Core
                 if (!value2.StartsWith("{") || !value2.EndsWith("}"))
                 {
                     error = "Tuple set data must be enclosed in braces: {<...>, <...>}";
+
                     return false;
                 }
 
@@ -1411,174 +1472,173 @@ namespace Core
 }
         
 /// <summary>
-/// Tries to parse a regular (non-indexed) equation
-/// Examples: 
+///
 ///   "objective: 2*x + 3*y1 == 100"
 ///   "constraint: x + y1 >= 5"
 ///   "x + y == 10"
 /// </summary>
-private bool TryParseEquation(string equation, out LinearEquation? result, out string error)
-{
-    result = null;
-    error = string.Empty;
+//private bool TryParseEquation(string equation, out LinearEquation? result, out string error)
+//{
+//    result = null;
+//    error = string.Empty;
     
-    equation = equation.Trim();
+//    equation = equation.Trim();
     
-    // STEP 1: Early rejection of non-equation statements
-    if (equation.StartsWith("dexpr", StringComparison.OrdinalIgnoreCase) ||
-        equation.StartsWith("tuple", StringComparison.OrdinalIgnoreCase) ||
-        equation.StartsWith("range", StringComparison.OrdinalIgnoreCase) ||
-        equation.StartsWith("var ", StringComparison.OrdinalIgnoreCase) ||
-        equation.StartsWith("dvar ", StringComparison.OrdinalIgnoreCase) ||
-        equation.StartsWith("int ", StringComparison.OrdinalIgnoreCase) ||
-        equation.StartsWith("float ", StringComparison.OrdinalIgnoreCase) ||
-        equation.StartsWith("string ", StringComparison.OrdinalIgnoreCase) ||
-        equation.StartsWith("bool ", StringComparison.OrdinalIgnoreCase) ||
-        equation.StartsWith("minimize", StringComparison.OrdinalIgnoreCase) ||  // ADD THIS
-        equation.StartsWith("maximize", StringComparison.OrdinalIgnoreCase))    // ADD THIS
-    {
-        error = "Not an equation";
-        return false;
-    }
+//    // STEP 1: Early rejection of non-equation statements
+//    if (equation.StartsWith("dexpr", StringComparison.OrdinalIgnoreCase) ||
+//        equation.StartsWith("tuple", StringComparison.OrdinalIgnoreCase) ||
+//        equation.StartsWith("range", StringComparison.OrdinalIgnoreCase) ||
+//        equation.StartsWith("var ", StringComparison.OrdinalIgnoreCase) ||
+//        equation.StartsWith("dvar ", StringComparison.OrdinalIgnoreCase) ||
+//        equation.StartsWith("int ", StringComparison.OrdinalIgnoreCase) ||
+//        equation.StartsWith("float ", StringComparison.OrdinalIgnoreCase) ||
+//        equation.StartsWith("string ", StringComparison.OrdinalIgnoreCase) ||
+//        equation.StartsWith("bool ", StringComparison.OrdinalIgnoreCase) ||
+//        equation.StartsWith("minimize", StringComparison.OrdinalIgnoreCase) ||  // ADD THIS
+//        equation.StartsWith("maximize", StringComparison.OrdinalIgnoreCase))    // ADD THIS
+//    {
+//        error = "Not an equation";
+//        return false;
+//    }
     
-    // STEP 2: Reject indexed equation pattern (those are handled by TryParseIndexedEquation)
-    // Pattern: label[var in Set]: ...
-    if (Regex.IsMatch(equation, @"^[a-zA-Z][a-zA-Z0-9_]*\s*\[\s*[a-zA-Z][a-zA-Z0-9_]*\s+in\s+"))
-    {
-        error = "Not an equation"; // This is an indexed equation
-        return false;
-    }
+//    // STEP 2: Reject indexed equation pattern (those are handled by TryParseIndexedEquation)
+//    // Pattern: label[var in Set]: ...
+//    if (Regex.IsMatch(equation, @"^[a-zA-Z][a-zA-Z0-9_]*\s*\[\s*[a-zA-Z][a-zA-Z0-9_]*\s+in\s+"))
+//    {
+//        error = "Not an equation"; // This is an indexed equation
+//        return false;
+//    }
 
-    try
-    {
-        string equationText = equation;
-        string? label = null;
+//    try
+//    {
+//        string equationText = equation;
+//        string? label = null;
         
-        // STEP 3: Extract label if present (e.g., "objective: ...")
-        int colonIndex = equationText.IndexOf(':');
-        if (colonIndex > 0)
-        {
-            // Make sure the colon is not inside brackets or parentheses
-            if (!IsInsideBracketsOrParens(equationText, colonIndex))
-            {
-                string potentialLabel = equationText.Substring(0, colonIndex).Trim();
+//        // STEP 3: Extract label if present (e.g., "objective: ...")
+//        int colonIndex = equationText.IndexOf(':');
+//        if (colonIndex > 0)
+//        {
+//            // Make sure the colon is not inside brackets or parentheses
+//            if (!IsInsideBracketsOrParens(equationText, colonIndex))
+//            {
+//                string potentialLabel = equationText.Substring(0, colonIndex).Trim();
                 
-                // Validate: label should be a simple identifier (no spaces, brackets, etc.)
-                if (Regex.IsMatch(potentialLabel, @"^[a-zA-Z][a-zA-Z0-9_]*$"))
-                {
-                    label = potentialLabel;
-                    equationText = equationText.Substring(colonIndex + 1).Trim();
-                }
-            }
-        }
+//                // Validate: label should be a simple identifier (no spaces, brackets, etc.)
+//                if (Regex.IsMatch(potentialLabel, @"^[a-zA-Z][a-zA-Z0-9_]*$"))
+//                {
+//                    label = potentialLabel;
+//                    equationText = equationText.Substring(colonIndex + 1).Trim();
+//                }
+//            }
+//        }
         
-        // STEP 4: Find and split by relational operator
-        if (!SplitByOperator(equationText, out RelationalOperator op, out string[] parts, out error))
-        {
-            return false;
-        }
+//        // STEP 4: Find and split by relational operator
+//        if (!SplitByOperator(equationText, out RelationalOperator op, out string[] parts, out error))
+//        {
+//            return false;
+//        }
         
-        if (parts.Length != 2)
-        {
-            error = "Equation must have exactly two sides separated by a relational operator (==, <=, >=, <, >)";
-            return false;
-        }
+//        if (parts.Length != 2)
+//        {
+//            error = "Equation must have exactly two sides separated by a relational operator (==, <=, >=, <, >)";
+//            return false;
+//        }
         
-        string leftSide = parts[0].Trim();
-        string rightSide = parts[1].Trim();
+//        string leftSide = parts[0].Trim();
+//        string rightSide = parts[1].Trim();
         
-        if (string.IsNullOrWhiteSpace(leftSide))
-        {
-            error = "Left side of equation is empty";
-            return false;
-        }
+//        if (string.IsNullOrWhiteSpace(leftSide))
+//        {
+//            error = "Left side of equation is empty";
+//            return false;
+//        }
         
-        if (string.IsNullOrWhiteSpace(rightSide))
-        {
-            error = "Right side of equation is empty";
-            return false;
-        }
+//        if (string.IsNullOrWhiteSpace(rightSide))
+//        {
+//            error = "Right side of equation is empty";
+//            return false;
+//        }
 
-        // NORMALIZE: Remove spaces around operators
-        // This fixes "x - 2*y" being parsed incorrectly as "x" and "2*y" instead of "x" and "-2*y"
-        leftSide = Regex.Replace(leftSide, @"\s*([+\-*/])\s*", "$1");
-        rightSide = Regex.Replace(rightSide, @"\s*([+\-*/])\s*", "$1");
+//        // NORMALIZE: Remove spaces around operators
+//        // This fixes "x - 2*y" being parsed incorrectly as "x" and "2*y" instead of "x" and "-2*y"
+//        leftSide = Regex.Replace(leftSide, @"\s*([+\-*/])\s*", "$1");
+//        rightSide = Regex.Replace(rightSide, @"\s*([+\-*/])\s*", "$1");
         
-        // STEP 4.5: Validate no implicit multiplication
-        if (!ValidateNoImplicitMultiplication(leftSide, out string validationError))
-        {
-            error = $"Error in left side: {validationError}";
-            return false;
-        }
+//        // STEP 4.5: Validate no implicit multiplication
+//        if (!ValidateNoImplicitMultiplication(leftSide, out string validationError))
+//        {
+//            error = $"Error in left side: {validationError}";
+//            return false;
+//        }
 
-        if (!ValidateNoImplicitMultiplication(rightSide, out validationError))
-        {
-            error = $"Error in right side: {validationError}";
-            return false;
-        }
+//        if (!ValidateNoImplicitMultiplication(rightSide, out validationError))
+//        {
+//            error = $"Error in right side: {validationError}";
+//            return false;
+//        }
         
-        // STEP 5: Expand summations if present
-        leftSide = summationExpander.ExpandSummations(leftSide, out string sumError);
-        if (!string.IsNullOrEmpty(sumError))
-        {
-            error = $"Error in left side summation: {sumError}";
-            return false;
-        }
+//        // STEP 5: Expand summations if present
+//        leftSide = summationExpander.ExpandSummations(leftSide, out string sumError);
+//        if (!string.IsNullOrEmpty(sumError))
+//        {
+//            error = $"Error in left side summation: {sumError}";
+//            return false;
+//        }
         
-        rightSide = summationExpander.ExpandSummations(rightSide, out sumError);
-        if (!string.IsNullOrEmpty(sumError))
-        {
-            error = $"Error in right side summation: {sumError}";
-            return false;
-        }
+//        rightSide = summationExpander.ExpandSummations(rightSide, out sumError);
+//        if (!string.IsNullOrEmpty(sumError))
+//        {
+//            error = $"Error in right side summation: {sumError}";
+//            return false;
+//        }
         
-        // STEP 6: Expand parentheses multiplication (e.g., 2*(x+y) -> 2*x+2*y)
-        leftSide = parenthesesExpander.ExpandParenthesesMultiplication(leftSide);
-        rightSide = parenthesesExpander.ExpandParenthesesMultiplication(rightSide);
+//        // STEP 6: Expand parentheses multiplication (e.g., 2*(x+y) -> 2*x+2*y)
+//        leftSide = parenthesesExpander.ExpandParenthesesMultiplication(leftSide);
+//        rightSide = parenthesesExpander.ExpandParenthesesMultiplication(rightSide);
         
-        // STEP 7: Parse both sides as expressions
-        if (!expressionParser.TryParseExpression(leftSide, out var leftCoefficients, out var leftConstant, out error))
-        {
-            error = $"Error parsing left side: {error}";
-            return false;
-        }
+//        // STEP 7: Parse both sides as expressions
+//        if (!expressionParser.TryParseExpression(leftSide, out var leftCoefficients, out var leftConstant, out error))
+//        {
+//            error = $"Error parsing left side: {error}";
+//            return false;
+//        }
         
-        if (!expressionParser.TryParseExpression(rightSide, out var rightCoefficients, out var rightConstant, out error))
-        {
-            error = $"Error parsing right side: {error}";
-            return false;
-        }
+//        if (!expressionParser.TryParseExpression(rightSide, out var rightCoefficients, out var rightConstant, out error))
+//        {
+//            error = $"Error parsing right side: {error}";
+//            return false;
+//        }
         
-        // STEP 8: Combine coefficients (move everything to left side)
-        // Standard form: left - right {op} 0
-        // So we combine as: left - right
-        var combinedCoefficients = CombineCoefficients(leftCoefficients, rightCoefficients);
+//        // STEP 8: Combine coefficients (move everything to left side)
+//        // Standard form: left - right {op} 0
+//        // So we combine as: left - right
+//        var combinedCoefficients = CombineCoefficients(leftCoefficients, rightCoefficients);
         
-        // STEP 9: Calculate constant term
-        // Standard form: coeffs*vars {op} constant
-        // So constant = rightConstant - leftConstant
-        double leftConstantValue = leftConstant.Evaluate(modelManager);
-        double rightConstantValue = rightConstant.Evaluate(modelManager);
-        double constantValue = rightConstantValue - leftConstantValue;
+//        // STEP 9: Calculate constant term
+//        // Standard form: coeffs*vars {op} constant
+//        // So constant = rightConstant - leftConstant
+//        double leftConstantValue = leftConstant.Evaluate(modelManager);
+//        double rightConstantValue = rightConstant.Evaluate(modelManager);
+//        double constantValue = rightConstantValue - leftConstantValue;
         
-        // STEP 10: Create the equation
-        result = new LinearEquation
-        {
-            Label = label,
-            BaseName = label ?? "eq",
-            Coefficients = combinedCoefficients,
-            Constant = new ConstantExpression(constantValue),
-            Operator = op
-        };
+//        // STEP 10: Create the equation
+//        result = new LinearEquation
+//        {
+//            Label = label,
+//            BaseName = label ?? "eq",
+//            Coefficients = combinedCoefficients,
+//            Constant = new ConstantExpression(constantValue),
+//            Operator = op
+//        };
         
-        return true;
-    }
-    catch (Exception ex)
-    {
-        error = $"Unexpected error parsing equation: {ex.Message}";
-        return false;
-    }
-}
+//        return true;
+//    }
+//    catch (Exception ex)
+//    {
+//        error = $"Unexpected error parsing equation: {ex.Message}";
+//        return false;
+//    }
+//}
 
 /// <summary>
 /// Helper: Check if a character position is inside brackets or parentheses
@@ -2395,6 +2455,193 @@ private class Token
 }
 
 /// <summary>
+///
+///   "objective: 2*x + 3*y1 == 100"
+///   "constraint: x + y1 >= 5"
+///   "x + y == 10"
+/// </summary>
+private bool TryParseEquation(string equation, out LinearEquation? result, out string error)
+{
+    result = null;
+    error = string.Empty;
+    
+    equation = equation.Trim();
+    
+    // STEP 1: Early rejection of non-equation statements
+    if (equation.StartsWith("dexpr", StringComparison.OrdinalIgnoreCase) ||
+        equation.StartsWith("tuple", StringComparison.OrdinalIgnoreCase) ||
+        equation.StartsWith("range", StringComparison.OrdinalIgnoreCase) ||
+        equation.StartsWith("var ", StringComparison.OrdinalIgnoreCase) ||
+        equation.StartsWith("dvar ", StringComparison.OrdinalIgnoreCase) ||
+        equation.StartsWith("int ", StringComparison.OrdinalIgnoreCase) ||
+        equation.StartsWith("float ", StringComparison.OrdinalIgnoreCase) ||
+        equation.StartsWith("string ", StringComparison.OrdinalIgnoreCase) ||
+        equation.StartsWith("bool ", StringComparison.OrdinalIgnoreCase) ||
+        equation.StartsWith("minimize", StringComparison.OrdinalIgnoreCase) ||  // ADD THIS
+        equation.StartsWith("maximize", StringComparison.OrdinalIgnoreCase))    // ADD THIS
+    {
+        error = "Not an equation";
+        return false;
+    }
+    
+    // STEP 2: Reject indexed equation pattern (those are handled by TryParseIndexedEquation)
+    // Pattern: label[var in Set]: ...
+    if (Regex.IsMatch(equation, @"^[a-zA-Z][a-zA-Z0-9_]*\s*\[\s*[a-zA-Z][a-zA-Z0-9_]*\s+in\s+"))
+    {
+        error = "Not an equation"; // This is an indexed equation
+        return false;
+    }
+
+    try
+    {
+        string equationText = equation;
+        string? label = null;
+        
+        // STEP 3: Extract label if present (e.g., "objective: ...")
+        int colonIndex = equationText.IndexOf(':');
+        if (colonIndex > 0)
+        {
+            // Make sure the colon is not inside brackets or parentheses
+            if (!IsInsideBracketsOrParens(equationText, colonIndex))
+            {
+                string potentialLabel = equationText.Substring(0, colonIndex).Trim();
+                
+                // Validate: label should be a simple identifier (no spaces, brackets, etc.)
+                if (Regex.IsMatch(potentialLabel, @"^[a-zA-Z][a-zA-Z0-9_]*$"))
+                {
+                    label = potentialLabel;
+                    equationText = equationText.Substring(colonIndex + 1).Trim();
+                }
+            }
+        }
+        
+        // STEP 4: Find and split by relational operator
+        if (!SplitByOperator(equationText, out RelationalOperator op, out string[] parts, out error))
+        {
+            return false;
+        }
+        
+        if (parts.Length != 2)
+        {
+            error = "Equation must have exactly two sides separated by a relational operator (==, <=, >=, <, >)";
+            return false;
+        }
+        
+        string leftSide = parts[0].Trim();
+        string rightSide = parts[1].Trim();
+        
+        if (string.IsNullOrWhiteSpace(leftSide))
+        {
+            error = "Left side of equation is empty";
+            return false;
+        }
+        
+        if (string.IsNullOrWhiteSpace(rightSide))
+        {
+            error = "Right side of equation is empty";
+            return false;
+        }
+
+        // NORMALIZE: Remove spaces around operators
+        // This fixes "x - 2*y" being parsed incorrectly as "x" and "2*y" instead of "x" and "-2*y"
+        leftSide = Regex.Replace(leftSide, @"\s*([+\-*/])\s*", "$1");
+        rightSide = Regex.Replace(rightSide, @"\s*([+\-*/])\s*", "$1");
+        
+        // STEP 4.5: Validate no implicit multiplication
+        if (!ValidateNoImplicitMultiplication(leftSide, out string validationError))
+        {
+            error = $"Error in left side: {validationError}";
+            return false;
+        }
+
+        if (!ValidateNoImplicitMultiplication(rightSide, out validationError))
+        {
+            error = $"Error in right side: {validationError}";
+            return false;
+        }
+        
+        // STEP 5: Expand summations if present
+        leftSide = summationExpander.ExpandSummations(leftSide, out string sumError);
+        if (!string.IsNullOrEmpty(sumError))
+        {
+            error = $"Error in left side summation: {sumError}";
+            return false;
+        }
+        
+        rightSide = summationExpander.ExpandSummations(rightSide, out sumError);
+        if (!string.IsNullOrEmpty(sumError))
+        {
+            error = $"Error in right side summation: {sumError}";
+            return false;
+        }
+        
+        // STEP 6: Expand parentheses multiplication (e.g., 2*(x+y) -> 2*x+2*y)
+        leftSide = parenthesesExpander.ExpandParenthesesMultiplication(leftSide);
+        rightSide = parenthesesExpander.ExpandParenthesesMultiplication(rightSide);
+        
+        // STEP 7: Parse both sides as expressions
+        if (!expressionParser.TryParseExpression(leftSide, out var leftCoefficients, out var leftConstant, out error))
+        {
+            error = $"Error parsing left side: {error}";
+            return false;
+        }
+        
+        if (!expressionParser.TryParseExpression(rightSide, out var rightCoefficients, out var rightConstant, out error))
+        {
+            error = $"Error parsing right side: {error}";
+            return false;
+        }
+        
+        // STEP 8: Combine coefficients (move everything to left side)
+        // Standard form: left - right {op} 0
+        // So we combine as: left - right
+        var combinedCoefficients = CombineCoefficients(leftCoefficients, rightCoefficients);
+        
+        // STEP 9: Calculate constant term
+        // Standard form: coeffs*vars {op} constant
+        // So constant = rightConstant - leftConstant
+        double leftConstantValue = leftConstant.Evaluate(modelManager);
+        double rightConstantValue = rightConstant.Evaluate(modelManager);
+        double constantValue = rightConstantValue - leftConstantValue;
+        
+        // STEP 10: Create the equation
+        result = new LinearEquation
+        {
+            Label = label,
+            BaseName = label ?? "eq",
+            Coefficients = combinedCoefficients,
+            Constant = new ConstantExpression(constantValue),
+            Operator = op
+        };
+        
+        return true;
+    }
+    catch (Exception ex)
+    {
+        error = $"Unexpected error parsing equation: {ex.Message}";
+        return false;
+    }
+}
+
+private bool IsValidOplSyntax(string firstWord, string secondWord)
+{
+    string first = firstWord.ToLower();
+    string second = secondWord.ToLower();
+    
+    // Type declarations: "int x", "float y", etc.
+    var types = new[] { "int", "float", "string", "bool", "range", "tuple", "dvar", "var", "dexpr" };
+    if (types.Contains(first))
+        return true;
+    
+    // Keywords that can be followed by identifiers
+    var validFirstWords = new[] { "subject", "key", "minimize", "maximize" };
+    if (validFirstWords.Contains(first))
+        return true;
+    
+    return false;
+}
+
+/// <summary>
 /// Tokenizes only the top level of an expression (content inside parens is treated as single token)
 /// </summary>
 private List<Token> TokenizeTopLevel(string expression)
@@ -2475,8 +2722,9 @@ private Token ClassifyToken(string value)
     if (string.IsNullOrEmpty(value))
         return new Token(TokenType.Other, value);
     
-    // Check if it's a number
-    if (double.TryParse(value, out _))
+    // Check if it's a number (including scientific notation)
+    if (double.TryParse(value, System.Globalization.NumberStyles.Float,
+            System.Globalization.CultureInfo.InvariantCulture, out _))
         return new Token(TokenType.Number, value);
     
     // Check if it's an identifier
@@ -2484,24 +2732,6 @@ private Token ClassifyToken(string value)
         return new Token(TokenType.Identifier, value);
     
     return new Token(TokenType.Other, value);
-}
-
-private bool IsValidOplSyntax(string firstWord, string secondWord)
-{
-    string first = firstWord.ToLower();
-    string second = secondWord.ToLower();
-    
-    // Type declarations: "int x", "float y", etc.
-    var types = new[] { "int", "float", "string", "bool", "range", "tuple", "dvar", "var", "dexpr" };
-    if (types.Contains(first))
-        return true;
-    
-    // Keywords that can be followed by identifiers
-    var validFirstWords = new[] { "subject", "key", "minimize", "maximize" };
-    if (validFirstWords.Contains(first))
-        return true;
-    
-    return false;
 }
 
 /// <summary>

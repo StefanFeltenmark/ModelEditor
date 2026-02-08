@@ -1,4 +1,4 @@
-﻿namespace Core.Models
+﻿    namespace Core.Models
 {
     /// <summary>
     /// Represents a variable in the optimization model with optional indexing

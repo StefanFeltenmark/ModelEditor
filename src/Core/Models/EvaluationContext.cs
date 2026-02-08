@@ -1,7 +1,11 @@
+using System;
+using System.Collections.Generic;
+
 namespace Core.Models
 {
     /// <summary>
     /// Tracks iterator variable values during expression evaluation
+    /// Used for multi-dimensional parameters and nested expressions
     /// </summary>
     public class EvaluationContext
     {
@@ -26,6 +30,11 @@ namespace Core.Models
             return iteratorValues.ContainsKey(name);
         }
 
+        public bool TryGetIterator(string name, out int value)
+        {
+            return iteratorValues.TryGetValue(name, out value);
+        }
+
         public EvaluationContext Clone()
         {
             var clone = new EvaluationContext();
@@ -34,6 +43,11 @@ namespace Core.Models
                 clone.SetIterator(kvp.Key, kvp.Value);
             }
             return clone;
+        }
+
+        public Dictionary<string, int> GetAllIterators()
+        {
+            return new Dictionary<string, int>(iteratorValues);
         }
     }
 }

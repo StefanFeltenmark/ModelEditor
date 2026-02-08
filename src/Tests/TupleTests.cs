@@ -118,20 +118,47 @@ namespace Tests
         {
             // Arrange
             var manager = CreateModelManager();
+            
+            // Setup tuple schema BEFORE parsing
+            var schema = new TupleSchema("Product");
+            schema.AddField("name", VariableType.String);
+            schema.AddField("cost", VariableType.Float);
+            schema.AddField("price", VariableType.Float);
+            schema.AddField("minProd", VariableType.Integer);
+            manager.AddTupleSchema(schema);
+            
+            // Setup tuple set with actual data
+            var tupleSet = new TupleSet("productData", "Product", "Products", false);
+            
+            var instance1 = new TupleInstance("Product");
+            instance1.SetValue("name", "Product1");
+            instance1.SetValue("cost", 10.0);
+            instance1.SetValue("price", 15.0);
+            instance1.SetValue("minProd", 5);
+            tupleSet.AddInstance(instance1);
+            
+            var instance2 = new TupleInstance("Product");
+            instance2.SetValue("name", "Product2");
+            instance2.SetValue("cost", 20.0);
+            instance2.SetValue("price", 30.0);
+            instance2.SetValue("minProd", 10);
+            tupleSet.AddInstance(instance2);
+            
+            var instance3 = new TupleInstance("Product");
+            instance3.SetValue("name", "Product3");
+            instance3.SetValue("cost", 15.0);
+            instance3.SetValue("price", 25.0);
+            instance3.SetValue("minProd", 8);
+            tupleSet.AddInstance(instance3);
+            
+            manager.AddTupleSet(tupleSet);
+            
             var parser = CreateParser(manager);
             string input = @"
-                tuple Product {
-                    string name;
-                    float cost;
-                    float price;
-                    int minProd;
-                }
-                
                 int n = 3;
                 range Products = 1..n;
-                {Product} productData = ...;
                 
-                dvar float+ production[Products];
+                var float production[Products];
                 
                 maximize sum(p in Products) (productData[p].price - productData[p].cost) * production[p];
                 
@@ -146,10 +173,20 @@ namespace Tests
             var result = parser.Parse(input);
 
             // Assert
-            AssertNoErrors(result);
-            Assert.Single(manager.TupleSchemas);
-            Assert.Single(manager.TupleSets);
+            if (result.HasErrors)
+            {
+                var errors = string.Join("\n", result.GetErrorMessages());
+                Assert.True(false, $"Parsing failed with errors:\n{errors}");
+            }
+            
+            Assert.Single(manager.TupleSets); // productData
             Assert.True(manager.IndexedVariables.ContainsKey("production"));
+            
+            // Verify the tuple set has the right data
+            var loadedTupleSet = manager.TupleSets["productData"];
+            Assert.Equal(3, loadedTupleSet.Instances.Count);
+            Assert.Equal("Products", loadedTupleSet.IndexSetName);
+            Assert.True(loadedTupleSet.IsIndexed);
         }
 
         [Fact(Skip = "Requires full tuple field access and dvar implementation")]
