@@ -2364,26 +2364,35 @@ private Dictionary<string, Expression> CombineCoefficients(
                 }
             }
 
-            if (exprStr.StartsWith("if", StringComparison.OrdinalIgnoreCase))
+            if (exprStr.StartsWith("if", StringComparison.OrdinalIgnoreCase) ||
+                (exprStr.Contains("?") && exprStr.Contains(":")))
             {
                 if (TryParseConditional(exprStr, out var conditional))
                 {
                     return conditional;
                 }
             }
-
-            // **ENHANCED: Summation with filter**
+            
             var sumMatch = Regex.Match(exprStr, 
-                @"^\s*sum\s*\(([^:)]+)(?::(.+))?\)\s*(.+)$",
+                @"^\s*sum\s*\(([^)]+)\)\s*(.+)$",
                 RegexOptions.IgnoreCase);
     
             if (sumMatch.Success)
             {
                 string iteratorsPart = sumMatch.Groups[1].Value;
-                string? filterPart = sumMatch.Groups[2].Success ? sumMatch.Groups[2].Value : null;
-                string bodyStr = sumMatch.Groups[3].Value.Trim();
+                string bodyStr = sumMatch.Groups[2].Value.Trim();
         
-                // Parse iterators (could be multiple: "i in Set1, j in Set2")
+                // Check if there's a filter (colon inside the parentheses)
+                int colonIndex = FindTopLevelChar(iteratorsPart, ':');
+        
+                string? filterPart = null;
+                if (colonIndex > 0)
+                {
+                    filterPart = iteratorsPart.Substring(colonIndex + 1).Trim();
+                    iteratorsPart = iteratorsPart.Substring(0, colonIndex).Trim();
+                }
+        
+                // Parse iterators
                 var iterators = ParseSummationIterators(iteratorsPart, out var error);
                 if (iterators == null || iterators.Count == 0)
                 {
@@ -2405,7 +2414,7 @@ private Dictionary<string, Expression> CombineCoefficients(
         
                 Expression bodyExpr = ParseExpression(bodyStr);
         
-                // Create filtered summation
+                // Create filtered/simple summation
                 if (iterators.Count == 1 && filter == null)
                 {
                     // Simple summation
@@ -2417,6 +2426,8 @@ private Dictionary<string, Expression> CombineCoefficients(
                     return new FilteredSummationExpression(iterators, filter, bodyExpr);
                 }
             }
+
+           
             // CHECK: Is this a summation expression?
             var sumMatch1 = Regex.Match(exprStr, 
                 @"^\s*sum\s*\(\s*([a-zA-Z][a-zA-Z0-9_]*)\s+in\s+([a-zA-Z][a-zA-Z0-9_]*)\s*\)\s*(.+)$",
@@ -2820,18 +2831,18 @@ private bool IsValidOplSyntax(string firstWord, string secondWord)
     string first = firstWord.ToLower();
     string second = secondWord.ToLower();
     
-    // Type declarations: "int x", "float y", etc.
+    // Type declarations
     var types = new[] { "int", "float", "string", "bool", "range", "tuple", "dvar", "var", "dexpr" };
     if (types.Contains(first))
         return true;
     
     // Keywords that can be followed by identifiers
-    var validFirstWords = new[] { "subject", "key", "minimize", "maximize", "forall", "sum" };
+    var validFirstWords = new[] { "subject", "key", "minimize", "maximize", "forall", "sum", "if", "else" };
     if (validFirstWords.Contains(first))
         return true;
     
-    // "in" keyword (used in iterators: "i in Set")
-    if (second == "in")
+    // Special patterns
+    if (second == "in" || first == "in")
         return true;
     
     return false;

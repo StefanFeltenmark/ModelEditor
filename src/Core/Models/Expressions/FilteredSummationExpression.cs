@@ -1,3 +1,7 @@
+using System;
+using System.Collections.Generic;
+using System.Linq;
+
 namespace Core.Models
 {
     /// <summary>
@@ -35,19 +39,27 @@ namespace Core.Models
                     try
                     {
                         double filterResult = Filter.Evaluate(manager);
-                        if (Math.Abs(filterResult - 1.0) > 1e-10) // Not true
+                        // 0 = false, non-zero = true
+                        if (Math.Abs(filterResult) < 1e-10)
                         {
-                            return; // Skip this combination
+                            return; // Filter failed, skip this combination
                         }
                     }
                     catch
                     {
-                        return; // Filter failed, skip
+                        return; // Filter evaluation failed, skip
                     }
                 }
                 
                 // Evaluate body and add to sum
-                sum += Body.Evaluate(manager);
+                try
+                {
+                    sum += Body.Evaluate(manager);
+                }
+                catch
+                {
+                    // Skip invalid evaluations
+                }
                 return;
             }
 
@@ -57,7 +69,7 @@ namespace Core.Models
             foreach (var value in range)
             {
                 context[varName] = value;
-                manager.SetParameter(varName, value is int i ? i : 0);
+                SetTemporaryParameter(manager, varName, value);
                 
                 try
                 {
@@ -72,15 +84,43 @@ namespace Core.Models
 
         private List<int> GetRange(ModelManager manager, string setName)
         {
+            // Try range first
             if (manager.Ranges.TryGetValue(setName, out var range))
             {
                 return range.GetValues(manager).ToList();
             }
+            
+            // Try index set
             if (manager.IndexSets.TryGetValue(setName, out var indexSet))
             {
                 return indexSet.GetIndices().ToList();
             }
+            
+            // Try primitive set
+            if (manager.PrimitiveSets.TryGetValue(setName, out var primitiveSet))
+            {
+                if (primitiveSet.Type == PrimitiveSetType.Int)
+                {
+                    return primitiveSet.GetIntValues().ToList();
+                }
+            }
+            
             return new List<int>();
+        }
+
+        private void SetTemporaryParameter(ModelManager manager, string name, object value)
+        {
+            ParameterType type = value switch
+            {
+                int => ParameterType.Integer,
+                double => ParameterType.Float,
+                string => ParameterType.String,
+                bool => ParameterType.Boolean,
+                _ => ParameterType.Integer
+            };
+
+            var param = new Parameter(name, type, value);
+            manager.Parameters[name] = param;
         }
 
         public override string ToString()
@@ -91,5 +131,13 @@ namespace Core.Models
         }
 
         public override bool IsConstant => false;
+
+        public override Expression Simplify(ModelManager? modelManager = null)
+        {
+            var simplifiedBody = Body.Simplify(modelManager);
+            var simplifiedFilter = Filter?.Simplify(modelManager);
+
+            return new FilteredSummationExpression(Iterators, simplifiedFilter, simplifiedBody);
+        }
     }
 }

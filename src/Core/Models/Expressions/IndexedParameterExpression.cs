@@ -26,6 +26,7 @@ namespace Core.Models
             Indices = indices;
         }
 
+
         public override double Evaluate(ModelManager manager)
         {
             var param = manager.Parameters[ParameterName];

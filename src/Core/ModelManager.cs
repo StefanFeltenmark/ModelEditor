@@ -600,5 +600,26 @@ namespace Core
                 }
             }
         }
+
+        // Add this helper method to ModelManager
+
+/// <summary>
+/// Sets a temporary parameter (used during forall/summation expansion)
+/// </summary>
+public void SetParameter(string name, object value)
+{
+    ParameterType type = value switch
+    {
+        int => ParameterType.Integer,
+        double => ParameterType.Float,
+        string => ParameterType.String,
+        bool => ParameterType.Boolean,
+        TupleInstance => ParameterType.String, // Tuple instances stored as string type
+        _ => ParameterType.Integer
+    };
+
+    var param = new Parameter(name, type, value);
+    Parameters[name] = param;
+}
     }
 }

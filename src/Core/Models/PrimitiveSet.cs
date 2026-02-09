@@ -1,4 +1,4 @@
-    namespace Core.Models
+namespace Core.Models
 {
     /// <summary>
     /// Represents a set of primitive values (int, string, float) compatible with OPL syntax
@@ -167,6 +167,14 @@
             
             return $"{{{typeStr}}} {Name} = {{{values}}}";
         }
+        
+        /// <summary>
+        /// Gets all elements as objects (for iteration in forall)
+        /// </summary>
+        //public List<object> GetAllValues()
+        //{
+        //    return Elements.Cast<object>().ToList();
+        //}
     }
     
     /// <summary>

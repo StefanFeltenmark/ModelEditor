@@ -65,52 +65,40 @@ namespace Core.Models
 
         private object ResolveKeyWithContext(Expression keyExpr, ModelManager manager, EvaluationContext context)
         {
-            if (keyExpr is CompositeKeyExpression compositeKey)
+            // Handle numeric index
+            if (keyExpr is ConstantExpression constExpr)
             {
-                // Multi-part key: <field1, field2, ...>
-                var resolvedParts = new List<object>();
-                
-                foreach (var part in compositeKey.KeyParts)
+                return constExpr.Value;
+            }
+            
+            // Handle parameter reference
+            if (keyExpr is ParameterExpression paramExpr)
+            {
+                if (manager.Parameters.TryGetValue(paramExpr.ParameterName, out var param))
                 {
-                    var resolvedPart = ResolveKeyWithContext(part, manager, context);
-                    resolvedParts.Add(resolvedPart);
+                    return param.Value ?? throw new InvalidOperationException(
+                        $"Parameter '{paramExpr.ParameterName}' has no value");
                 }
                 
-                return resolvedParts;
+                // Check evaluation context (for iterators)
+                if (context.TryGetIterator(paramExpr.ParameterName, out var iterValue))
+                {
+                    return iterValue;
+                }
             }
-            else if (keyExpr is ItemFunctionExpression nestedItem)
+            
+            // **ENHANCED: Handle dynamic tuple field access with iterator context**
+            if (keyExpr is DynamicTupleFieldAccessExpression dynamicField)
             {
-                // Nested item() call
-                return nestedItem.EvaluateWithContext(manager, context);
-            }
-            else if (keyExpr is ItemFieldAccessExpression itemField)
-            {
-                // item(...).field
-                var tuple = ((ItemFunctionExpression)itemField.ItemExpression).EvaluateWithContext(manager, context) as TupleInstance;
-                return tuple?.GetValue(itemField.FieldName) 
-                    ?? throw new InvalidOperationException($"Field '{itemField.FieldName}' not found");
-            }
-            else if (keyExpr is DynamicTupleFieldAccessExpression dynamicField)
-            {
-                // variable.field where variable is an iterator
+                // Try iterator context first
                 if (context.TryGetIterator(dynamicField.VariableName, out int iterValue))
                 {
-                    // Get tuple from temporary parameter
-                    if (manager.Parameters.TryGetValue(dynamicField.VariableName, out var param) && 
-                        param.Value is TupleInstance tupleInstance)
-                    {
-                        var fieldValue = tupleInstance.GetValue(dynamicField.FieldName);
-                        return fieldValue ?? throw new InvalidOperationException(
-                            $"Field '{dynamicField.FieldName}' not found in tuple '{dynamicField.VariableName}'");
-                    }
-                    
-                    // ✅ NEW: Try to look up in tuple sets by index
-                    // This handles cases where iterator is numeric but refers to a tuple set position
+                    // Look up tuple from sets by position (1-based indexing)
                     foreach (var tupleSet in manager.TupleSets.Values)
                     {
                         if (iterValue >= 1 && iterValue <= tupleSet.Instances.Count)
                         {
-                            var tuple = tupleSet.Instances[iterValue - 1]; // 1-based
+                            var tuple = tupleSet.Instances[iterValue - 1]; // Convert to 0-based
                             var fieldValue = tuple.GetValue(dynamicField.FieldName);
                             if (fieldValue != null)
                             {
@@ -120,7 +108,16 @@ namespace Core.Models
                     }
                 }
                 
-                // Try to evaluate normally
+                // Try temporary parameter (tuple instance)
+                if (manager.Parameters.TryGetValue(dynamicField.VariableName, out var param) && 
+                    param.Value is TupleInstance tupleInstance)
+                {
+                    var fieldValue = tupleInstance.GetValue(dynamicField.FieldName);
+                    return fieldValue ?? throw new InvalidOperationException(
+                        $"Field '{dynamicField.FieldName}' not found in tuple '{dynamicField.VariableName}'");
+                }
+                
+                // Try to evaluate field access with context
                 var dict = new Dictionary<string, object>();
                 if (manager.Parameters.TryGetValue(dynamicField.VariableName, out var p) && p.Value != null)
                 {
@@ -135,34 +132,29 @@ namespace Core.Models
                 
                 throw new InvalidOperationException($"Cannot resolve {dynamicField}");
             }
-            else if (keyExpr is ParameterExpression paramExpr)
+            
+            // **NEW: Handle angle bracket tuple key expression**
+            if (keyExpr is TupleKeyExpression tupleKey)
             {
-                // Check if it's an iterator variable
-                if (context.TryGetIterator(paramExpr.ParameterName, out int iterValue))
-                {
-                    return iterValue;
-                }
-                
-                // Regular parameter
-                if (manager.Parameters.TryGetValue(paramExpr.ParameterName, out var param))
-                {
-                    return param.Value ?? throw new InvalidOperationException(
-                        $"Parameter '{paramExpr.ParameterName}' has no value");
-                }
-                
-                throw new InvalidOperationException($"Parameter '{paramExpr.ParameterName}' not found");
+                // Evaluate the inner expression to get the key value
+                return ResolveKeyWithContext(tupleKey.InnerExpression, manager, context);
             }
-            else if (keyExpr is ConstantExpression constExpr)
-            {
-                return constExpr.Value;
-            }
-            else if (keyExpr is StringConstantExpression strConst)
+            
+            // Handle string constant
+            if (keyExpr is StringConstantExpression strConst)
             {
                 return strConst.Value;
             }
             
-            // Fallback: try to evaluate as numeric
-            return keyExpr.Evaluate(manager);
+            // Fallback: try to evaluate the expression
+            try
+            {
+                return keyExpr.Evaluate(manager);
+            }
+            catch
+            {
+                throw new InvalidOperationException($"Cannot resolve key expression: {keyExpr}");
+            }
         }
 
         private TupleInstance? FindTupleByKey(TupleSet tupleSet, object key, ModelManager manager)

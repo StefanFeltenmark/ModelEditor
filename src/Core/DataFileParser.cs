@@ -99,6 +99,14 @@ namespace Core
                 result.IncrementSuccess();
                 return;
             }
+            
+            // Check if this is a meaningful error (not just "not recognized")
+            if (!string.IsNullOrEmpty(error) && !IsNotRecognizedError(error))
+            {
+                result.AddError($"\"{statement}\"\n  Error: {error}", lineNumber);
+                return;
+            }
+            error = string.Empty;
 
             // Try two-dimensional indexed parameter: paramName[i,j] = value
             if (TryParseTwoDimensionalAssignment(statement, out error))
@@ -106,6 +114,13 @@ namespace Core
                 result.IncrementSuccess();
                 return;
             }
+            
+            if (!string.IsNullOrEmpty(error) && !IsNotRecognizedError(error))
+            {
+                result.AddError($"\"{statement}\"\n  Error: {error}", lineNumber);
+                return;
+            }
+            error = string.Empty;
 
             // Try single-dimensional indexed parameter: paramName[i] = value
             if (TryParseSingleDimensionalAssignment(statement, out error))
@@ -113,6 +128,13 @@ namespace Core
                 result.IncrementSuccess();
                 return;
             }
+    
+            if (!string.IsNullOrEmpty(error) && !IsNotRecognizedError(error))
+            {
+                result.AddError($"\"{statement}\"\n  Error: {error}", lineNumber);
+                return;
+            }
+            error = string.Empty;
 
             // Try scalar parameter: paramName = value or type paramName = value
             if (TryParseScalarAssignment(statement, out error))
@@ -120,6 +142,13 @@ namespace Core
                 result.IncrementSuccess();
                 return;
             }
+    
+            if (!string.IsNullOrEmpty(error) && !IsNotRecognizedError(error))
+            {
+                result.AddError($"\"{statement}\"\n  Error: {error}", lineNumber);
+                return;
+            }
+            error = string.Empty;
 
             // Try tuple data: setName = { <field1, field2, ...>, <...>, ... };
             if (TryParseTupleData(statement, out error))
@@ -127,6 +156,13 @@ namespace Core
                 result.IncrementSuccess();
                 return;
             }
+    
+            if (!string.IsNullOrEmpty(error) && !IsNotRecognizedError(error))
+            {
+                result.AddError($"\"{statement}\"\n  Error: {error}", lineNumber);
+                return;
+            }
+            error = string.Empty;
 
             // Try primitive set data: setName = {value1, value2, ...}
             if (TryParsePrimitiveSetData(statement, out error))
@@ -134,8 +170,31 @@ namespace Core
                 result.IncrementSuccess();
                 return;
             }
+    
+            if (!string.IsNullOrEmpty(error) && !IsNotRecognizedError(error))
+            {
+                result.AddError($"\"{statement}\"\n  Error: {error}", lineNumber);
+                return;
+            }
 
-            result.AddError($"\"{statement}\"\n  Error: {error}", lineNumber);
+            // Nothing matched
+            result.AddError($"\"{statement}\"\n  Error: Unknown statement type", lineNumber);
+        }
+
+        /// <summary>
+        /// Checks if an error is just "not recognized" vs an actual parse error
+        /// </summary>
+        private bool IsNotRecognizedError(string error)
+        {
+            if (string.IsNullOrEmpty(error))
+                return true;
+            
+            return error.Contains("Not a vector", StringComparison.OrdinalIgnoreCase) ||
+                   error.Contains("Not a 2D indexed", StringComparison.OrdinalIgnoreCase) ||
+                   error.Contains("Not a 1D indexed", StringComparison.OrdinalIgnoreCase) ||
+                   error.Contains("Not a scalar", StringComparison.OrdinalIgnoreCase) ||
+                   error.Contains("Not a primitive set", StringComparison.OrdinalIgnoreCase) ||
+                   error.StartsWith("Tuple set", StringComparison.OrdinalIgnoreCase);
         }
 
         private bool TryParseVectorAssignment(string statement, out string error)
@@ -589,6 +648,13 @@ namespace Core
             string typeStr = match.Groups[1].Value.ToLower();
             string paramName = match.Groups[2].Value;
             string valueStr = match.Groups[3].Value.Trim();
+
+            // **EARLY REJECTION: If value starts with { or [, it's a set/vector/matrix, not scalar**
+            if (valueStr.StartsWith("{") || valueStr.StartsWith("["))
+            {
+                error = "Not a scalar parameter assignment";
+                return false;
+            }
 
             if (!modelManager.Parameters.TryGetValue(paramName, out var param))
             {
