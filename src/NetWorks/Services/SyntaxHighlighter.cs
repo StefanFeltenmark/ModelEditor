@@ -5,26 +5,40 @@ using ModelEditorApp.Extensions;
 namespace ModelEditorApp.Services
 {
     /// <summary>
-    /// Handles syntax highlighting for the equation editor
+    /// Handles syntax highlighting for OPL model files
     /// </summary>
     public class SyntaxHighlighter
     {
         private readonly RichTextBox richTextBox;
-        private bool isHighlighting = false;
+        private bool isHighlighting;
+        private System.Windows.Forms.Timer? debounceTimer;
 
         // Color scheme
-        private static readonly Color CommentColor = Color.Gray;
-        private static readonly Color StringColor = Color.Brown;
-        private static readonly Color KeywordColor = Color.Blue;
-        private static readonly Color TypeColor = Color.DarkBlue;
-        private static readonly Color NumberColor = Color.DarkOrange;
-        private static readonly Color OperatorColor = Color.Red;
-        private static readonly Color LabelColor = Color.DarkCyan;
-        private static readonly Color ArithmeticOperatorColor = Color.Crimson;
-        private static readonly Color BracketColor = Color.DarkMagenta;
-        private static readonly Color SemicolonColor = Color.Purple;
-        private static readonly Color IdentifierColor = Color.DarkGreen;
-        private static readonly Color RangeOperatorColor = Color.DarkViolet;
+        private static readonly Color CommentColor = Color.FromArgb(87, 166, 74);
+        private static readonly Color StringColor = Color.FromArgb(214, 157, 133);
+        private static readonly Color KeywordColor = Color.FromArgb(86, 156, 214);
+        private static readonly Color TypeColor = Color.FromArgb(78, 201, 176);
+        private static readonly Color NumberColor = Color.FromArgb(181, 206, 168);
+        private static readonly Color OperatorColor = Color.FromArgb(180, 180, 180);
+        private static readonly Color LabelColor = Color.FromArgb(220, 220, 170);
+        private static readonly Color BracketColor = Color.FromArgb(218, 112, 214);
+        private static readonly Color FunctionColor = Color.FromArgb(220, 220, 170);
+        private static readonly Color DirectiveColor = Color.FromArgb(155, 155, 155);
+        private static readonly Color DefaultColor = Color.FromArgb(212, 212, 212);
+
+        private static readonly string[] Keywords =
+        [
+            "forall", "sum", "maximize", "minimize", "subject", "to",
+            "dvar", "dexpr", "constraint", "tuple", "key",
+            "range", "in", "execute",
+            "if", "else", "and", "or", "not",
+            "item", "ord", "first", "last", "next", "prev", "card"
+        ];
+
+        private static readonly string[] TypeKeywords =
+        [
+            "int", "float", "bool", "string"
+        ];
 
         // Windows API to prevent painting
         [DllImport("user32.dll")]
@@ -36,57 +50,103 @@ namespace ModelEditorApp.Services
             richTextBox = textBox;
         }
 
+        /// <summary>
+        /// Attaches the highlighter to the RichTextBox so it re-highlights on edits.
+        /// </summary>
+        public void Attach()
+        {
+            debounceTimer = new System.Windows.Forms.Timer { Interval = 300 };
+            debounceTimer.Tick += (s, e) =>
+            {
+                debounceTimer.Stop();
+                ApplySyntaxHighlighting();
+            };
+
+            richTextBox.TextChanged += (s, e) =>
+            {
+                if (!isHighlighting)
+                {
+                    debounceTimer.Stop();
+                    debounceTimer.Start();
+                }
+            };
+
+            // Initial highlight
+            ApplySyntaxHighlighting();
+        }
+
         public void ApplySyntaxHighlighting()
         {
-            if (isHighlighting)
+            if (isHighlighting || !richTextBox.IsHandleCreated)
                 return;
 
             isHighlighting = true;
 
-            // Suspend drawing to reduce flicker
             SendMessage(richTextBox.Handle, WM_SETREDRAW, false, 0);
 
             try
             {
-                // Save current selection and scroll position
                 int selectionStart = richTextBox.SelectionStart;
                 int selectionLength = richTextBox.SelectionLength;
                 int scrollPosition = GetScrollPos();
 
-                // Reset all text to default color
+                // Reset all text to default
                 richTextBox.SelectAll();
-                richTextBox.SelectionColor = Color.Black;
+                richTextBox.SelectionColor = DefaultColor;
                 richTextBox.SelectionFont = new Font(richTextBox.Font, FontStyle.Regular);
 
                 string text = richTextBox.Text;
-                var highlightedPositions = new HashSet<int>();
+                var highlighted = new HashSet<int>();
 
-                // Apply highlighting in order of priority (first wins for overlapping regions)
-                HighlightPatternWithTracking(text, @"//.*$", CommentColor, RegexOptions.Multiline, highlightedPositions, FontStyle.Italic);
-                HighlightPatternWithTracking(text, @"""[^""]*""", StringColor, RegexOptions.None, highlightedPositions);
-                HighlightPatternWithTracking(text, @"\.\.", RangeOperatorColor, RegexOptions.None, highlightedPositions);
-                HighlightPatternWithTracking(text, @"(==|<=|>=|≤|≥|<|>)", OperatorColor, RegexOptions.None, highlightedPositions, FontStyle.Bold);
-                HighlightPatternWithTracking(text, @"\b(var|range|equation|execute)\b", KeywordColor, RegexOptions.None, highlightedPositions, FontStyle.Bold);
-                HighlightPatternWithTracking(text, @"\b(float|int|bool|string)\b", TypeColor, RegexOptions.None, highlightedPositions, FontStyle.Bold);
-                HighlightPatternWithTracking(text, @"\b\d+(?:\.\d+)?\b|\.\d+\b", NumberColor, RegexOptions.None, highlightedPositions);
-                HighlightLabelPattern(text, @"([a-zA-Z][a-zA-Z0-9_]*)\s*:", LabelColor, highlightedPositions, FontStyle.Bold);
-                HighlightPatternWithTracking(text, @"[+\-*]", ArithmeticOperatorColor, RegexOptions.None, highlightedPositions);
-                HighlightPatternWithTracking(text, @"[\[\],{}]", BracketColor, RegexOptions.None, highlightedPositions);
-                HighlightPatternWithTracking(text, @";", SemicolonColor, RegexOptions.None, highlightedPositions);
-                HighlightPatternWithTracking(text, @"\b[a-zA-Z][a-zA-Z0-9_]*\b", IdentifierColor, RegexOptions.None, highlightedPositions);
+                // 1. Block comments: /* ... */
+                HighlightPattern(text, @"/\*.*?\*/", CommentColor, RegexOptions.Singleline, highlighted, FontStyle.Italic);
 
-                // Restore selection and scroll position
+                // 2. Line comments: // ...
+                HighlightPattern(text, @"//.*$", CommentColor, RegexOptions.Multiline, highlighted, FontStyle.Italic);
+
+                // 3. Strings: "..."
+                HighlightPattern(text, @"""[^""]*""", StringColor, RegexOptions.None, highlighted);
+
+                // 4. External data marker
+                HighlightPattern(text, @"\.\.\.", DirectiveColor, RegexOptions.None, highlighted);
+
+                // 5. Range operator: ..
+                HighlightPattern(text, @"\.\.", OperatorColor, RegexOptions.None, highlighted, FontStyle.Bold);
+
+                // 6. Relational operators
+                HighlightPattern(text, @"(==|!=|<=|>=|&&|\|\||<|>)", OperatorColor, RegexOptions.None, highlighted);
+
+                // 7. Keywords (bold blue)
+                string keywordPattern = @"\b(" + string.Join("|", Keywords) + @")\b";
+                HighlightPattern(text, keywordPattern, KeywordColor, RegexOptions.None, highlighted, FontStyle.Bold);
+
+                // 8. Type keywords (teal, bold)
+                string typePattern = @"\b(" + string.Join("|", TypeKeywords) + @")\b";
+                HighlightPattern(text, typePattern, TypeColor, RegexOptions.None, highlighted, FontStyle.Bold);
+
+                // 9. Sign modifiers on types: float+, float-
+                HighlightPattern(text, @"\b(float|int)[+\-]", TypeColor, RegexOptions.None, highlighted, FontStyle.Bold);
+
+                // 10. Numbers
+                HighlightPattern(text, @"\b\d+(\.\d+)?([eE][+\-]?\d+)?\b", NumberColor, RegexOptions.None, highlighted);
+
+                // 11. Labels: Name[...]: or Name:  (before constraints)
+                HighlightLabelPattern(text, @"^\s*([a-zA-Z][a-zA-Z0-9_]*(?:\[[^\]]*\])*)\s*:", LabelColor, highlighted, FontStyle.Regular, RegexOptions.Multiline);
+
+                // 12. Brackets and braces
+                HighlightPattern(text, @"[\[\]{}()<>]", BracketColor, RegexOptions.None, highlighted);
+
+                // Restore
                 richTextBox.Select(selectionStart, selectionLength);
-                richTextBox.SelectionColor = Color.Black;
+                richTextBox.SelectionColor = DefaultColor;
                 richTextBox.Select(selectionStart, 0);
                 SetScrollPos(scrollPosition);
             }
             finally
             {
-                // Resume drawing
                 SendMessage(richTextBox.Handle, WM_SETREDRAW, true, 0);
                 richTextBox.Invalidate();
-                
+
                 isHighlighting = false;
             }
         }
@@ -98,82 +158,63 @@ namespace ModelEditorApp.Services
 
         private void SetScrollPos(int position)
         {
-            if (position >= 0)
+            if (position >= 0 && position < richTextBox.Lines.Length)
             {
-                int currentFirstLine = richTextBox.GetFirstVisibleLineIndex();
-                if (currentFirstLine != position)
+                int charIndex = richTextBox.GetFirstCharIndexFromLine(position);
+                if (charIndex >= 0)
                 {
-                    richTextBox.SelectionStart = richTextBox.GetFirstCharIndexFromLine(position);
+                    richTextBox.SelectionStart = charIndex;
                     richTextBox.ScrollToCaret();
                 }
             }
         }
 
-        private void HighlightPatternWithTracking(string text, string pattern, Color color, RegexOptions options, HashSet<int> highlightedPositions, FontStyle fontStyle = FontStyle.Regular)
+        private void HighlightPattern(string text, string pattern, Color color, RegexOptions options,
+            HashSet<int> highlighted, FontStyle fontStyle = FontStyle.Regular)
         {
-            Regex regex = new Regex(pattern, options);
-            foreach (Match match in regex.Matches(text))
+            foreach (Match match in Regex.Matches(text, pattern, options))
             {
-                bool alreadyHighlighted = false;
+                bool skip = false;
                 for (int i = match.Index; i < match.Index + match.Length; i++)
                 {
-                    if (highlightedPositions.Contains(i))
-                    {
-                        alreadyHighlighted = true;
-                        break;
-                    }
+                    if (highlighted.Contains(i)) { skip = true; break; }
                 }
+                if (skip) continue;
 
-                if (!alreadyHighlighted)
-                {
-                    richTextBox.Select(match.Index, match.Length);
-                    richTextBox.SelectionColor = color;
-                    richTextBox.SelectionFont = new Font(richTextBox.Font.FontFamily, richTextBox.Font.Size, fontStyle);
+                richTextBox.Select(match.Index, match.Length);
+                richTextBox.SelectionColor = color;
+                richTextBox.SelectionFont = new Font(richTextBox.Font.FontFamily, richTextBox.Font.Size, fontStyle);
 
-                    for (int i = match.Index; i < match.Index + match.Length; i++)
-                    {
-                        highlightedPositions.Add(i);
-                    }
-                }
+                for (int i = match.Index; i < match.Index + match.Length; i++)
+                    highlighted.Add(i);
             }
         }
 
-        private void HighlightLabelPattern(string text, string pattern, Color color, HashSet<int> highlightedPositions, FontStyle fontStyle = FontStyle.Regular)
+        private void HighlightLabelPattern(string text, string pattern, Color color,
+            HashSet<int> highlighted, FontStyle fontStyle, RegexOptions options)
         {
-            Regex regex = new Regex(pattern);
-            foreach (Match match in regex.Matches(text))
+            foreach (Match match in Regex.Matches(text, pattern, options))
             {
-                var labelGroup = match.Groups[1];
-                
-                string labelText = labelGroup.Value.ToLower();
-                // Skip keywords that shouldn't be highlighted as labels
-                if (labelText == "var" || labelText == "range" || labelText == "equation" || labelText == "execute" ||
-                    labelText == "float" || labelText == "int" || labelText == "bool" || labelText == "string")
-                {
+                var group = match.Groups[1];
+                string label = group.Value.Split('[')[0].ToLower();
+
+                // Skip if label is a keyword or type
+                if (Keywords.Contains(label) || TypeKeywords.Contains(label))
                     continue;
-                }
 
-                bool alreadyHighlighted = false;
-                for (int i = labelGroup.Index; i < labelGroup.Index + labelGroup.Length; i++)
+                bool skip = false;
+                for (int i = group.Index; i < group.Index + group.Length; i++)
                 {
-                    if (highlightedPositions.Contains(i))
-                    {
-                        alreadyHighlighted = true;
-                        break;
-                    }
+                    if (highlighted.Contains(i)) { skip = true; break; }
                 }
+                if (skip) continue;
 
-                if (!alreadyHighlighted)
-                {
-                    richTextBox.Select(labelGroup.Index, labelGroup.Length);
-                    richTextBox.SelectionColor = color;
-                    richTextBox.SelectionFont = new Font(richTextBox.Font.FontFamily, richTextBox.Font.Size, fontStyle);
+                richTextBox.Select(group.Index, group.Length);
+                richTextBox.SelectionColor = color;
+                richTextBox.SelectionFont = new Font(richTextBox.Font.FontFamily, richTextBox.Font.Size, fontStyle);
 
-                    for (int i = labelGroup.Index; i < labelGroup.Index + labelGroup.Length; i++)
-                    {
-                        highlightedPositions.Add(i);
-                    }
-                }
+                for (int i = group.Index; i < group.Index + group.Length; i++)
+                    highlighted.Add(i);
             }
         }
     }

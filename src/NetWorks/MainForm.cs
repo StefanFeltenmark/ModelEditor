@@ -6,6 +6,7 @@ using Core;
 using Core.Services;
 using Core.Models;
 using GUI.Controls;
+using ModelEditorApp.Services;
 
 namespace GUI
 {
@@ -354,12 +355,27 @@ For help, press F1 or visit the documentation.
                 WordWrap = false,
                 AcceptsTab = true,
                 DetectUrls = false,
-                BackColor = SystemColors.Window
+                BackColor = Color.FromArgb(30, 30, 30),
+                ForeColor = Color.FromArgb(212, 212, 212),
+                Modified = false
+            };
+
+            textBox.TextChanged += (s, e) =>
+            {
+                if (textBox.Modified && !tabPage.Text.EndsWith(" *"))
+                {
+                    tabPage.Text += " *";
+                    mainTabControl.Invalidate();
+                }
             };
 
             tabPage.Controls.Add(textBox);
             mainTabControl.TabPages.Add(tabPage);
             mainTabControl.SelectedTab = tabPage;
+
+            // Attach syntax highlighting
+            var highlighter = new SyntaxHighlighter(textBox);
+            highlighter.Attach();
 
             return tabPage;
         }
@@ -501,6 +517,7 @@ For help, press F1 or visit the documentation.
                 if (textBox != null)
                 {
                     System.IO.File.WriteAllText(filePath, textBox.Text);
+                    ClearDirtyFlag(mainTabControl.SelectedTab, textBox);
                     statusLabel.Text = $"Saved: {filePath}";
                 }
             }
@@ -524,6 +541,7 @@ For help, press F1 or visit the documentation.
                         System.IO.File.WriteAllText(dialog.FileName, textBox.Text);
                         mainTabControl.SelectedTab.Tag = dialog.FileName;
                         mainTabControl.SelectedTab.Text = System.IO.Path.GetFileName(dialog.FileName);
+                        ClearDirtyFlag(mainTabControl.SelectedTab, textBox);
                         statusLabel.Text = $"Saved as: {dialog.FileName}";
                     }
                 }
@@ -537,9 +555,20 @@ For help, press F1 or visit the documentation.
                 if (tab.Tag is string filePath && tab.Controls[0] is RichTextBox textBox)
                 {
                     System.IO.File.WriteAllText(filePath, textBox.Text);
+                    ClearDirtyFlag(tab, textBox);
                 }
             }
             statusLabel.Text = "All files saved";
+        }
+
+        private void ClearDirtyFlag(TabPage tab, RichTextBox textBox)
+        {
+            textBox.Modified = false;
+            if (tab.Text.EndsWith(" *"))
+            {
+                tab.Text = tab.Text[..^2];
+                mainTabControl.Invalidate();
+            }
         }
 
         private void ParseCurrentFile()

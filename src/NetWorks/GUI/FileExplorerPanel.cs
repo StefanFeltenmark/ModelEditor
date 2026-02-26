@@ -13,7 +13,7 @@ namespace GUI
         private readonly RunConfigurationManager configManager;
         private TabControl tabControl;
         private TreeView fileTreeView;
-        private ListBox configurationsListBox;
+        private TreeView configurationsTreeView;
         private string currentRootDirectory;
 
         public event EventHandler<RunConfiguration> ConfigurationSelected;
@@ -86,37 +86,20 @@ namespace GUI
         {
             var panel = new Panel { Dock = DockStyle.Fill };
 
-            // List box
-            configurationsListBox = new ListBox
+            // Tree view for configurations
+            configurationsTreeView = new TreeView
             {
                 Dock = DockStyle.Fill,
-                DisplayMember = "Name"
+                ShowLines = true,
+                ShowPlusMinus = true,
+                ShowRootLines = true,
+                HideSelection = false,
+                FullRowSelect = true
             };
-            configurationsListBox.DoubleClick += ConfigurationsList_DoubleClick;
+            configurationsTreeView.NodeMouseDoubleClick += ConfigurationsTree_NodeDoubleClick;
+            configurationsTreeView.NodeMouseClick += ConfigurationsTree_NodeMouseClick;
 
-            // Context menu
-            var contextMenu = new ContextMenuStrip();
-            
-            // FIX: Create the menu item first, then set properties
-            var runMenuItem = new ToolStripMenuItem("Run", null, RunConfiguration_Click);
-            runMenuItem.Font = new Font(contextMenu.Font, FontStyle.Bold);
-            contextMenu.Items.Add(runMenuItem);
-            
-            contextMenu.Items.Add(new ToolStripSeparator());
-            contextMenu.Items.Add("Edit", null, EditConfiguration_Click);
-            contextMenu.Items.Add("Duplicate", null, DuplicateConfiguration_Click);
-            contextMenu.Items.Add("Rename", null, RenameConfiguration_Click);
-            contextMenu.Items.Add(new ToolStripSeparator());
-            contextMenu.Items.Add("Export...", null, ExportConfiguration_Click);
-            contextMenu.Items.Add(new ToolStripSeparator());
-            
-            var deleteMenuItem = new ToolStripMenuItem("Delete", null, DeleteConfiguration_Click);
-            deleteMenuItem.ForeColor = Color.Red;
-            contextMenu.Items.Add(deleteMenuItem);
-            
-            configurationsListBox.ContextMenuStrip = contextMenu;
-
-            panel.Controls.Add(configurationsListBox);
+            panel.Controls.Add(configurationsTreeView);
 
             // Buttons
             var buttonPanel = new FlowLayoutPanel
@@ -125,16 +108,15 @@ namespace GUI
                 Height = 40,
                 FlowDirection = FlowDirection.LeftToRight
             };
-            
+
             var newButton = new Button { Text = "New", Width = 60, Height = 30 };
             newButton.Click += (s, e) => NewConfiguration_Click();
             buttonPanel.Controls.Add(newButton);
-            
+
             var editButton = new Button { Text = "Edit", Width = 60, Height = 30 };
             editButton.Click += (s, e) => EditConfiguration_Click(s, e);
             buttonPanel.Controls.Add(editButton);
-            
-            // FIX: Create button first, then set Font property
+
             var runButton = new Button 
             { 
                 Text = "Run", 
@@ -242,17 +224,176 @@ namespace GUI
         public void RefreshConfigurations()
         {
             configManager.LoadAll();
-            configurationsListBox.Items.Clear();
-            
+            configurationsTreeView.Nodes.Clear();
+
             foreach (var config in configManager.GetAll())
             {
-                configurationsListBox.Items.Add(config);
+                var configNode = new TreeNode($"📦 {config.Name}")
+                {
+                    Tag = config,
+                    NodeFont = new Font(configurationsTreeView.Font, FontStyle.Bold)
+                };
+
+                // Model Files category
+                var modelNode = new TreeNode($"📝 Model Files ({config.ModelFiles.Count})")
+                {
+                    Tag = "category:model"
+                };
+                foreach (var file in config.ModelFiles)
+                {
+                    modelNode.Nodes.Add(new TreeNode($"📝 {Path.GetFileName(file)}")
+                    {
+                        Tag = new ConfigFileEntry(config, "model", file),
+                        ToolTipText = file
+                    });
+                }
+                configNode.Nodes.Add(modelNode);
+
+                // Data Files category
+                var dataNode = new TreeNode($"📊 Data Files ({config.DataFiles.Count})")
+                {
+                    Tag = "category:data"
+                };
+                foreach (var file in config.DataFiles)
+                {
+                    dataNode.Nodes.Add(new TreeNode($"📊 {Path.GetFileName(file)}")
+                    {
+                        Tag = new ConfigFileEntry(config, "data", file),
+                        ToolTipText = file
+                    });
+                }
+                configNode.Nodes.Add(dataNode);
+
+                // Settings file
+                if (!string.IsNullOrEmpty(config.SettingsFile))
+                {
+                    var settingsNode = new TreeNode($"⚙️ {Path.GetFileName(config.SettingsFile)}")
+                    {
+                        Tag = new ConfigFileEntry(config, "settings", config.SettingsFile),
+                        ToolTipText = config.SettingsFile
+                    };
+                    configNode.Nodes.Add(settingsNode);
+                }
+
+                configurationsTreeView.Nodes.Add(configNode);
+                configNode.Expand();
+            }
+
+            configurationsTreeView.ShowNodeToolTips = true;
+        }
+
+        public RunConfiguration? GetSelectedConfiguration()
+        {
+            var node = configurationsTreeView.SelectedNode;
+            while (node != null)
+            {
+                if (node.Tag is RunConfiguration config)
+                    return config;
+                node = node.Parent;
+            }
+            return null;
+        }
+
+        private RunConfiguration? GetConfigForNode(TreeNode? node)
+        {
+            while (node != null)
+            {
+                if (node.Tag is RunConfiguration config)
+                    return config;
+                node = node.Parent;
+            }
+            return null;
+        }
+
+        private void ConfigurationsTree_NodeDoubleClick(object? sender, TreeNodeMouseClickEventArgs e)
+        {
+            if (e.Node.Tag is ConfigFileEntry entry && File.Exists(entry.FilePath))
+            {
+                FileDoubleClicked?.Invoke(this, entry.FilePath);
+            }
+            else if (e.Node.Tag is RunConfiguration config)
+            {
+                ConfigurationSelected?.Invoke(this, config);
             }
         }
 
-        public RunConfiguration GetSelectedConfiguration()
+        private void ConfigurationsTree_NodeMouseClick(object? sender, TreeNodeMouseClickEventArgs e)
         {
-            return configurationsListBox.SelectedItem as RunConfiguration;
+            if (e.Button != MouseButtons.Right)
+                return;
+
+            configurationsTreeView.SelectedNode = e.Node;
+
+            if (e.Node.Tag is ConfigFileEntry)
+            {
+                ShowFileContextMenu(e.Node, e.Location);
+            }
+            else if (e.Node.Tag is RunConfiguration)
+            {
+                ShowConfigContextMenu(e.Node, e.Location);
+            }
+        }
+
+        private void ShowConfigContextMenu(TreeNode node, Point location)
+        {
+            var menu = new ContextMenuStrip();
+
+            var runItem = new ToolStripMenuItem("Run", null, RunConfiguration_Click);
+            runItem.Font = new Font(menu.Font, FontStyle.Bold);
+            menu.Items.Add(runItem);
+
+            menu.Items.Add(new ToolStripSeparator());
+            menu.Items.Add("Edit", null, EditConfiguration_Click);
+            menu.Items.Add("Duplicate", null, DuplicateConfiguration_Click);
+            menu.Items.Add("Rename", null, RenameConfiguration_Click);
+            menu.Items.Add(new ToolStripSeparator());
+            menu.Items.Add("Export...", null, ExportConfiguration_Click);
+            menu.Items.Add(new ToolStripSeparator());
+
+            var deleteItem = new ToolStripMenuItem("Delete", null, DeleteConfiguration_Click);
+            deleteItem.ForeColor = Color.Red;
+            menu.Items.Add(deleteItem);
+
+            menu.Show(configurationsTreeView, location);
+        }
+
+        private void ShowFileContextMenu(TreeNode node, Point location)
+        {
+            var menu = new ContextMenuStrip();
+
+            menu.Items.Add("Open", null, (s, e) =>
+            {
+                if (node.Tag is ConfigFileEntry entry && File.Exists(entry.FilePath))
+                    FileDoubleClicked?.Invoke(this, entry.FilePath);
+            });
+
+            menu.Items.Add(new ToolStripSeparator());
+
+            var removeItem = new ToolStripMenuItem("Remove from Configuration", null, (s, e) =>
+            {
+                if (node.Tag is not ConfigFileEntry entry) return;
+
+                var config = entry.Configuration;
+                switch (entry.Category)
+                {
+                    case "model":
+                        config.ModelFiles.Remove(entry.FilePath);
+                        break;
+                    case "data":
+                        config.DataFiles.Remove(entry.FilePath);
+                        break;
+                    case "settings":
+                        config.SettingsFile = null;
+                        break;
+                }
+
+                configManager.Save(config);
+                RefreshConfigurations();
+            });
+            removeItem.ForeColor = Color.Red;
+            menu.Items.Add(removeItem);
+
+            menu.Show(configurationsTreeView, location);
         }
 
         // Event Handlers
@@ -284,14 +425,6 @@ namespace GUI
             }
         }
 
-        private void ConfigurationsList_DoubleClick(object sender, EventArgs e)
-        {
-            if (configurationsListBox.SelectedItem is RunConfiguration config)
-            {
-                ConfigurationSelected?.Invoke(this, config);
-            }
-        }
-
         private void NewConfiguration_Click()
         {
             using (var dialog = new RunConfigurationDialog(configManager))
@@ -305,7 +438,7 @@ namespace GUI
 
         private void EditConfiguration_Click(object sender, EventArgs e)
         {
-            if (configurationsListBox.SelectedItem is RunConfiguration config)
+            if (GetSelectedConfiguration() is RunConfiguration config)
             {
                 using (var dialog = new RunConfigurationDialog(configManager, config))
                 {
@@ -319,7 +452,7 @@ namespace GUI
 
         private void RunConfiguration_Click(object sender, EventArgs e)
         {
-            if (configurationsListBox.SelectedItem is RunConfiguration config)
+            if (GetSelectedConfiguration() is RunConfiguration config)
             {
                 RunConfigurationRequested?.Invoke(this, config);
             }
@@ -327,7 +460,7 @@ namespace GUI
 
         private void DuplicateConfiguration_Click(object sender, EventArgs e)
         {
-            if (configurationsListBox.SelectedItem is RunConfiguration config)
+            if (GetSelectedConfiguration() is RunConfiguration config)
             {
                 configManager.Duplicate(config.Id);
                 RefreshConfigurations();
@@ -336,7 +469,7 @@ namespace GUI
 
         private void RenameConfiguration_Click(object sender, EventArgs e)
         {
-            if (configurationsListBox.SelectedItem is RunConfiguration config)
+            if (GetSelectedConfiguration() is RunConfiguration config)
             {
                 string newName = Microsoft.VisualBasic.Interaction.InputBox(
                     "Enter new name:", 
@@ -353,7 +486,7 @@ namespace GUI
 
         private void DeleteConfiguration_Click(object sender, EventArgs e)
         {
-            if (configurationsListBox.SelectedItem is RunConfiguration config)
+            if (GetSelectedConfiguration() is RunConfiguration config)
             {
                 var result = MessageBox.Show(
                     $"Delete configuration '{config.Name}'?",
@@ -371,7 +504,7 @@ namespace GUI
 
         private void ExportConfiguration_Click(object sender, EventArgs e)
         {
-            if (configurationsListBox.SelectedItem is RunConfiguration config)
+            if (GetSelectedConfiguration() is RunConfiguration config)
             {
                 using (var dialog = new SaveFileDialog())
                 {
@@ -389,18 +522,38 @@ namespace GUI
 
         private void AddToModelFiles_Click(object sender, EventArgs e)
         {
-            // TODO: Implement adding file to current configuration
-            MessageBox.Show("Add to model files functionality", "Info");
+            if (fileTreeView.SelectedNode?.Tag is string filePath && GetSelectedConfiguration() is RunConfiguration config)
+            {
+                if (!config.ModelFiles.Contains(filePath))
+                {
+                    config.ModelFiles.Add(filePath);
+                    configManager.Save(config);
+                    RefreshConfigurations();
+                }
+            }
         }
 
         private void AddToDataFiles_Click(object sender, EventArgs e)
         {
-            MessageBox.Show("Add to data files functionality", "Info");
+            if (fileTreeView.SelectedNode?.Tag is string filePath && GetSelectedConfiguration() is RunConfiguration config)
+            {
+                if (!config.DataFiles.Contains(filePath))
+                {
+                    config.DataFiles.Add(filePath);
+                    configManager.Save(config);
+                    RefreshConfigurations();
+                }
+            }
         }
 
         private void SetAsSettingsFile_Click(object sender, EventArgs e)
         {
-            MessageBox.Show("Set as settings file functionality", "Info");
+            if (fileTreeView.SelectedNode?.Tag is string filePath && GetSelectedConfiguration() is RunConfiguration config)
+            {
+                config.SettingsFile = filePath;
+                configManager.Save(config);
+                RefreshConfigurations();
+            }
         }
 
         private void OpenFile_Click(object sender, EventArgs e)
@@ -421,6 +574,23 @@ namespace GUI
                     System.Diagnostics.Process.Start("explorer.exe", dirPath);
                 }
             }
+        }
+    }
+
+    /// <summary>
+    /// Represents a file entry within a run configuration, used as TreeNode.Tag
+    /// </summary>
+    internal sealed class ConfigFileEntry
+    {
+        public RunConfiguration Configuration { get; }
+        public string Category { get; }
+        public string FilePath { get; }
+
+        public ConfigFileEntry(RunConfiguration configuration, string category, string filePath)
+        {
+            Configuration = configuration;
+            Category = category;
+            FilePath = filePath;
         }
     }
 }
