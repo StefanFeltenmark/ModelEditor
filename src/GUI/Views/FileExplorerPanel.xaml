@@ -1,0 +1,113 @@
+<UserControl x:Class="GUI.Views.FileExplorerPanel"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006" 
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             mc:Ignorable="d" 
+             d:DesignHeight="600" d:DesignWidth="300">
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <!-- Toolbar -->
+        <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="5">
+            <Button Content="📁" ToolTip="Open Folder" Click="OpenFolder_Click" Width="30" Height="30" Margin="2"/>
+            <Button Content="🔄" ToolTip="Refresh" Click="Refresh_Click" Width="30" Height="30" Margin="2"/>
+            <Separator Width="10" Background="Transparent"/>
+            <Button Content="➕" ToolTip="New Configuration" Click="NewConfiguration_Click" Width="30" Height="30" Margin="2"/>
+        </StackPanel>
+
+        <!-- File Tree -->
+        <TabControl Grid.Row="1">
+            <!-- Files Tab -->
+            <TabItem Header="Files">
+                <TreeView x:Name="FileTreeView" 
+                          AllowDrop="True"
+                          MouseDoubleClick="FileTreeView_MouseDoubleClick"
+                          SelectedItemChanged="FileTreeView_SelectedItemChanged">
+                    <TreeView.Resources>
+                        <!-- File Item Template -->
+                        <HierarchicalDataTemplate DataType="{x:Type local:FileSystemItem}" ItemsSource="{Binding Children}">
+                            <StackPanel Orientation="Horizontal">
+                                <TextBlock Text="{Binding Icon}" Margin="0,0,5,0"/>
+                                <TextBlock Text="{Binding Name}"/>
+                            </StackPanel>
+                        </HierarchicalDataTemplate>
+                    </TreeView.Resources>
+                    <TreeView.ContextMenu>
+                        <ContextMenu>
+                            <MenuItem Header="Add to Model Files" Click="AddToModelFiles_Click"/>
+                            <MenuItem Header="Add to Data Files" Click="AddToDataFiles_Click"/>
+                            <MenuItem Header="Set as Settings File" Click="SetAsSettingsFile_Click"/>
+                            <Separator/>
+                            <MenuItem Header="Open in Editor" Click="OpenInEditor_Click"/>
+                            <MenuItem Header="Show in Explorer" Click="ShowInExplorer_Click"/>
+                        </ContextMenu>
+                    </TreeView.ContextMenu>
+                </TreeView>
+            </TabItem>
+
+            <!-- Configurations Tab -->
+            <TabItem Header="Configurations">
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="*"/>
+                        <RowDefinition Height="Auto"/>
+                    </Grid.RowDefinitions>
+
+                    <ListBox x:Name="ConfigurationsListBox" 
+                             Grid.Row="0"
+                             SelectionMode="Single"
+                             MouseDoubleClick="Configuration_DoubleClick">
+                        <ListBox.ItemTemplate>
+                            <DataTemplate>
+                                <StackPanel Margin="5">
+                                    <TextBlock Text="{Binding Name}" FontWeight="Bold"/>
+                                    <TextBlock Text="{Binding Description}" 
+                                               FontSize="10" 
+                                               Foreground="Gray"
+                                               TextWrapping="Wrap"/>
+                                    <StackPanel Orientation="Horizontal" Margin="0,2,0,0">
+                                        <TextBlock Text="📄" Margin="0,0,3,0"/>
+                                        <TextBlock Text="{Binding ModelFiles.Count}" FontSize="10"/>
+                                        <TextBlock Text=" model(s), " FontSize="10"/>
+                                        <TextBlock Text="{Binding DataFiles.Count}" FontSize="10"/>
+                                        <TextBlock Text=" data file(s)" FontSize="10"/>
+                                    </StackPanel>
+                                </StackPanel>
+                            </DataTemplate>
+                        </ListBox.ItemTemplate>
+                        <ListBox.ContextMenu>
+                            <ContextMenu>
+                                <MenuItem Header="Run Configuration" Click="RunConfiguration_Click" FontWeight="Bold"/>
+                                <Separator/>
+                                <MenuItem Header="Edit" Click="EditConfiguration_Click"/>
+                                <MenuItem Header="Duplicate" Click="DuplicateConfiguration_Click"/>
+                                <MenuItem Header="Rename" Click="RenameConfiguration_Click"/>
+                                <Separator/>
+                                <MenuItem Header="Export..." Click="ExportConfiguration_Click"/>
+                                <Separator/>
+                                <MenuItem Header="Delete" Click="DeleteConfiguration_Click" Foreground="Red"/>
+                            </ContextMenu>
+                        </ListBox.ContextMenu>
+                    </ListBox>
+
+                    <!-- Buttons -->
+                    <StackPanel Grid.Row="1" Orientation="Horizontal" HorizontalAlignment="Center" Margin="5">
+                        <Button Content="New" Click="NewConfiguration_Click" Width="60" Margin="2"/>
+                        <Button Content="Edit" Click="EditConfiguration_Click" Width="60" Margin="2"/>
+                        <Button Content="Run" Click="RunConfiguration_Click" Width="60" Margin="2" FontWeight="Bold"/>
+                    </StackPanel>
+                </Grid>
+            </TabItem>
+        </TabControl>
+
+        <!-- Status Bar -->
+        <Border Grid.Row="2" BorderBrush="Gray" BorderThickness="0,1,0,0" Background="#F0F0F0">
+            <TextBlock x:Name="StatusText" Margin="5" FontSize="10" Text="Ready"/>
+        </Border>
+    </Grid>
+</UserControl>

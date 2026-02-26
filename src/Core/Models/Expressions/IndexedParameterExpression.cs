@@ -54,8 +54,11 @@ namespace Core.Models
 
         public override string ToString()
         {
-            throw new NotImplementedException();
+            // Format: paramName[index1][index2]...[indexN]
+            var indices = string.Join("", Indices.Select(idx => $"[{idx}]"));
+            return $"{ParameterName}{indices}";
         }
+        
 
         public override bool IsConstant { get; }
 

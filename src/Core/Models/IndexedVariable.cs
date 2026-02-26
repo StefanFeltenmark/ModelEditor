@@ -12,6 +12,11 @@
         public double? LowerBound { get; set; }
         public double? UpperBound { get; set; }
 
+        /// <summary>
+        /// Additional index sets for 3D+ variables (beyond the first two dimensions)
+        /// </summary>
+        public List<string>? AdditionalIndexSets { get; set; }
+
         public IndexedVariable(string baseName, string indexSetName, VariableType type, string? secondIndexSetName = null, double? lowerBound = null, double? upperBound = null)
         {
             BaseName = baseName;
@@ -45,8 +50,9 @@
             get
             {
                 if (IsScalar) return 0;
-                if (IsTwoDimensional) return 2;
-                return 1;
+                int dims = IsTwoDimensional ? 2 : 1;
+                if (AdditionalIndexSets != null) dims += AdditionalIndexSets.Count;
+                return dims;
             }
         }
 

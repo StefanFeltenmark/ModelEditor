@@ -31,6 +31,11 @@ namespace Core
             foreach (var param in modelManager.Parameters.Values)
             {
                 paramObject[param.Name] = param.Value;
+                // Also expose as top-level variable for OPL compatibility
+                if (param.Value != null)
+                {
+                    engine.SetValue(param.Name, param.Value);
+                }
             }
             engine.SetValue("params", paramObject);
 
@@ -126,7 +131,7 @@ namespace Core
                 // Execute the JavaScript code
                 engine.Execute(jsCode);
 
-                // Extract results
+                // Extract results from the "results" object
                 var resultsValue = engine.Evaluate("results");
                 var results = new Dictionary<string, object>();
 
@@ -166,6 +171,27 @@ namespace Core
                             }
                             results[key] = list;
                         }
+                    }
+                }
+
+                // Also capture any modified top-level variables that match existing parameters
+                foreach (var param in modelManager.Parameters.Values)
+                {
+                    try
+                    {
+                        var jsVal = engine.Evaluate(param.Name);
+                        if (jsVal.IsNumber())
+                        {
+                            double newVal = jsVal.AsNumber();
+                            if (param.Value != null && Math.Abs(Convert.ToDouble(param.Value) - newVal) > 1e-15)
+                            {
+                                results[param.Name] = newVal;
+                            }
+                        }
+                    }
+                    catch
+                    {
+                        // Variable not accessible in JS - skip
                     }
                 }
 

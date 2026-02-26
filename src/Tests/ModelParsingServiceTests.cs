@@ -158,5 +158,45 @@ namespace Tests
             Assert.True(result.Success);
             Assert.Equal(3, result.TotalSuccess);
         }
+
+        [Fact]
+        public void ParseModel()
+        {
+            // Arrange
+            var manager = CreateModelManager();
+            var parser = new EquationParser(manager);
+            var dataParser = new DataFileParser(manager);
+            var service = new ModelParsingService(manager, parser, dataParser);
+
+            string modelText1 = @"int N = 3;
+int M = 4;
+range I = 1..N;
+range J = 1..M;
+float cost[I][J] = ...;
+float weight[I][J] = ...;
+float w[I] = ...;
+dvar float+ x[I,J];
+maximize sum(i in I) sum(j in J) cost[i,j]*x[i,j];
+subject to{
+forall(i in I)
+eq1:         
+sum(j in J) weight[i,j]*x[i,j] <= w[i];
+}";
+
+            string dataText1 = @"cost = [[10, 20, 30, 40], [15, 25, 35, 45], [20, 30, 40, 50]];
+weight = [[1, 2, 3, 4], [1.5, 2.5, 3.5, 4.5], [2, 3, 4, 5]];
+w = [8 7 10];";
+
+            // Act
+            var result = parser.Parse(modelText1);
+
+            var dataResult = dataParser.Parse(dataText1);
+
+            var serviceResult = service.ParseModel([modelText1], [dataText1]);
+
+            // Assert
+            Assert.True(!result.HasErrors);
+            Assert.Equal(10, result.SuccessCount);
+        }
     }
 }

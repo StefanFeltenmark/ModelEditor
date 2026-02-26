@@ -107,11 +107,12 @@ namespace Core.Models
                 }
 
                 // Handle logical AND
-                if (Condition is BinaryExpression binary && binary.Operator == BinaryOperator.Equal)
+                if (Condition is LogicalAndExpression logicalAnd)
                 {
-                    // This might be part of a compound condition
-                    double result = Condition.Evaluate(manager);
-                    return Math.Abs(result - 1.0) < 1e-10; // 1.0 = true
+                    // Evaluate each side as a sub-condition
+                    var leftSet = new ComputedSet(Name, ElementType, Iterators, OutputExpression, logicalAnd.Left, IsProjection);
+                    var rightSet = new ComputedSet(Name, ElementType, Iterators, OutputExpression, logicalAnd.Right, IsProjection);
+                    return leftSet.EvaluateCondition(manager, context) && rightSet.EvaluateCondition(manager, context);
                 }
 
                 double condResult = Condition.Evaluate(manager);

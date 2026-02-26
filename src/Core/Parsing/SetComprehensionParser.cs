@@ -87,7 +87,9 @@ namespace Core.Parsing
             // Validate index set exists
             if (!modelManager.IndexSets.ContainsKey(indexSet) &&
                 !modelManager.Ranges.ContainsKey(indexSet) &&
-                !modelManager.PrimitiveSets.ContainsKey(indexSet))
+                !modelManager.PrimitiveSets.ContainsKey(indexSet) &&
+                !modelManager.TupleSets.ContainsKey(indexSet) &&
+                !modelManager.ComputedSets.ContainsKey(indexSet))
             {
                 error = $"Index set '{indexSet}' not found";
                 return false;

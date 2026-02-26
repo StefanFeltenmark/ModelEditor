@@ -37,6 +37,8 @@ namespace Core
         // In constructor, add:
         private readonly MultiDimensionalParameterParser multiDimParamParser;
 
+        private readonly TupleParameterParser tupleParamParser;
+
         public EquationParser(ModelManager manager)
         {
             modelManager = manager;
@@ -62,6 +64,7 @@ namespace Core
 
             // In constructor, add:
             multiDimParamParser = new MultiDimensionalParameterParser(manager, evaluator);
+            tupleParamParser = new TupleParameterParser(manager);
         }
 
 
@@ -359,10 +362,11 @@ namespace Core
                 currentLineNumber++;
             }
 
-            // Group lines by statements (split by semicolons)
+            // Group lines by statements (split by semicolons, respecting braces)
             var statements = new List<(string content, int lineNumber)>();
             string currentStatement = "";
             int statementStartLine = 0;
+            int braceDepth = 0;
 
             foreach (var (content, lineNumber) in processedLines)
             {
@@ -373,8 +377,17 @@ namespace Core
 
                 currentStatement += " " + content;
 
-                if (content.Contains(';'))
+                // Track brace depth
+                foreach (char c in content)
                 {
+                    if (c == '{') braceDepth++;
+                    else if (c == '}') braceDepth--;
+                }
+
+                // Only split on ';' when not inside braces
+                if (braceDepth <= 0 && content.Contains(';'))
+                {
+                    braceDepth = 0; // Reset in case it went negative
                     var parts = currentStatement.Split(';',
                         StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
                     foreach (var part in parts)
@@ -398,13 +411,18 @@ namespace Core
             return statements;
         }
 
+        // Stores deferred execute blocks (JS code keyed by block number)
+        private readonly Dictionary<int, string> deferredExecuteBlocks = new();
+
         private (string processedText, Dictionary<int, int> lineMapping) ExtractAndProcessExecuteBlocks(
             string text,
             ParseSessionResult result)
         {
             var lineMapping = new Dictionary<int, int>();
+            deferredExecuteBlocks.Clear();
 
-            string pattern = @"execute\s*\{";
+            // Support both: execute { ... } and execute Name { ... }
+            string pattern = @"execute\s+(?:[a-zA-Z][a-zA-Z0-9_]*\s*)?\{";
             var matches = Regex.Matches(text, pattern, RegexOptions.Singleline);
 
             if (matches.Count == 0)
@@ -451,8 +469,9 @@ namespace Core
                 // Update line mapping
                 UpdateLineMapping(lineMapping, beforeBlock, ref currentOutputLine, ref currentInputLine);
 
-                // Process the execute block
-                ProcessExecuteBlock(jsCode, blockNumber, blockStartLine, result);
+                // Defer the execute block — insert a marker statement for inline processing
+                deferredExecuteBlocks[blockNumber] = jsCode;
+                resultText.AppendLine($"__EXECUTE_BLOCK_{blockNumber}__;");
 
                 // Skip the input lines consumed by the execute block
                 int blockEndLine = text.Substring(0, closingBraceIndex + 1).Count(c => c == '\n') + 1;
@@ -562,6 +581,18 @@ namespace Core
         {
             string error = string.Empty;
 
+            // Handle deferred execute blocks
+            var execMatch = Regex.Match(statement.Trim(), @"^__EXECUTE_BLOCK_(\d+)__$");
+            if (execMatch.Success)
+            {
+                int blockNum = int.Parse(execMatch.Groups[1].Value);
+                if (deferredExecuteBlocks.TryGetValue(blockNum, out var jsCode))
+                {
+                    ProcessExecuteBlock(jsCode, blockNum, lineNumber, result);
+                }
+                return;
+            }
+
             // Try multi-dimensional indexed parameter FIRST
             if (multiDimParser.TryParseIndexedParameter(statement, out var multiDimParam, out error))
             {
@@ -629,6 +660,17 @@ namespace Core
                 if (indexSet != null)
                 {
                     modelManager.AddIndexSet(indexSet);
+
+                    // Also register as an OplRange so it's accessible via Ranges dictionary
+                    if (!modelManager.Ranges.ContainsKey(indexSet.Name))
+                    {
+                        var rangeObj = new OplRange(
+                            indexSet.Name,
+                            new ConstantExpression(indexSet.StartIndex),
+                            new ConstantExpression(indexSet.EndIndex));
+                        modelManager.AddRange(rangeObj);
+                    }
+
                     result.IncrementSuccess();
                     return;
                 }
@@ -785,13 +827,31 @@ namespace Core
             }
             error = string.Empty;
 
+            // 7.5. Tuple parameters (e.g., ScenarioTreeNode root = item(nodes, 0))
+            if (tupleParamParser.TryParse(statement, out var tupleParam, out error))
+            {
+                if (tupleParam != null)
+                {
+                    modelManager.AddTupleParameter(tupleParam);
+                    result.IncrementSuccess();
+                    return;
+                }
+            }
+
+            if (!string.IsNullOrEmpty(error) && !IsNotRecognizedError(error))
+            {
+                result.AddError($"\"{statement}\"\n  Error: {error}", lineNumber);
+                return;
+            }
+            error = string.Empty;
+
             // 8. Indexed equations
             if (TryParseIndexedEquation(statement, lineNumber, out error, result))
             {
                 result.IncrementSuccess();
                 return;
             }
-            
+
             if (!string.IsNullOrEmpty(error) && !IsNotRecognizedError(error))
             {
                 result.AddError($"\"{statement}\"\n  Error: {error}", lineNumber);
@@ -842,6 +902,13 @@ namespace Core
                 return;
             }
 
+            // 11. Constraint forward declarations (skip gracefully)
+            if (TryParseConstraintForwardDeclaration(statement))
+            {
+                result.IncrementSuccess();
+                return;
+            }
+
             // Nothing matched
             result.AddError($"\"{statement}\"\n  Error: Unknown statement type", lineNumber);
         }
@@ -868,21 +935,34 @@ namespace Core
                    error.Contains("Not an objective", StringComparison.OrdinalIgnoreCase);
         }
 
+        /// <summary>
+        /// Recognizes and skips constraint forward declarations:
+        ///   constraint Name[Set1][Set2][Set3];
+        ///   constraint Name[i in Set1][j in Set2];
+        /// </summary>
+        private bool TryParseConstraintForwardDeclaration(string statement)
+        {
+            return Regex.IsMatch(statement.Trim(),
+                @"^\s*constraint\s+[a-zA-Z][a-zA-Z0-9_]*\s*[\[\(]",
+                RegexOptions.IgnoreCase);
+        }
+
         // Add this method to parse tuple sets
         private bool TryParseTupleSet(string statement, out TupleSet? tupleSet, out string error)
         {
             tupleSet = null;
             error = string.Empty;
 
-            // Pattern 1: Indexed tuple set: {SchemaName} setName[indexSet] = ...;
-            string indexedPattern = @"^\s*\{([a-zA-Z][a-zA-Z0-9_]*)\}\s+([a-zA-Z][a-zA-Z0-9_]*)\s*\[([a-zA-Z][a-zA-Z0-9_]*)\]\s*=\s*(.+)$";
+            // Pattern 1: Indexed tuple set with bracket: {SchemaName} setName[...] = ...;
+            // Supports: [indexSet], [var in SetName]
+            string indexedPattern = @"^\s*\{([a-zA-Z][a-zA-Z0-9_]*)\}\s+([a-zA-Z][a-zA-Z0-9_]*)\s*\[([^\]]+)\]\s*=\s*(.+)$";
             var indexedMatch = Regex.Match(statement.Trim(), indexedPattern);
 
             if (indexedMatch.Success)
             {
                 string schemaName = indexedMatch.Groups[1].Value;
                 string setName = indexedMatch.Groups[2].Value;
-                string indexSetName = indexedMatch.Groups[3].Value;
+                string bracketContent = indexedMatch.Groups[3].Value.Trim();
                 string value = indexedMatch.Groups[4].Value.Trim();
 
                 // Validate schema exists
@@ -892,14 +972,34 @@ namespace Core
                     return false;
                 }
 
-                // Validate index set exists
-                if (!modelManager.IndexSets.ContainsKey(indexSetName))
+                // Extract the set name from bracket content (handles "var in Set" or plain "Set")
+                string indexSetName;
+                var iterMatch = Regex.Match(bracketContent, @"^[a-zA-Z][a-zA-Z0-9_]*\s+in\s+([a-zA-Z][a-zA-Z0-9_]*)$");
+                if (iterMatch.Success)
+                    indexSetName = iterMatch.Groups[1].Value;
+                else
+                    indexSetName = bracketContent;
+
+                // Validate index set exists in any collection
+                if (!modelManager.IndexSets.ContainsKey(indexSetName) &&
+                    !modelManager.Ranges.ContainsKey(indexSetName) &&
+                    !modelManager.TupleSets.ContainsKey(indexSetName) &&
+                    !modelManager.PrimitiveSets.ContainsKey(indexSetName) &&
+                    !modelManager.ComputedSets.ContainsKey(indexSetName))
                 {
                     error = $"Index set '{indexSetName}' is not defined";
                     return false;
                 }
 
                 bool isExternal = value == "...";
+
+                // If value is a set comprehension, delegate to set comprehension parser
+                if (!isExternal && value.Contains('|'))
+                {
+                    error = "Not a tuple set declaration";
+                    return false;
+                }
+
                 tupleSet = new TupleSet(setName, schemaName, indexSetName, isExternal);
 
                 if (!isExternal)
@@ -998,6 +1098,14 @@ namespace Core
             };
 
             bool isExternal = valueStr == "...";
+
+            // If value contains '|', it's a set comprehension, not a primitive set
+            if (!isExternal && valueStr.Contains('|'))
+            {
+                error = "Not a primitive set declaration";
+                return false;
+            }
+
             primitiveSet = new PrimitiveSet(setName, setType, isExternal);
 
             // Parse inline data if provided
@@ -1253,47 +1361,8 @@ namespace Core
         {
             error = string.Empty;
 
-
-            // OPL-style forall: forall(i in 1..n) x[i] <= capacity[i];
-            // Example: forall(i in 1..n, j in 1..m: i != j) flow[i][j] <= cap[i][j];
-            string forallTwoDimPattern =
-                @"^\s*forall\s*\(\s*([a-zA-Z][a-zA-Z0-9_]*)\s+in\s+([a-zA-Z][a-zA-Z0-9_]*)\s*,\s*([a-zA-Z][a-zA-Z0-9_]*)\s+in\s+([a-zA-Z][a-zA-Z0-9_]*)\s*\)\s*(?:([a-zA-Z][a-zA-Z0-9_]*)\s*:\s*)?(.+)$";
-            var forallTwoDimMatch = Regex.Match(statement.Trim(), forallTwoDimPattern,
-                RegexOptions.IgnoreCase | RegexOptions.Singleline);
-
-            if (forallTwoDimMatch.Success)
-            {
-                string indexVar1 = forallTwoDimMatch.Groups[1].Value;
-                string indexSetName1 = forallTwoDimMatch.Groups[2].Value;
-                string indexVar2 = forallTwoDimMatch.Groups[3].Value;
-                string indexSetName2 = forallTwoDimMatch.Groups[4].Value;
-                string baseName = forallTwoDimMatch.Groups[5].Value;
-                string template = forallTwoDimMatch.Groups[6].Value.Trim();
-
-                if (string.IsNullOrEmpty(baseName))
-                {
-                    baseName = $"constraint_{modelManager.IndexedEquationTemplates.Count + 1}";
-                }
-
-                if (!modelManager.IndexSets.ContainsKey(indexSetName1))
-                {
-                    error = $"First index set '{indexSetName1}' is not declared";
-                    return false;
-                }
-
-                if (!modelManager.IndexSets.ContainsKey(indexSetName2))
-                {
-                    error = $"Second index set '{indexSetName2}' is not declared";
-                    return false;
-                }
-
-                var indexedEquation = new IndexedEquation(baseName, indexSetName1, template, indexSetName2);
-                modelManager.AddIndexedEquationTemplate(indexedEquation);
-                return true;
-            }
-
             // Pattern: forall(iterators) [label:] constraint
-            // With filter support: forall(i in Set: filter, j in Set2: filter2)
+            // Handles all forall variants including filters, multi-dim, tuple sets
             string forallPattern = 
                 @"^\s*forall\s*\(([^)]+)\)\s*(?:([a-zA-Z][a-zA-Z0-9_]*(?:\[[^\]]+\])*)\s*:\s*)?(.+)$";
             var forallMatch = Regex.Match(statement.Trim(), forallPattern, 
@@ -2061,6 +2130,20 @@ private Dictionary<string, Expression> CombineCoefficients(
                 ? ObjectiveSense.Minimize
                 : ObjectiveSense.Maximize;
 
+            // Check if expression is a dexpr name reference
+            string exprTrimmed = expression.Trim();
+            if (modelManager.DecisionExpressions.ContainsKey(exprTrimmed))
+            {
+                // Create objective from dexpr reference
+                var dexprCoeffs = new Dictionary<string, Expression>
+                {
+                    [exprTrimmed] = new ConstantExpression(1.0)
+                };
+                objective = new Objective(sense, dexprCoeffs, new ConstantExpression(0.0),
+                    string.IsNullOrEmpty(name) ? exprTrimmed : name);
+                return true;
+            }
+
             // VALIDATE: No implicit multiplication
             if (!ValidateNoImplicitMultiplication(expression, out string validationError))
             {
@@ -2503,6 +2586,12 @@ private Dictionary<string, Expression> CombineCoefficients(
                 return new VariableExpression(exprStr);
             }
 
+            // Try to parse as a comparison expression (>=, <=, ==, !=, >, <)
+            if (TryParseComparisonExpression(exprStr, out var compExpr))
+            {
+                return compExpr;
+            }
+
             // Try to parse as a binary expression
             if (TryParseBinaryExpression(exprStr, out var binaryExpr))
             {
@@ -2682,6 +2771,101 @@ private bool ParseItemFieldAccess(string expr, out Expression? result, out strin
 
     result = new ItemFieldAccessExpression((ItemFunctionExpression)itemExpr, fieldName);
     return true;
+}
+
+private bool TryParseComparisonExpression(string exprStr, out Expression? result)
+{
+    result = null;
+
+    // Check for comparison operators at the top level (outside parens/brackets)
+    // Order matters: check two-char operators before single-char
+    string[] compOps = [">=", "<=", "==", "!=", ">", "<"];
+
+    foreach (var op in compOps)
+    {
+        int idx = FindComparisonOperatorIndex(exprStr, op);
+        if (idx > 0 && idx + op.Length < exprStr.Length)
+        {
+            string leftPart = exprStr.Substring(0, idx).Trim();
+            string rightPart = exprStr.Substring(idx + op.Length).Trim();
+
+            if (string.IsNullOrEmpty(leftPart) || string.IsNullOrEmpty(rightPart))
+                continue;
+
+            var left = ParseExpression(leftPart);
+            var right = ParseExpression(rightPart);
+
+            BinaryOperator binaryOp = op switch
+            {
+                ">=" => BinaryOperator.GreaterThanOrEqual,
+                "<=" => BinaryOperator.LessThanOrEqual,
+                "==" => BinaryOperator.Equal,
+                "!=" => BinaryOperator.NotEqual,
+                ">" => BinaryOperator.GreaterThan,
+                "<" => BinaryOperator.LessThan,
+                _ => throw new InvalidOperationException($"Unknown comparison: {op}")
+            };
+
+            result = new ComparisonExpression(left, binaryOp, right);
+            return true;
+        }
+    }
+
+    // Check for logical AND (&&)
+    int andIdx = FindComparisonOperatorIndex(exprStr, "&&");
+    if (andIdx > 0 && andIdx + 2 < exprStr.Length)
+    {
+        string leftPart = exprStr.Substring(0, andIdx).Trim();
+        string rightPart = exprStr.Substring(andIdx + 2).Trim();
+        var left = ParseExpression(leftPart);
+        var right = ParseExpression(rightPart);
+        result = new LogicalAndExpression(left, right);
+        return true;
+    }
+
+    return false;
+}
+
+private int FindComparisonOperatorIndex(string expr, string op)
+{
+    int depth = 0;
+    int angleDepth = 0;
+    bool inQuotes = false;
+
+    for (int i = 0; i < expr.Length - (op.Length - 1); i++)
+    {
+        char c = expr[i];
+        if (c == '"') inQuotes = !inQuotes;
+        if (inQuotes) continue;
+        if (c == '(' || c == '[') depth++;
+        else if (c == ')' || c == ']') depth--;
+        else if (c == '<' && op != "<" && op != "<=" && depth == 0)
+        {
+            // Could be angle bracket — skip if followed by alpha or a field access
+            if (i + 1 < expr.Length && (char.IsLetter(expr[i + 1]) || expr[i + 1] == '<'))
+            {
+                angleDepth++;
+                continue;
+            }
+        }
+        else if (c == '>' && angleDepth > 0)
+        {
+            angleDepth--;
+            continue;
+        }
+
+        if (depth == 0 && angleDepth == 0 && expr.Substring(i, op.Length) == op)
+        {
+            // For single-char operators, ensure we're not matching part of a two-char operator
+            if (op == ">" && i + 1 < expr.Length && expr[i + 1] == '=') continue;
+            if (op == "<" && i + 1 < expr.Length && expr[i + 1] == '=') continue;
+            if (op == "=" && i > 0 && (expr[i - 1] == '!' || expr[i - 1] == '>' || expr[i - 1] == '<')) continue;
+
+            return i;
+        }
+    }
+
+    return -1;
 }
 
 private bool TryParseBinaryExpression(string exprStr, out Expression? result)

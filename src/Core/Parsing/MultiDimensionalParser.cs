@@ -67,26 +67,42 @@ namespace Core.Parsing
        
 
         /// <summary>
-        /// Parses dimension specifications like [i in Set][j in Set2]
+        /// Parses dimension specifications like [i in Set][j in Set2] or [Set1][Set2]
         /// </summary>
         private bool ParseDimensions(string dimensionsStr, List<string> indexSetNames, out string error)
         {
             error = string.Empty;
 
-            // Pattern: [var in Set]
-            var dimensionPattern = @"\[([a-zA-Z][a-zA-Z0-9_]*)\s+in\s+([a-zA-Z][a-zA-Z0-9_]*)\]";
-            var matches = Regex.Matches(dimensionsStr, dimensionPattern);
+            // Extract all bracket contents
+            var bracketPattern = @"\[([^\]]+)\]";
+            var bracketMatches = Regex.Matches(dimensionsStr, bracketPattern);
 
-            if (matches.Count == 0)
+            if (bracketMatches.Count == 0)
             {
                 error = "Invalid dimension specification";
                 return false;
             }
 
-            foreach (Match match in matches)
+            foreach (Match match in bracketMatches)
             {
-                string setName = match.Groups[2].Value;
-                indexSetNames.Add(setName);
+                string content = match.Groups[1].Value.Trim();
+
+                // Check for iterator syntax: "var in Set" or "var in 1..5"
+                var iterMatch = Regex.Match(content, @"^[a-zA-Z][a-zA-Z0-9_]*\s+in\s+(.+)$");
+                if (iterMatch.Success)
+                {
+                    indexSetNames.Add(iterMatch.Groups[1].Value.Trim());
+                }
+                else if (Regex.IsMatch(content, @"^[a-zA-Z][a-zA-Z0-9_]*$"))
+                {
+                    // Simple set/range name
+                    indexSetNames.Add(content);
+                }
+                else
+                {
+                    error = $"Invalid dimension: '{content}'";
+                    return false;
+                }
             }
 
             return true;

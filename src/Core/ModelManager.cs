@@ -1,4 +1,5 @@
-﻿using Core.Models;
+﻿using System.Text.RegularExpressions;
+using Core.Models;
 using Core.Parsing;
 
 namespace Core
@@ -138,22 +139,35 @@ namespace Core
             {
                 throw new InvalidOperationException($"Parameter '{parameter.Name}' is already defined");
             }
-            
+
             // For indexed parameters, validate that the index sets exist
-            if (parameter.IsIndexed)
+            if (parameter.IsIndexed && parameter.IndexSetNames != null)
             {
-                if (!IndexSets.ContainsKey(parameter.IndexSetName))
+                foreach (var setName in parameter.IndexSetNames)
                 {
-                    throw new InvalidOperationException($"Index set '{parameter.IndexSetName}' is not defined for parameter '{parameter.Name}'");
-                }
-                
-                if (parameter.IsTwoDimensional && !IndexSets.ContainsKey(parameter.SecondIndexSetName!))
-                {
-                    throw new InvalidOperationException($"Index set '{parameter.SecondIndexSetName}' is not defined for parameter '{parameter.Name}'");
+                    if (!IsKnownIndexSource(setName))
+                    {
+                        throw new InvalidOperationException($"Index set '{setName}' is not defined for parameter '{parameter.Name}'");
+                    }
                 }
             }
-            
+
             Parameters[parameter.Name] = parameter;
+        }
+
+        /// <summary>
+        /// Checks if a name refers to a known index source (index set, range, tuple set, or primitive set)
+        /// Also accepts inline range expressions like "1..5"
+        /// </summary>
+        private bool IsKnownIndexSource(string name)
+        {
+            return IndexSets.ContainsKey(name) ||
+                   Ranges.ContainsKey(name) ||
+                   TupleSets.ContainsKey(name) ||
+                   PrimitiveSets.ContainsKey(name) ||
+                   TupleSchemas.ContainsKey(name) ||
+                   ComputedSets.ContainsKey(name) ||
+                   Regex.IsMatch(name, @"^\d+\.\.\d+$");
         }
 
         public void AddIndexSet(IndexSet indexSet)
@@ -164,6 +178,11 @@ namespace Core
         public void AddIndexedVariable(IndexedVariable variable)
         {
             IndexedVariables[variable.BaseName] = variable;
+        }
+
+        public void AddTupleParameter(TupleParameter param)
+        {
+            TupleParameters[param.Name] = param;
         }
 
         public void AddIndexedEquationTemplate(IndexedEquation equation)

@@ -7,11 +7,12 @@ using Core.Models;
 namespace Core.Parsing
 {
     /// <summary>
-    /// Parses multi-dimensional parameter declarations
+    /// Parses multi-dimensional parameter declarations (2D, 3D, N-D)
     /// Examples:
-    ///   ArcTData arcT[s in HydroArcs][t in T] = item(HydroArcTs, <s.id,t>);
+    ///   ArcTData arcT[s in HydroArcs][t in T] = item(HydroArcTs, &lt;s.id,t&gt;);
     ///   float productionCost[stations][T][priceSegment] = ...;
     ///   float data[I][J] = ...;
+    ///   HydroNode reservoirNode[j in reservoirs] = item(HydroNodes, &lt;j.HydroNodeindex&gt;);
     /// </summary>
     public class MultiDimensionalParameterParser
     {
@@ -29,11 +30,12 @@ namespace Core.Parsing
             parameter = null;
             error = string.Empty;
 
-            // Pattern: type paramName[indexSet1][indexSet2] = ...;
-            // Must match BOTH brackets to be 2D
-            string pattern = @"^\s*(int|float|string|bool)\s+([a-zA-Z][a-zA-Z0-9_]*)\s*\[([a-zA-Z][a-zA-Z0-9_]*)\]\s*\[([a-zA-Z][a-zA-Z0-9_]*)\]\s*=\s*(.+)$";
-
-            var match = Regex.Match(statement.Trim(), pattern, RegexOptions.IgnoreCase);
+            // Match declarations with one or more bracket groups:
+            //   type name[...] = value          (1D with primitive type)
+            //   type name[...][...] = value     (2D+)
+            // where type is a primitive type OR a tuple schema name
+            var match = Regex.Match(statement.Trim(),
+                @"^\s*([a-zA-Z][a-zA-Z0-9_]*)\s+([a-zA-Z][a-zA-Z0-9_]*)\s*((?:\[[^\]]+\])+)\s*=\s*(.+)$");
 
             if (!match.Success)
             {
@@ -41,44 +43,61 @@ namespace Core.Parsing
                 return false;
             }
 
-            string typeStr = match.Groups[1].Value.ToLower();
+            string typeStr = match.Groups[1].Value;
             string paramName = match.Groups[2].Value;
-            string indexSet1 = match.Groups[3].Value;  // First dimension (I)
-            string indexSet2 = match.Groups[4].Value;  // Second dimension (J)
-            string valueStr = match.Groups[5].Value.Trim();
+            string bracketsStr = match.Groups[3].Value;
+            string valueStr = match.Groups[4].Value.Trim();
 
-            // Validate index sets exist
-            if (!modelManager.IndexSets.ContainsKey(indexSet1) && 
-                !modelManager.Ranges.ContainsKey(indexSet1))
+            // Determine if this is a primitive type or a tuple schema type
+            bool isPrimitive = IsPrimitiveType(typeStr);
+            bool isTupleSchema = modelManager.TupleSchemas.ContainsKey(typeStr);
+
+            if (!isPrimitive && !isTupleSchema)
             {
-                error = $"Index set '{indexSet1}' is not defined";
+                error = "Not a multi-dimensional parameter declaration";
                 return false;
             }
 
-            if (!modelManager.IndexSets.ContainsKey(indexSet2) && 
-                !modelManager.Ranges.ContainsKey(indexSet2))
+            // Extract all bracket contents
+            var bracketMatches = Regex.Matches(bracketsStr, @"\[([^\]]+)\]");
+
+            // For primitive types, require at least 2 dimensions (1D is handled by ParameterParser)
+            if (isPrimitive && bracketMatches.Count < 2)
             {
-                error = $"Index set '{indexSet2}' is not defined";
+                error = "Not a multi-dimensional parameter declaration";
                 return false;
             }
 
-            // Convert index sets to ranges if needed
-            if (!modelManager.IndexSets.ContainsKey(indexSet1))
+            var indexSetNames = new List<string>();
+            foreach (Match bm in bracketMatches)
             {
-                var range = modelManager.Ranges[indexSet1];
-                var indexSetObj = new IndexSet(indexSet1, range.GetStart(modelManager), range.GetEnd(modelManager));
-                modelManager.AddIndexSet(indexSetObj);
+                string content = bm.Groups[1].Value.Trim();
+
+                // Check for iterator syntax: "s in HydroArcs" or "t in 1..5"
+                var iterMatch = Regex.Match(content, @"^[a-zA-Z][a-zA-Z0-9_]*\s+in\s+(.+)$");
+                if (iterMatch.Success)
+                {
+                    indexSetNames.Add(iterMatch.Groups[1].Value.Trim());
+                }
+                else
+                {
+                    indexSetNames.Add(content);
+                }
             }
 
-            if (!modelManager.IndexSets.ContainsKey(indexSet2))
+            // Validate index sets — accept tuple sets, primitive sets, index sets, ranges
+            foreach (var setName in indexSetNames)
             {
-                var range = modelManager.Ranges[indexSet2];
-                var indexSetObj = new IndexSet(indexSet2, range.GetStart(modelManager), range.GetEnd(modelManager));
-                modelManager.AddIndexSet(indexSetObj);
+                if (!IsKnownSet(setName))
+                {
+                    error = $"Index set '{setName}' is not defined";
+                    return false;
+                }
+
+                EnsureIndexSet(setName);
             }
 
-            // Determine parameter type
-            ParameterType paramType = typeStr switch
+            ParameterType paramType = typeStr.ToLower() switch
             {
                 "int" => ParameterType.Integer,
                 "float" => ParameterType.Float,
@@ -87,21 +106,36 @@ namespace Core.Parsing
                 _ => ParameterType.Float
             };
 
-            // Check if external
-            bool isExternal = valueStr.Trim() == "...";
+            bool isExternal = valueStr == "...";
 
-            // Create 2D parameter
-            parameter = new Parameter(paramName, paramType, [indexSet1, indexSet2], isExternal);
-
-            // If inline data provided, parse it
-            if (!isExternal)
-            {
-                // TODO: Parse inline 2D data if needed
-                error = "Inline 2D parameter data not yet supported. Use '...' for external data";
-                return false;
-            }
+            parameter = new Parameter(paramName, paramType, indexSetNames, isExternal);
 
             return true;
+        }
+
+        private bool IsKnownSet(string name)
+        {
+            return modelManager.IndexSets.ContainsKey(name) ||
+                   modelManager.Ranges.ContainsKey(name) ||
+                   modelManager.TupleSets.ContainsKey(name) ||
+                   modelManager.PrimitiveSets.ContainsKey(name);
+        }
+
+        private void EnsureIndexSet(string name)
+        {
+            if (!modelManager.IndexSets.ContainsKey(name) &&
+                modelManager.Ranges.ContainsKey(name))
+            {
+                var range = modelManager.Ranges[name];
+                var indexSetObj = new IndexSet(name,
+                    range.GetStart(modelManager), range.GetEnd(modelManager));
+                modelManager.AddIndexSet(indexSetObj);
+            }
+        }
+
+        private static bool IsPrimitiveType(string type)
+        {
+            return type.ToLower() is "int" or "float" or "string" or "bool";
         }
     }
 }

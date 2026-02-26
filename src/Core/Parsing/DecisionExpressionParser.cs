@@ -35,23 +35,28 @@ namespace Core.Parsing
             }
             
             // Pattern for indexed dexpr: dexpr type name[indexVar in IndexSet] = expression
-            string indexedPattern = @"^dexpr\s+(int|float|bool|string)\s+([a-zA-Z][a-zA-Z0-9_]*)\s*\[\s*([a-zA-Z][a-zA-Z0-9_]*)\s+in\s+([a-zA-Z][a-zA-Z0-9_]*)\s*\]\s*=\s*(.+)$";
+            // Also handles multi-dimensional: dexpr type name[a in Set1, b in Set2, ...] = expression
+            string indexedPattern = @"^dexpr\s+(int|float|bool|string)\s+([a-zA-Z][a-zA-Z0-9_]*)\s*\[([^\]]+)\]\s*=\s*(.+)$";
             var indexedMatch = Regex.Match(statement, indexedPattern, RegexOptions.IgnoreCase);
-            
+
             if (indexedMatch.Success)
             {
-                bool success = ParseIndexedDexpr(indexedMatch, out dexpr, out error);
-                if (success && dexpr != null)
+                string bracketContent = indexedMatch.Groups[3].Value.Trim();
+                // Only treat as indexed dexpr if bracket contains "in" keyword
+                if (bracketContent.Contains(" in "))
                 {
-                    // Validate the dexpr
-                    if (!ValidateDexpr(dexpr, out string validationError))
+                    bool success = ParseIndexedDexpr(indexedMatch, out dexpr, out error);
+                    if (success && dexpr != null)
                     {
-                        error = validationError;
-                        dexpr = null;
-                        return false;
+                        if (!ValidateDexpr(dexpr, out string validationError))
+                        {
+                            error = validationError;
+                            dexpr = null;
+                            return false;
+                        }
                     }
+                    return success;
                 }
-                return success;
             }
             
             // Pattern for scalar dexpr: dexpr type name = expression
@@ -134,21 +139,26 @@ namespace Core.Parsing
         {
             dexpr = null;
             error = string.Empty;
-            
+
             string typeStr = match.Groups[1].Value.ToLower();
             string name = match.Groups[2].Value;
-            string indexVar = match.Groups[3].Value;
-            string indexSetName = match.Groups[4].Value;
-            string exprStr = match.Groups[5].Value.Trim();
-            
-            // Validate index set exists
-            if (!modelManager.IndexSets.ContainsKey(indexSetName) && 
-                !modelManager.Ranges.ContainsKey(indexSetName))
+            string bracketContent = match.Groups[3].Value.Trim();
+            string exprStr = match.Groups[4].Value.Trim();
+
+            // Parse iterators from bracket content: "g in groups, n in nodes0, k in priceSegment"
+            var iteratorPattern = @"([a-zA-Z][a-zA-Z0-9_]*)\s+in\s+([a-zA-Z][a-zA-Z0-9_]*)";
+            var iterMatches = Regex.Matches(bracketContent, iteratorPattern);
+
+            if (iterMatches.Count == 0)
             {
-                error = $"Index set or range '{indexSetName}' not found";
+                error = "No valid iterators in indexed dexpr";
                 return false;
             }
-            
+
+            // Use the first iterator as the primary index
+            string indexVar = iterMatches[0].Groups[1].Value;
+            string indexSetName = iterMatches[0].Groups[2].Value;
+
             // Parse type
             VariableType type = typeStr switch
             {
@@ -158,7 +168,7 @@ namespace Core.Parsing
                 "string" => VariableType.String,
                 _ => VariableType.Float
             };
-            
+
             // Parse expression
             Expression expr;
             try
@@ -174,7 +184,7 @@ namespace Core.Parsing
                 error = $"Error parsing expression: {ex.Message}";
                 return false;
             }
-            
+
             dexpr = new DecisionExpression(name, type, indexVar, expr);
             return true;
         }

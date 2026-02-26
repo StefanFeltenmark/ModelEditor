@@ -9,6 +9,11 @@ namespace Core.Parsing
     {
         private readonly ModelManager modelManager;
 
+        public TupleParameterParser(ModelManager manager)
+        {
+            modelManager = manager;
+        }
+
         public bool TryParse(string statement, out TupleParameter? param, out string error)
         {
             param = null;

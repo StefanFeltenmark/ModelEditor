@@ -695,6 +695,33 @@ namespace Core.Models
     }
 
     /// <summary>
+    /// Represents a logical AND expression: left && right
+    /// </summary>
+    public class LogicalAndExpression : Expression
+    {
+        public Expression Left { get; }
+        public Expression Right { get; }
+
+        public LogicalAndExpression(Expression left, Expression right)
+        {
+            Left = left;
+            Right = right;
+        }
+
+        public override double Evaluate(ModelManager modelManager)
+        {
+            double leftVal = Left.Evaluate(modelManager);
+            double rightVal = Right.Evaluate(modelManager);
+            bool result = Math.Abs(leftVal - 1.0) < 1e-10 && Math.Abs(rightVal - 1.0) < 1e-10;
+            return result ? 1.0 : 0.0;
+        }
+
+        public override string ToString() => $"({Left} && {Right})";
+        public override bool IsConstant => Left.IsConstant && Right.IsConstant;
+        public override Expression Simplify(ModelManager? modelManager = null) => this;
+    }
+
+    /// <summary>
     /// Represents a summation expression: sum(i in Set) expression[i]
     /// </summary>
     public class SummationExpression : Expression
