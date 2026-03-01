@@ -46,7 +46,7 @@ namespace Tests
 
             // Assert
             AssertHasError(result);
-            Assert.Contains("Line 1", result.Errors[0].Message);
+            Assert.Equal(1, result.Errors[0].LineNumber);
         }
 
         [Fact]
@@ -120,6 +120,47 @@ namespace Tests
             // Assert
             // This should fail because it's treated as one invalid statement
             AssertHasError(result);
+        }
+
+        [Fact]
+        public void Parse_ErrorLineNumbers_ShouldAccountForBlankLines()
+        {
+            // Arrange - mimics sudoku.mod structure with blank lines
+            var parser = CreateParser();
+            string input =
+                "// comment\n" +         // line 1
+                "\n" +                    // line 2 (blank)
+                "range I = 1..9;\n" +     // line 3
+                "range J = 1..9;\n" +     // line 4
+                "\n" +                    // line 5 (blank)
+                "\n" +                    // line 6 (blank)
+                "invalid statement;\n";   // line 7
+
+            // Act
+            var result = parser.Parse(input);
+
+            // Assert
+            Assert.True(result.HasErrors);
+            Assert.Equal(7, result.Errors[0].LineNumber);
+        }
+
+        [Fact]
+        public void Parse_ErrorLineNumbers_WithConsecutiveBlankLines_ShouldBeAccurate()
+        {
+            // Arrange
+            var parser = CreateParser();
+            string input =
+                "\n" +                    // line 1 (blank)
+                "\n" +                    // line 2 (blank)
+                "\n" +                    // line 3 (blank)
+                "invalid statement;\n";   // line 4
+
+            // Act
+            var result = parser.Parse(input);
+
+            // Assert
+            Assert.True(result.HasErrors);
+            Assert.Equal(4, result.Errors[0].LineNumber);
         }
     }
 }

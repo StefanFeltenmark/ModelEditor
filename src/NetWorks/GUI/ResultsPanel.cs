@@ -87,6 +87,7 @@ namespace GUI.Controls
             };
 
             errorsListView.Columns.Add("Type", 60);
+            errorsListView.Columns.Add("File", 120);
             errorsListView.Columns.Add("Line", 50);
             errorsListView.Columns.Add("Message", 500);
 
@@ -223,21 +224,24 @@ namespace GUI.Controls
         {
             errorsListView.Items.Clear();
 
-            foreach (var error in result.GetErrorMessages())
+            foreach (var error in result.Errors)
             {
-                // Try to extract line number from error message
-                var lineNumber = ExtractLineNumber(error);
-                var errorType = error.Contains("Error") ? "Error" : "Warning";
-                
+                var lineNumber = error.LineNumber > 0 ? error.LineNumber : ExtractLineNumber(error.Message);
+                var errorType = error.Message.Contains("Error") ? "Error" : "Warning";
+                var fileName = !string.IsNullOrEmpty(error.FilePath)
+                    ? System.IO.Path.GetFileName(error.FilePath)
+                    : "";
+
                 var item = new ListViewItem(new[]
                 {
                     errorType,
+                    fileName,
                     lineNumber.ToString(),
-                    error
+                    error.Message
                 });
 
-                item.Tag = lineNumber;
-                
+                item.Tag = (error.FilePath ?? "", lineNumber);
+
                 if (errorType == "Error")
                 {
                     item.ForeColor = Color.Red;
@@ -448,9 +452,10 @@ namespace GUI.Controls
             if (errorsListView.SelectedItems.Count > 0)
             {
                 var item = errorsListView.SelectedItems[0];
-                if (item.Tag is int lineNumber && lineNumber > 0)
+                if (item.Tag is ValueTuple<string, int> tag && tag.Item2 > 0)
                 {
-                    ErrorDoubleClicked?.Invoke(this, new ErrorNavigationEventArgs(lineNumber, item.SubItems[2].Text));
+                    ErrorDoubleClicked?.Invoke(this,
+                        new ErrorNavigationEventArgs(tag.Item2, item.SubItems[3].Text, tag.Item1));
                 }
             }
         }
@@ -459,7 +464,7 @@ namespace GUI.Controls
         {
             if (errorsListView.SelectedItems.Count > 0)
             {
-                var error = errorsListView.SelectedItems[0].SubItems[2].Text;
+                var error = errorsListView.SelectedItems[0].SubItems[3].Text;
                 Clipboard.SetText(error);
             }
         }
@@ -467,7 +472,7 @@ namespace GUI.Controls
         private void CopyAllErrors_Click(object sender, EventArgs e)
         {
             var allErrors = string.Join("\n", errorsListView.Items.Cast<ListViewItem>()
-                .Select(item => item.SubItems[2].Text));
+                .Select(item => item.SubItems[3].Text));
             Clipboard.SetText(allErrors);
         }
     }
@@ -479,11 +484,13 @@ namespace GUI.Controls
     {
         public int LineNumber { get; }
         public string ErrorMessage { get; }
+        public string? FilePath { get; }
 
-        public ErrorNavigationEventArgs(int lineNumber, string errorMessage)
+        public ErrorNavigationEventArgs(int lineNumber, string errorMessage, string? filePath = null)
         {
             LineNumber = lineNumber;
             ErrorMessage = errorMessage;
+            FilePath = filePath;
         }
     }
 }

@@ -15,10 +15,13 @@ namespace GUI
         private TreeView fileTreeView;
         private TreeView configurationsTreeView;
         private string currentRootDirectory;
+        private RunConfiguration? activeConfiguration;
 
         public event EventHandler<RunConfiguration> ConfigurationSelected;
         public event EventHandler<RunConfiguration> RunConfigurationRequested;
+        public event EventHandler<RunConfiguration> ParseConfigurationRequested;
         public event EventHandler<string> FileDoubleClicked;
+        public event EventHandler<string> OutputMessageRequested;
 
         public FileExplorerPanel(RunConfigurationManager manager)
         {
@@ -145,7 +148,7 @@ namespace GUI
         {
             if (!Directory.Exists(path))
             {
-                MessageBox.Show($"Directory not found: {path}", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                OutputMessageRequested?.Invoke(this, $"ERROR: Directory not found: {path}");
                 return;
             }
 
@@ -228,11 +231,19 @@ namespace GUI
 
             foreach (var config in configManager.GetAll())
             {
-                var configNode = new TreeNode($"📦 {config.Name}")
+                bool isActive = activeConfiguration != null && activeConfiguration.Id == config.Id;
+                string prefix = isActive ? "▶ " : "📦 ";
+
+                var configNode = new TreeNode($"{prefix}{config.Name}")
                 {
                     Tag = config,
                     NodeFont = new Font(configurationsTreeView.Font, FontStyle.Bold)
                 };
+
+                if (isActive)
+                {
+                    configNode.ForeColor = Color.FromArgb(0, 122, 204);
+                }
 
                 // Model Files category
                 var modelNode = new TreeNode($"📝 Model Files ({config.ModelFiles.Count})")
@@ -313,9 +324,18 @@ namespace GUI
             }
             else if (e.Node.Tag is RunConfiguration config)
             {
+                SetActiveConfiguration(config);
                 ConfigurationSelected?.Invoke(this, config);
             }
         }
+
+        public void SetActiveConfiguration(RunConfiguration? config)
+        {
+            activeConfiguration = config;
+            RefreshConfigurations();
+        }
+
+        public RunConfiguration? ActiveConfiguration => activeConfiguration;
 
         private void ConfigurationsTree_NodeMouseClick(object? sender, TreeNodeMouseClickEventArgs e)
         {
@@ -341,6 +361,27 @@ namespace GUI
             var runItem = new ToolStripMenuItem("Run", null, RunConfiguration_Click);
             runItem.Font = new Font(menu.Font, FontStyle.Bold);
             menu.Items.Add(runItem);
+
+            menu.Items.Add("Parse", null, (s, e) =>
+            {
+                if (GetSelectedConfiguration() is RunConfiguration config)
+                    ParseConfigurationRequested?.Invoke(this, config);
+            });
+
+            menu.Items.Add(new ToolStripSeparator());
+
+            var setActiveItem = new ToolStripMenuItem("Set as Active", null, (s, e) =>
+            {
+                if (GetSelectedConfiguration() is RunConfiguration config)
+                {
+                    SetActiveConfiguration(config);
+                    ConfigurationSelected?.Invoke(this, config);
+                }
+            });
+            bool isAlreadyActive = node.Tag is RunConfiguration cfg
+                && activeConfiguration != null && activeConfiguration.Id == cfg.Id;
+            setActiveItem.Checked = isAlreadyActive;
+            menu.Items.Add(setActiveItem);
 
             menu.Items.Add(new ToolStripSeparator());
             menu.Items.Add("Edit", null, EditConfiguration_Click);
@@ -514,7 +555,7 @@ namespace GUI
                     if (dialog.ShowDialog() == DialogResult.OK)
                     {
                         configManager.Export(config, dialog.FileName);
-                        MessageBox.Show("Configuration exported successfully!", "Export", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                        OutputMessageRequested?.Invoke(this, $"Configuration exported: {dialog.FileName}");
                     }
                 }
             }

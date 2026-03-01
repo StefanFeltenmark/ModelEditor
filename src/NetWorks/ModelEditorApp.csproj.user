@@ -4,6 +4,9 @@
     <Compile Update="GUI\FileExplorerPanel.cs">
       <SubType>UserControl</SubType>
     </Compile>
+    <Compile Update="GUI\FindReplaceControl.cs">
+      <SubType>UserControl</SubType>
+    </Compile>
     <Compile Update="GUI\ResultsPanel.cs">
       <SubType>UserControl</SubType>
     </Compile>

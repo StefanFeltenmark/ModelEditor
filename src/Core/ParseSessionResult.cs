@@ -8,12 +8,12 @@ namespace Core
     /// </summary>
     public class ParseSessionResult
     {
-        public List<(string Message, int LineNumber)> Errors { get; private set; } = new List<(string, int)>();
+        public List<(string Message, int LineNumber, string? FilePath)> Errors { get; private set; } = new List<(string, int, string?)>();
         public int SuccessCount { get; private set; } = 0;
 
-        public void AddError(string error, int lineNumber)
+        public void AddError(string error, int lineNumber, string? filePath = null)
         {
-            Errors.Add(($"Line {lineNumber}: {error}", lineNumber));
+            Errors.Add((error, lineNumber, filePath));
         }
 
         public void IncrementSuccess()

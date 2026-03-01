@@ -18,6 +18,7 @@ namespace GUI
         private FileExplorerPanel fileExplorerPanel;
         private TabControl mainTabControl;
         private ResultsPanel resultsPanel;
+        private FindReplaceControl findReplaceControl;
 
         public MainForm()
         {
@@ -45,7 +46,9 @@ namespace GUI
             fileExplorerPanel.Dock = DockStyle.Fill;
             fileExplorerPanel.ConfigurationSelected += FileExplorerPanel_ConfigurationSelected;
             fileExplorerPanel.RunConfigurationRequested += FileExplorerPanel_RunConfigurationRequested;
+            fileExplorerPanel.ParseConfigurationRequested += FileExplorerPanel_ParseConfigurationRequested;
             fileExplorerPanel.FileDoubleClicked += FileExplorerPanel_FileDoubleClicked;
+            fileExplorerPanel.OutputMessageRequested += FileExplorerPanel_OutputMessageRequested;
             
             mainSplitContainer.Panel1.Controls.Add(fileExplorerPanel);
 
@@ -76,7 +79,11 @@ namespace GUI
             mainTabControl.ContextMenuStrip = tabContextMenu;
             
             AddEditorTab("Welcome", GetWelcomeMessage());
+
+            // Find/Replace bar (hidden by default, docked above tabs)
+            findReplaceControl = new FindReplaceControl { Visible = false };
             editorSplitContainer.Panel1.Controls.Add(mainTabControl);
+            editorSplitContainer.Panel1.Controls.Add(findReplaceControl);
 
             // Bottom: Results panel
             resultsPanel = new ResultsPanel
@@ -236,6 +243,9 @@ Keyboard Shortcuts:
 • Ctrl+S - Save current file
 • Ctrl+O - Open file
 • Ctrl+W - Close current tab
+• Ctrl+F - Find in current file
+• Ctrl+H - Find and Replace
+• F3 / Shift+F3 - Find Next / Previous
 • Middle-click tab to close
 
 For help, press F1 or visit the documentation.
@@ -245,13 +255,20 @@ For help, press F1 or visit the documentation.
         // Event Handlers
         private void FileExplorerPanel_ConfigurationSelected(object sender, RunConfiguration config)
         {
-            configLabel.Text = $"Config: {config.Name}";
-            statusLabel.Text = $"Configuration selected: {config.Name}";
+            configLabel.Text = $"▶ {config.Name}";
+            statusLabel.Text = $"Active configuration: {config.Name}";
         }
 
         private void FileExplorerPanel_RunConfigurationRequested(object sender, RunConfiguration config)
         {
+            fileExplorerPanel.SetActiveConfiguration(config);
             RunConfiguration(config);
+        }
+
+        private void FileExplorerPanel_ParseConfigurationRequested(object sender, RunConfiguration config)
+        {
+            fileExplorerPanel.SetActiveConfiguration(config);
+            ParseConfiguration(config);
         }
 
         private void FileExplorerPanel_FileDoubleClicked(object sender, string filePath)
@@ -259,8 +276,22 @@ For help, press F1 or visit the documentation.
             OpenFileInEditor(filePath);
         }
 
+        private void FileExplorerPanel_OutputMessageRequested(object sender, string message)
+        {
+            if (message.StartsWith("ERROR:"))
+                ReportError(message.Substring(7));
+            else
+                ReportInfo(message);
+        }
+
         private void ResultsPanel_ErrorDoubleClicked(object sender, ErrorNavigationEventArgs e)
         {
+            // If the error has a file path, open that file first
+            if (!string.IsNullOrEmpty(e.FilePath) && System.IO.File.Exists(e.FilePath))
+            {
+                OpenFileInEditor(e.FilePath);
+            }
+
             // Navigate to error line in current editor
             if (mainTabControl.SelectedTab?.Controls[0] is RichTextBox textBox)
             {
@@ -272,7 +303,7 @@ For help, press F1 or visit the documentation.
                         int charIndex = 0;
                         for (int i = 0; i < e.LineNumber - 1; i++)
                         {
-                            charIndex += lines[i].Length + Environment.NewLine.Length;
+                            charIndex += lines[i].Length + 1; // RichTextBox uses \n
                         }
 
                         textBox.Select(charIndex, lines[e.LineNumber - 1].Length);
@@ -322,7 +353,7 @@ For help, press F1 or visit the documentation.
         {
             if (!System.IO.File.Exists(filePath))
             {
-                MessageBox.Show($"File not found: {filePath}", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                ReportError($"File not found: {filePath}");
                 return;
             }
 
@@ -504,6 +535,22 @@ For help, press F1 or visit the documentation.
                 CloseTab(mainTabControl.SelectedTab);
                 return true;
             }
+            if (keyData == Keys.F3)
+            {
+                findReplaceControl.FindNext();
+                return true;
+            }
+            if (keyData == (Keys.Shift | Keys.F3))
+            {
+                findReplaceControl.FindPrevious();
+                return true;
+            }
+            if (keyData == Keys.Escape && findReplaceControl.Visible)
+            {
+                findReplaceControl.Visible = false;
+                (mainTabControl.SelectedTab?.Controls[0] as RichTextBox)?.Focus();
+                return true;
+            }
             return base.ProcessCmdKey(ref msg, keyData);
         }
 
@@ -576,9 +623,11 @@ For help, press F1 or visit the documentation.
             var textBox = mainTabControl.SelectedTab?.Controls[0] as RichTextBox;
             if (textBox == null)
             {
-                MessageBox.Show("No file open to parse", "Info", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                ReportInfo("No file open to parse.");
                 return;
             }
+
+            var currentFilePath = mainTabControl.SelectedTab?.Tag as string;
 
             statusLabel.Text = "Parsing...";
             resultsPanel.Clear();
@@ -590,14 +639,29 @@ For help, press F1 or visit the documentation.
 
                 var result = parser.Parse(textBox.Text);
 
-                resultsPanel.ShowResults(result, modelManager);
+                // Attach file path to errors if we know the file
+                if (!string.IsNullOrEmpty(currentFilePath))
+                {
+                    var enriched = new ParseSessionResult();
+                    for (int i = 0; i < result.SuccessCount; i++)
+                        enriched.IncrementSuccess();
+                    foreach (var error in result.Errors)
+                        enriched.AddError(error.Message, error.LineNumber, currentFilePath);
+                    resultsPanel.ShowResults(enriched, modelManager);
+                    result = enriched;
+                }
+                else
+                {
+                    resultsPanel.ShowResults(result, modelManager);
+                }
+
                 statusLabel.Text = !result.HasErrors 
                     ? $"Parsing completed: {result.SuccessCount} statements, {result.Errors.Count} errors"
                     : $"Parsing failed: {result.Errors.Count} errors";
             }
             catch (Exception ex)
             {
-                MessageBox.Show($"Error parsing file: {ex.Message}", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                ReportError($"Error parsing file: {ex.Message}");
                 statusLabel.Text = "Parsing error";
             }
         }
@@ -606,18 +670,15 @@ For help, press F1 or visit the documentation.
         {
             if (!config.ValidateFiles(out var missingFiles))
             {
-                MessageBox.Show(
-                    $"The following files are missing:\n{string.Join("\n", missingFiles)}",
-                    "Missing Files",
-                    MessageBoxButtons.OK,
-                    MessageBoxIcon.Error);
+                ReportError("Missing files:\n" + string.Join("\n", missingFiles.Select(f => $"  • {f}")));
+                statusLabel.Text = "Configuration has missing files";
                 return;
             }
 
             config.LastRun = DateTime.Now;
             configManager.Save(config);
 
-            configLabel.Text = $"Config: {config.Name}";
+            configLabel.Text = $"▶ {config.Name}";
             statusLabel.Text = $"Running configuration: {config.Name}...";
             resultsPanel.Clear();
 
@@ -648,8 +709,57 @@ For help, press F1 or visit the documentation.
             }
             catch (Exception ex)
             {
-                MessageBox.Show($"Error running configuration: {ex.Message}", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                ReportError($"Error running configuration: {ex.Message}");
                 statusLabel.Text = "Error running configuration";
+            }
+        }
+
+        private void ParseConfiguration(RunConfiguration config)
+        {
+            if (config.ModelFiles.Count == 0)
+            {
+                ReportInfo($"Configuration '{config.Name}' has no model files to parse.");
+                return;
+            }
+
+            configLabel.Text = $"▶ {config.Name}";
+            statusLabel.Text = $"Parsing configuration: {config.Name}...";
+            resultsPanel.Clear();
+
+            try
+            {
+                var modelManager = new ModelManager();
+                var parser = new EquationParser(modelManager);
+
+                var sessionResult = new ParseSessionResult();
+
+                foreach (var modelFile in config.ModelFiles)
+                {
+                    if (!System.IO.File.Exists(modelFile))
+                    {
+                        sessionResult.AddError($"Model file not found: {modelFile}", 0, modelFile);
+                        continue;
+                    }
+
+                    string text = System.IO.File.ReadAllText(modelFile);
+                    var result = parser.Parse(text);
+
+                    for (int i = 0; i < result.SuccessCount; i++)
+                        sessionResult.IncrementSuccess();
+                    foreach (var error in result.Errors)
+                        sessionResult.AddError(error.Message, error.LineNumber, modelFile);
+                }
+
+                resultsPanel.ShowResults(sessionResult, modelManager);
+
+                statusLabel.Text = !sessionResult.HasErrors
+                    ? $"Parse completed: {sessionResult.SuccessCount} statements"
+                    : $"Parse completed: {sessionResult.SuccessCount} statements, {sessionResult.Errors.Count} errors";
+            }
+            catch (Exception ex)
+            {
+                ReportError($"Error parsing configuration: {ex.Message}");
+                statusLabel.Text = "Parse error";
             }
         }
 
@@ -686,12 +796,14 @@ For help, press F1 or visit the documentation.
 
         private void Find()
         {
-            MessageBox.Show("Find dialog not yet implemented", "Info");
+            if (mainTabControl.SelectedTab?.Controls[0] is RichTextBox textBox)
+                findReplaceControl.ShowFind(textBox);
         }
 
         private void Replace()
         {
-            MessageBox.Show("Replace dialog not yet implemented", "Info");
+            if (mainTabControl.SelectedTab?.Controls[0] is RichTextBox textBox)
+                findReplaceControl.ShowReplace(textBox);
         }
 
         // View operations
@@ -724,7 +836,7 @@ For help, press F1 or visit the documentation.
             var selectedConfig = fileExplorerPanel.GetSelectedConfiguration();
             if (selectedConfig == null)
             {
-                MessageBox.Show("Please select a configuration to edit.", "No Selection", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                ReportInfo("Please select a configuration to edit.");
                 return;
             }
 
@@ -741,14 +853,16 @@ For help, press F1 or visit the documentation.
 
         private void RunCurrentConfiguration()
         {
-            var selectedConfig = fileExplorerPanel.GetSelectedConfiguration();
-            if (selectedConfig != null)
+            var config = fileExplorerPanel.ActiveConfiguration
+                ?? fileExplorerPanel.GetSelectedConfiguration();
+            if (config != null)
             {
-                RunConfiguration(selectedConfig);
+                fileExplorerPanel.SetActiveConfiguration(config);
+                RunConfiguration(config);
             }
             else
             {
-                MessageBox.Show("Please select a configuration to run.", "No Selection", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                ReportInfo("Please select a configuration to run.");
             }
         }
 
@@ -757,17 +871,30 @@ For help, press F1 or visit the documentation.
             var recent = configManager.GetRecent(1).FirstOrDefault();
             if (recent != null)
             {
+                fileExplorerPanel.SetActiveConfiguration(recent);
                 RunConfiguration(recent);
             }
             else
             {
-                MessageBox.Show("No recent configurations found.", "Info", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                ReportInfo("No recent configurations found.");
             }
         }
 
         private void ShowDocumentation()
         {
-            MessageBox.Show("Documentation will open in your default browser.", "Documentation", MessageBoxButtons.OK, MessageBoxIcon.Information);
+            ReportInfo("Documentation will open in your default browser.");
+        }
+
+        private void ReportError(string message)
+        {
+            resultsPanel.AppendOutput($"ERROR: {message}", Color.FromArgb(255, 100, 100));
+            statusLabel.Text = message.Split('\n')[0];
+        }
+
+        private void ReportInfo(string message)
+        {
+            resultsPanel.AppendOutput(message, Color.FromArgb(220, 220, 170));
+            statusLabel.Text = message;
         }
 
         private void ShowAbout()

@@ -1,0 +1,1819 @@
+
+nT = 
+16 ;
+
+UseAverageHeadForProduction = 
+1 ;
+
+OverflowCost = 
+0.0 ;
+
+energyImbalanceCost = 
+1000.0 ;
+
+nPriceSegments = 
+4 ;
+
+reservoirs = 
+ { 
+// Id Node MinLvl InitialLvl InitialContent endwinlo endwinhi endwinlocost endwinhicost
+ <"F.Veltdalsvatn" "Node F.Veltdalsvatn_node(id=248_1)" 1174.0 1182.57 5.69149999999994 0.0 0.0 0.0 0.0 >
+ <"H.Veltdalsvatn" "Node H.Veltdalsvatn_node(id=249_1)" 1158.8 1165.42 6.93820000000009 0.0 0.0 0.0 0.0 >
+ <"Onilsavatn" "Node Onilsavatn_node(id=251_1)" 160.0 170.04 5.85599999999999 0.0 0.0 0.0 0.0 >
+ <"Fagerbotn" "Node Fagerbotn_node(id=252_1)" 1132.0 1145.95 5.75250000000003 0.0 0.0 0.0 0.0 >
+ <"Fetvatn" "Node Fetvatn_node(id=253_1)" 1030.0 1048.47 9.19945845888939 0.0 0.0 0.0 0.0 >
+ <"Tjønna" "Node Tjønna_node(id=254_1)" 1297.0 1297.74 0.0740000000000009 0.0 0.0 0.0 0.0 >
+ <"Smettevatn" "Node Smettevatn_node(id=255_1)" 1146.0 1151.86 0.675279999999985 0.0 0.0 0.0 0.0 >
+ <"Zakariasvatn" "Node Zakariasvatn_node(id=259_1)" 375.0 431.12 46.0696 0.0 0.0 0.0 0.0 >
+ <"Kolbeinsvatn" "Node Kolbeinsvatn_node(id=260_1)" 1102.0 1109.11 19.1087231122997 0.0 0.0 0.0 0.0 >
+ <"Viavatn" "Node Viavatn_node(id=261_1)" 964.0 998.08 30.1716000000001 0.0 0.0 0.0 0.0 >
+ <"Sletdalsvatn" "Node Sletdalsvatn_node(id=262_1)" 887.4 904.203355704698 8.42620000000003 0.0 0.0 0.0 0.0 >
+ <"Outlet" "Node Outlet_node(id=1000)" 0.0 0.001 1000.0 0.0 0.0 0.0 0.0 >
+ <"H.Kaldh.vatn_and_F.Kaldh.vatn" "Node H.Kaldh.vatn_and_F.Kaldh.vatn_node(id=250_1_408_1)" 549.2 571.024834827616 12.5147090909091 0.0 0.0 0.0 0.0 >
+ <"Brusebotn_and_Grønvatn" "Node Brusebotn_and_Grønvatn_node(id=257_1_256_1)" 1255.0 1269.68269230769 50.6424999999997 0.0 0.0 0.0 0.0 >
+ <"H.Viksvatn_and_F.Viksvatn" "Node H.Viksvatn_and_F.Viksvatn_node(id=258_1_424_1)" 1299.0 1315.65 56.9215000000004 0.0 0.0 0.0 0.0 >
+ }
+;
+
+reservoirTs = 
+ { 
+// Id Name t MinContent MaxContent TacticalMinContent TacticalMaxContent TacticalMinContentC TacticalMaxContentC
+ <"F.Veltdalsvatn" 1 0.0 14.9359999999999 0.0 14.9359999999999 20000.0 20000.0 >
+ <"F.Veltdalsvatn" 2 0.0 14.9359999999999 0.0 14.9359999999999 20000.0 20000.0 >
+ <"F.Veltdalsvatn" 3 0.0 14.9359999999999 0.0 14.9359999999999 20000.0 20000.0 >
+ <"F.Veltdalsvatn" 4 0.0 14.9359999999999 0.0 14.9359999999999 20000.0 20000.0 >
+ <"F.Veltdalsvatn" 5 0.0 14.9359999999999 0.0 14.9359999999999 20000.0 20000.0 >
+ <"F.Veltdalsvatn" 6 0.0 14.9359999999999 0.0 14.9359999999999 20000.0 20000.0 >
+ <"F.Veltdalsvatn" 7 0.0 14.9359999999999 0.0 14.9359999999999 20000.0 20000.0 >
+ <"F.Veltdalsvatn" 8 0.0 14.9359999999999 0.0 14.9359999999999 20000.0 20000.0 >
+ <"F.Veltdalsvatn" 9 0.0 14.9359999999999 0.0 14.9359999999999 20000.0 20000.0 >
+ <"F.Veltdalsvatn" 10 0.0 14.9359999999999 0.0 14.9359999999999 20000.0 20000.0 >
+ <"F.Veltdalsvatn" 11 0.0 14.9359999999999 0.0 14.9359999999999 20000.0 20000.0 >
+ <"F.Veltdalsvatn" 12 0.0 14.9359999999999 0.0 14.9359999999999 20000.0 20000.0 >
+ <"F.Veltdalsvatn" 13 0.0 14.9359999999999 0.0 14.9359999999999 20000.0 20000.0 >
+ <"F.Veltdalsvatn" 14 0.0 14.9359999999999 0.0 14.9359999999999 20000.0 20000.0 >
+ <"F.Veltdalsvatn" 15 0.0 14.9359999999999 0.0 14.9359999999999 20000.0 20000.0 >
+ <"F.Veltdalsvatn" 16 0.0 14.9359999999999 0.0 14.9359999999999 20000.0 20000.0 >
+// Id Name t MinContent MaxContent TacticalMinContent TacticalMaxContent TacticalMinContentC TacticalMaxContentC
+ <"H.Veltdalsvatn" 1 0.0 14.8 0.0 13.2 20000.0 20000.0 >
+ <"H.Veltdalsvatn" 2 0.0 14.8 0.0 13.2 20000.0 20000.0 >
+ <"H.Veltdalsvatn" 3 0.0 14.8 0.0 13.2 20000.0 20000.0 >
+ <"H.Veltdalsvatn" 4 0.0 14.8 0.0 13.2 20000.0 20000.0 >
+ <"H.Veltdalsvatn" 5 0.0 14.8 0.0 13.2 20000.0 20000.0 >
+ <"H.Veltdalsvatn" 6 0.0 14.8 0.0 13.2 20000.0 20000.0 >
+ <"H.Veltdalsvatn" 7 0.0 14.8 0.0 13.2 20000.0 20000.0 >
+ <"H.Veltdalsvatn" 8 0.0 14.8 0.0 13.2 20000.0 20000.0 >
+ <"H.Veltdalsvatn" 9 0.0 14.8 0.0 13.2 20000.0 20000.0 >
+ <"H.Veltdalsvatn" 10 0.0 14.8 0.0 13.2 20000.0 20000.0 >
+ <"H.Veltdalsvatn" 11 0.0 14.8 0.0 13.2 20000.0 20000.0 >
+ <"H.Veltdalsvatn" 12 0.0 14.8 0.0 13.2 20000.0 20000.0 >
+ <"H.Veltdalsvatn" 13 0.0 14.8 0.0 13.2 20000.0 20000.0 >
+ <"H.Veltdalsvatn" 14 0.0 14.8 0.0 13.2 20000.0 20000.0 >
+ <"H.Veltdalsvatn" 15 0.0 14.8 0.0 13.2 20000.0 20000.0 >
+ <"H.Veltdalsvatn" 16 0.0 14.8 0.0 13.2 20000.0 20000.0 >
+// Id Name t MinContent MaxContent TacticalMinContent TacticalMaxContent TacticalMinContentC TacticalMaxContentC
+ <"Onilsavatn" 1 0.0 9.45 0.0 9.45 20000.0 20000.0 >
+ <"Onilsavatn" 2 0.0 9.45 0.0 9.45 20000.0 20000.0 >
+ <"Onilsavatn" 3 0.0 9.45 0.0 9.45 20000.0 20000.0 >
+ <"Onilsavatn" 4 0.0 9.45 0.0 9.45 20000.0 20000.0 >
+ <"Onilsavatn" 5 0.0 9.45 0.0 9.45 20000.0 20000.0 >
+ <"Onilsavatn" 6 0.0 9.45 0.0 9.45 20000.0 20000.0 >
+ <"Onilsavatn" 7 0.0 9.45 0.0 9.45 20000.0 20000.0 >
+ <"Onilsavatn" 8 0.0 9.45 0.0 9.45 20000.0 20000.0 >
+ <"Onilsavatn" 9 0.0 9.45 0.0 9.45 20000.0 20000.0 >
+ <"Onilsavatn" 10 0.0 9.45 0.0 9.45 20000.0 20000.0 >
+ <"Onilsavatn" 11 0.0 9.45 0.0 9.45 20000.0 20000.0 >
+ <"Onilsavatn" 12 0.0 9.45 0.0 9.45 20000.0 20000.0 >
+ <"Onilsavatn" 13 0.0 9.45 0.0 9.45 20000.0 20000.0 >
+ <"Onilsavatn" 14 0.0 9.45 0.0 9.45 20000.0 20000.0 >
+ <"Onilsavatn" 15 0.0 9.45 0.0 9.45 20000.0 20000.0 >
+ <"Onilsavatn" 16 0.0 9.45 0.0 9.45 20000.0 20000.0 >
+// Id Name t MinContent MaxContent TacticalMinContent TacticalMaxContent TacticalMinContentC TacticalMaxContentC
+ <"Fagerbotn" 1 0.0 6.739 0.0 6.739 20000.0 20000.0 >
+ <"Fagerbotn" 2 0.0 6.739 0.0 6.739 20000.0 20000.0 >
+ <"Fagerbotn" 3 0.0 6.739 0.0 6.739 20000.0 20000.0 >
+ <"Fagerbotn" 4 0.0 6.739 0.0 6.739 20000.0 20000.0 >
+ <"Fagerbotn" 5 0.0 6.739 0.0 6.739 20000.0 20000.0 >
+ <"Fagerbotn" 6 0.0 6.739 0.0 6.739 20000.0 20000.0 >
+ <"Fagerbotn" 7 0.0 6.739 0.0 6.739 20000.0 20000.0 >
+ <"Fagerbotn" 8 0.0 6.739 0.0 6.739 20000.0 20000.0 >
+ <"Fagerbotn" 9 0.0 6.739 0.0 6.739 20000.0 20000.0 >
+ <"Fagerbotn" 10 0.0 6.739 0.0 6.739 20000.0 20000.0 >
+ <"Fagerbotn" 11 0.0 6.739 0.0 6.739 20000.0 20000.0 >
+ <"Fagerbotn" 12 0.0 6.739 0.0 6.739 20000.0 20000.0 >
+ <"Fagerbotn" 13 0.0 6.739 0.0 6.739 20000.0 20000.0 >
+ <"Fagerbotn" 14 0.0 6.739 0.0 6.739 20000.0 20000.0 >
+ <"Fagerbotn" 15 0.0 6.739 0.0 6.739 20000.0 20000.0 >
+ <"Fagerbotn" 16 0.0 6.739 0.0 6.739 20000.0 20000.0 >
+// Id Name t MinContent MaxContent TacticalMinContent TacticalMaxContent TacticalMinContentC TacticalMaxContentC
+ <"Fetvatn" 1 0.0 12.345312096427 0.0 11.62 20000.0 20000.0 >
+ <"Fetvatn" 2 0.0 12.345312096427 0.0 11.62 20000.0 20000.0 >
+ <"Fetvatn" 3 0.0 12.345312096427 0.0 11.62 20000.0 20000.0 >
+ <"Fetvatn" 4 0.0 12.345312096427 0.0 11.62 20000.0 20000.0 >
+ <"Fetvatn" 5 0.0 12.345312096427 0.0 11.62 20000.0 20000.0 >
+ <"Fetvatn" 6 0.0 12.345312096427 0.0 11.62 20000.0 20000.0 >
+ <"Fetvatn" 7 0.0 12.345312096427 0.0 11.62 20000.0 20000.0 >
+ <"Fetvatn" 8 0.0 12.345312096427 0.0 11.62 20000.0 20000.0 >
+ <"Fetvatn" 9 0.0 12.345312096427 0.0 11.62 20000.0 20000.0 >
+ <"Fetvatn" 10 0.0 12.345312096427 0.0 11.62 20000.0 20000.0 >
+ <"Fetvatn" 11 0.0 12.345312096427 0.0 11.62 20000.0 20000.0 >
+ <"Fetvatn" 12 0.0 12.345312096427 0.0 11.62 20000.0 20000.0 >
+ <"Fetvatn" 13 0.0 12.345312096427 0.0 11.62 20000.0 20000.0 >
+ <"Fetvatn" 14 0.0 12.345312096427 0.0 11.62 20000.0 20000.0 >
+ <"Fetvatn" 15 0.0 12.345312096427 0.0 11.62 20000.0 20000.0 >
+ <"Fetvatn" 16 0.0 12.345312096427 0.0 11.62 20000.0 20000.0 >
+// Id Name t MinContent MaxContent TacticalMinContent TacticalMaxContent TacticalMinContentC TacticalMaxContentC
+ <"Tjønna" 1 0.0 0.1 0.0 0.1 20000.0 20000.0 >
+ <"Tjønna" 2 0.0 0.1 0.0 0.1 20000.0 20000.0 >
+ <"Tjønna" 3 0.0 0.1 0.0 0.1 20000.0 20000.0 >
+ <"Tjønna" 4 0.0 0.1 0.0 0.1 20000.0 20000.0 >
+ <"Tjønna" 5 0.0 0.1 0.0 0.1 20000.0 20000.0 >
+ <"Tjønna" 6 0.0 0.1 0.0 0.1 20000.0 20000.0 >
+ <"Tjønna" 7 0.0 0.1 0.0 0.1 20000.0 20000.0 >
+ <"Tjønna" 8 0.0 0.1 0.0 0.1 20000.0 20000.0 >
+ <"Tjønna" 9 0.0 0.1 0.0 0.1 20000.0 20000.0 >
+ <"Tjønna" 10 0.0 0.1 0.0 0.1 20000.0 20000.0 >
+ <"Tjønna" 11 0.0 0.1 0.0 0.1 20000.0 20000.0 >
+ <"Tjønna" 12 0.0 0.1 0.0 0.1 20000.0 20000.0 >
+ <"Tjønna" 13 0.0 0.1 0.0 0.1 20000.0 20000.0 >
+ <"Tjønna" 14 0.0 0.1 0.0 0.1 20000.0 20000.0 >
+ <"Tjønna" 15 0.0 0.1 0.0 0.1 20000.0 20000.0 >
+ <"Tjønna" 16 0.0 0.1 0.0 0.1 20000.0 20000.0 >
+// Id Name t MinContent MaxContent TacticalMinContent TacticalMaxContent TacticalMinContentC TacticalMaxContentC
+ <"Smettevatn" 1 0.0 1.03 0.0 1.03 20000.0 20000.0 >
+ <"Smettevatn" 2 0.0 1.03 0.0 1.03 20000.0 20000.0 >
+ <"Smettevatn" 3 0.0 1.03 0.0 1.03 20000.0 20000.0 >
+ <"Smettevatn" 4 0.0 1.03 0.0 1.03 20000.0 20000.0 >
+ <"Smettevatn" 5 0.0 1.03 0.0 1.03 20000.0 20000.0 >
+ <"Smettevatn" 6 0.0 1.03 0.0 1.03 20000.0 20000.0 >
+ <"Smettevatn" 7 0.0 1.03 0.0 1.03 20000.0 20000.0 >
+ <"Smettevatn" 8 0.0 1.03 0.0 1.03 20000.0 20000.0 >
+ <"Smettevatn" 9 0.0 1.03 0.0 1.03 20000.0 20000.0 >
+ <"Smettevatn" 10 0.0 1.03 0.0 1.03 20000.0 20000.0 >
+ <"Smettevatn" 11 0.0 1.03 0.0 1.03 20000.0 20000.0 >
+ <"Smettevatn" 12 0.0 1.03 0.0 1.03 20000.0 20000.0 >
+ <"Smettevatn" 13 0.0 1.03 0.0 1.03 20000.0 20000.0 >
+ <"Smettevatn" 14 0.0 1.03 0.0 1.03 20000.0 20000.0 >
+ <"Smettevatn" 15 0.0 1.03 0.0 1.03 20000.0 20000.0 >
+ <"Smettevatn" 16 0.0 1.03 0.0 1.03 20000.0 20000.0 >
+// Id Name t MinContent MaxContent TacticalMinContent TacticalMaxContent TacticalMinContentC TacticalMaxContentC
+ <"Zakariasvatn" 1 0.0 71.68 0.0 70.3 20000.0 20000.0 >
+ <"Zakariasvatn" 2 0.0 71.68 0.0 70.3 20000.0 20000.0 >
+ <"Zakariasvatn" 3 0.0 71.68 0.0 70.3 20000.0 20000.0 >
+ <"Zakariasvatn" 4 0.0 71.68 0.0 70.3 20000.0 20000.0 >
+ <"Zakariasvatn" 5 0.0 71.68 0.0 70.3 20000.0 20000.0 >
+ <"Zakariasvatn" 6 0.0 71.68 0.0 70.3 20000.0 20000.0 >
+ <"Zakariasvatn" 7 0.0 71.68 0.0 70.3 20000.0 20000.0 >
+ <"Zakariasvatn" 8 0.0 71.68 0.0 70.3 20000.0 20000.0 >
+ <"Zakariasvatn" 9 0.0 71.68 0.0 70.3 20000.0 20000.0 >
+ <"Zakariasvatn" 10 0.0 71.68 0.0 70.3 20000.0 20000.0 >
+ <"Zakariasvatn" 11 0.0 71.68 0.0 70.3 20000.0 20000.0 >
+ <"Zakariasvatn" 12 0.0 71.68 0.0 70.3 20000.0 20000.0 >
+ <"Zakariasvatn" 13 0.0 71.68 0.0 70.3 20000.0 20000.0 >
+ <"Zakariasvatn" 14 0.0 71.68 0.0 70.3 20000.0 20000.0 >
+ <"Zakariasvatn" 15 0.0 71.68 0.0 70.3 20000.0 20000.0 >
+ <"Zakariasvatn" 16 0.0 71.68 0.0 70.3 20000.0 20000.0 >
+// Id Name t MinContent MaxContent TacticalMinContent TacticalMaxContent TacticalMinContentC TacticalMaxContentC
+ <"Kolbeinsvatn" 1 0.0 26.03 0.0 26.03 20000.0 20000.0 >
+ <"Kolbeinsvatn" 2 0.0 26.03 0.0 26.03 20000.0 20000.0 >
+ <"Kolbeinsvatn" 3 0.0 26.03 0.0 26.03 20000.0 20000.0 >
+ <"Kolbeinsvatn" 4 0.0 26.03 0.0 26.03 20000.0 20000.0 >
+ <"Kolbeinsvatn" 5 0.0 26.03 0.0 26.03 20000.0 20000.0 >
+ <"Kolbeinsvatn" 6 0.0 26.03 0.0 26.03 20000.0 20000.0 >
+ <"Kolbeinsvatn" 7 0.0 26.03 0.0 26.03 20000.0 20000.0 >
+ <"Kolbeinsvatn" 8 0.0 26.03 0.0 26.03 20000.0 20000.0 >
+ <"Kolbeinsvatn" 9 0.0 26.03 0.0 26.03 20000.0 20000.0 >
+ <"Kolbeinsvatn" 10 0.0 26.03 0.0 26.03 20000.0 20000.0 >
+ <"Kolbeinsvatn" 11 0.0 26.03 0.0 26.03 20000.0 20000.0 >
+ <"Kolbeinsvatn" 12 0.0 26.03 0.0 26.03 20000.0 20000.0 >
+ <"Kolbeinsvatn" 13 0.0 26.03 0.0 26.03 20000.0 20000.0 >
+ <"Kolbeinsvatn" 14 0.0 26.03 0.0 26.03 20000.0 20000.0 >
+ <"Kolbeinsvatn" 15 0.0 26.03 0.0 26.03 20000.0 20000.0 >
+ <"Kolbeinsvatn" 16 0.0 26.03 0.0 26.03 20000.0 20000.0 >
+// Id Name t MinContent MaxContent TacticalMinContent TacticalMaxContent TacticalMinContentC TacticalMaxContentC
+ <"Viavatn" 1 0.0 37.0 0.0 35.46 20000.0 20000.0 >
+ <"Viavatn" 2 0.0 37.0 0.0 35.46 20000.0 20000.0 >
+ <"Viavatn" 3 0.0 37.0 0.0 35.46 20000.0 20000.0 >
+ <"Viavatn" 4 0.0 37.0 0.0 35.46 20000.0 20000.0 >
+ <"Viavatn" 5 0.0 37.0 0.0 35.46 20000.0 20000.0 >
+ <"Viavatn" 6 0.0 37.0 0.0 35.46 20000.0 20000.0 >
+ <"Viavatn" 7 0.0 37.0 0.0 35.46 20000.0 20000.0 >
+ <"Viavatn" 8 0.0 37.0 0.0 35.46 20000.0 20000.0 >
+ <"Viavatn" 9 0.0 37.0 0.0 35.46 20000.0 20000.0 >
+ <"Viavatn" 10 0.0 37.0 0.0 35.46 20000.0 20000.0 >
+ <"Viavatn" 11 0.0 37.0 0.0 35.46 20000.0 20000.0 >
+ <"Viavatn" 12 0.0 37.0 0.0 35.46 20000.0 20000.0 >
+ <"Viavatn" 13 0.0 37.0 0.0 35.46 20000.0 20000.0 >
+ <"Viavatn" 14 0.0 37.0 0.0 35.46 20000.0 20000.0 >
+ <"Viavatn" 15 0.0 37.0 0.0 35.46 20000.0 20000.0 >
+ <"Viavatn" 16 0.0 37.0 0.0 35.46 20000.0 20000.0 >
+// Id Name t MinContent MaxContent TacticalMinContent TacticalMaxContent TacticalMinContentC TacticalMaxContentC
+ <"Sletdalsvatn" 1 0.0 9.695 0.0 9.695 20000.0 20000.0 >
+ <"Sletdalsvatn" 2 0.0 9.695 0.0 9.695 20000.0 20000.0 >
+ <"Sletdalsvatn" 3 0.0 9.695 0.0 9.695 20000.0 20000.0 >
+ <"Sletdalsvatn" 4 0.0 9.695 0.0 9.695 20000.0 20000.0 >
+ <"Sletdalsvatn" 5 0.0 9.695 0.0 9.695 20000.0 20000.0 >
+ <"Sletdalsvatn" 6 0.0 9.695 0.0 9.695 20000.0 20000.0 >
+ <"Sletdalsvatn" 7 0.0 9.695 0.0 9.695 20000.0 20000.0 >
+ <"Sletdalsvatn" 8 0.0 9.695 0.0 9.695 20000.0 20000.0 >
+ <"Sletdalsvatn" 9 0.0 9.695 0.0 9.695 20000.0 20000.0 >
+ <"Sletdalsvatn" 10 0.0 9.695 0.0 9.695 20000.0 20000.0 >
+ <"Sletdalsvatn" 11 0.0 9.695 0.0 9.695 20000.0 20000.0 >
+ <"Sletdalsvatn" 12 0.0 9.695 0.0 9.695 20000.0 20000.0 >
+ <"Sletdalsvatn" 13 0.0 9.695 0.0 9.695 20000.0 20000.0 >
+ <"Sletdalsvatn" 14 0.0 9.695 0.0 9.695 20000.0 20000.0 >
+ <"Sletdalsvatn" 15 0.0 9.695 0.0 9.695 20000.0 20000.0 >
+ <"Sletdalsvatn" 16 0.0 9.695 0.0 9.695 20000.0 20000.0 >
+// Id Name t MinContent MaxContent TacticalMinContent TacticalMaxContent TacticalMinContentC TacticalMaxContentC
+ <"Outlet" 1 0.0 100000000.0 0.0 100000000.0 20000.0 20000.0 >
+ <"Outlet" 2 0.0 100000000.0 0.0 100000000.0 20000.0 20000.0 >
+ <"Outlet" 3 0.0 100000000.0 0.0 100000000.0 20000.0 20000.0 >
+ <"Outlet" 4 0.0 100000000.0 0.0 100000000.0 20000.0 20000.0 >
+ <"Outlet" 5 0.0 100000000.0 0.0 100000000.0 20000.0 20000.0 >
+ <"Outlet" 6 0.0 100000000.0 0.0 100000000.0 20000.0 20000.0 >
+ <"Outlet" 7 0.0 100000000.0 0.0 100000000.0 20000.0 20000.0 >
+ <"Outlet" 8 0.0 100000000.0 0.0 100000000.0 20000.0 20000.0 >
+ <"Outlet" 9 0.0 100000000.0 0.0 100000000.0 20000.0 20000.0 >
+ <"Outlet" 10 0.0 100000000.0 0.0 100000000.0 20000.0 20000.0 >
+ <"Outlet" 11 0.0 100000000.0 0.0 100000000.0 20000.0 20000.0 >
+ <"Outlet" 12 0.0 100000000.0 0.0 100000000.0 20000.0 20000.0 >
+ <"Outlet" 13 0.0 100000000.0 0.0 100000000.0 20000.0 20000.0 >
+ <"Outlet" 14 0.0 100000000.0 0.0 100000000.0 20000.0 20000.0 >
+ <"Outlet" 15 0.0 100000000.0 0.0 100000000.0 20000.0 20000.0 >
+ <"Outlet" 16 0.0 100000000.0 0.0 100000000.0 20000.0 20000.0 >
+// Id Name t MinContent MaxContent TacticalMinContent TacticalMaxContent TacticalMinContentC TacticalMaxContentC
+ <"H.Kaldh.vatn_and_F.Kaldh.vatn" 1 0.00096109 13.627 0.0 13.627 20000.0 20000.0 >
+ <"H.Kaldh.vatn_and_F.Kaldh.vatn" 2 0.00096109 13.627 0.0 13.627 20000.0 20000.0 >
+ <"H.Kaldh.vatn_and_F.Kaldh.vatn" 3 0.00096109 13.627 0.0 13.627 20000.0 20000.0 >
+ <"H.Kaldh.vatn_and_F.Kaldh.vatn" 4 0.00096109 13.627 0.0 13.627 20000.0 20000.0 >
+ <"H.Kaldh.vatn_and_F.Kaldh.vatn" 5 0.00096109 13.627 0.0 13.627 20000.0 20000.0 >
+ <"H.Kaldh.vatn_and_F.Kaldh.vatn" 6 0.00096109 13.627 0.0 13.627 20000.0 20000.0 >
+ <"H.Kaldh.vatn_and_F.Kaldh.vatn" 7 0.00096109 13.627 0.0 13.627 20000.0 20000.0 >
+ <"H.Kaldh.vatn_and_F.Kaldh.vatn" 8 0.00096109 13.627 0.0 13.627 20000.0 20000.0 >
+ <"H.Kaldh.vatn_and_F.Kaldh.vatn" 9 0.00096109 13.627 0.0 13.627 20000.0 20000.0 >
+ <"H.Kaldh.vatn_and_F.Kaldh.vatn" 10 0.00096109 13.627 0.0 13.627 20000.0 20000.0 >
+ <"H.Kaldh.vatn_and_F.Kaldh.vatn" 11 0.00096109 13.627 0.0 13.627 20000.0 20000.0 >
+ <"H.Kaldh.vatn_and_F.Kaldh.vatn" 12 0.00096109 13.627 0.0 13.627 20000.0 20000.0 >
+ <"H.Kaldh.vatn_and_F.Kaldh.vatn" 13 0.00096109 13.627 0.0 13.627 20000.0 20000.0 >
+ <"H.Kaldh.vatn_and_F.Kaldh.vatn" 14 0.00096109 13.627 0.0 13.627 20000.0 20000.0 >
+ <"H.Kaldh.vatn_and_F.Kaldh.vatn" 15 0.00096109 13.627 0.0 13.627 20000.0 20000.0 >
+ <"H.Kaldh.vatn_and_F.Kaldh.vatn" 16 0.00096109 13.627 0.0 13.627 20000.0 20000.0 >
+// Id Name t MinContent MaxContent TacticalMinContent TacticalMaxContent TacticalMinContentC TacticalMaxContentC
+ <"Brusebotn_and_Grønvatn" 1 0.0 59.75 0.0 59.75 20000.0 20000.0 >
+ <"Brusebotn_and_Grønvatn" 2 0.0 59.75 0.0 59.75 20000.0 20000.0 >
+ <"Brusebotn_and_Grønvatn" 3 0.0 59.75 0.0 59.75 20000.0 20000.0 >
+ <"Brusebotn_and_Grønvatn" 4 0.0 59.75 0.0 59.75 20000.0 20000.0 >
+ <"Brusebotn_and_Grønvatn" 5 0.0 59.75 0.0 59.75 20000.0 20000.0 >
+ <"Brusebotn_and_Grønvatn" 6 0.0 59.75 0.0 59.75 20000.0 20000.0 >
+ <"Brusebotn_and_Grønvatn" 7 0.0 59.75 0.0 59.75 20000.0 20000.0 >
+ <"Brusebotn_and_Grønvatn" 8 0.0 59.75 0.0 59.75 20000.0 20000.0 >
+ <"Brusebotn_and_Grønvatn" 9 0.0 59.75 0.0 59.75 20000.0 20000.0 >
+ <"Brusebotn_and_Grønvatn" 10 0.0 59.75 0.0 59.75 20000.0 20000.0 >
+ <"Brusebotn_and_Grønvatn" 11 0.0 59.75 0.0 59.75 20000.0 20000.0 >
+ <"Brusebotn_and_Grønvatn" 12 0.0 59.75 0.0 59.75 20000.0 20000.0 >
+ <"Brusebotn_and_Grønvatn" 13 0.0 59.75 0.0 59.75 20000.0 20000.0 >
+ <"Brusebotn_and_Grønvatn" 14 0.0 59.75 0.0 59.75 20000.0 20000.0 >
+ <"Brusebotn_and_Grønvatn" 15 0.0 59.75 0.0 59.75 20000.0 20000.0 >
+ <"Brusebotn_and_Grønvatn" 16 0.0 59.75 0.0 59.75 20000.0 20000.0 >
+// Id Name t MinContent MaxContent TacticalMinContent TacticalMaxContent TacticalMinContentC TacticalMaxContentC
+ <"H.Viksvatn_and_F.Viksvatn" 1 0.0 74.75 0.0 74.75 20000.0 20000.0 >
+ <"H.Viksvatn_and_F.Viksvatn" 2 0.0 74.75 0.0 74.75 20000.0 20000.0 >
+ <"H.Viksvatn_and_F.Viksvatn" 3 0.0 74.75 0.0 74.75 20000.0 20000.0 >
+ <"H.Viksvatn_and_F.Viksvatn" 4 0.0 74.75 0.0 74.75 20000.0 20000.0 >
+ <"H.Viksvatn_and_F.Viksvatn" 5 0.0 74.75 0.0 74.75 20000.0 20000.0 >
+ <"H.Viksvatn_and_F.Viksvatn" 6 0.0 74.75 0.0 74.75 20000.0 20000.0 >
+ <"H.Viksvatn_and_F.Viksvatn" 7 0.0 74.75 0.0 74.75 20000.0 20000.0 >
+ <"H.Viksvatn_and_F.Viksvatn" 8 0.0 74.75 0.0 74.75 20000.0 20000.0 >
+ <"H.Viksvatn_and_F.Viksvatn" 9 0.0 74.75 0.0 74.75 20000.0 20000.0 >
+ <"H.Viksvatn_and_F.Viksvatn" 10 0.0 74.75 0.0 74.75 20000.0 20000.0 >
+ <"H.Viksvatn_and_F.Viksvatn" 11 0.0 74.75 0.0 74.75 20000.0 20000.0 >
+ <"H.Viksvatn_and_F.Viksvatn" 12 0.0 74.75 0.0 74.75 20000.0 20000.0 >
+ <"H.Viksvatn_and_F.Viksvatn" 13 0.0 74.75 0.0 74.75 20000.0 20000.0 >
+ <"H.Viksvatn_and_F.Viksvatn" 14 0.0 74.75 0.0 74.75 20000.0 20000.0 >
+ <"H.Viksvatn_and_F.Viksvatn" 15 0.0 74.75 0.0 74.75 20000.0 20000.0 >
+ <"H.Viksvatn_and_F.Viksvatn" 16 0.0 74.75 0.0 74.75 20000.0 20000.0 >
+ }
+;
+
+allReservoirSegments = 
+ { 
+ <"F.Veltdalsvatn" 0.37 3.0 >
+ <"F.Veltdalsvatn" 0.855714285714286 7.0 >
+ <"F.Veltdalsvatn" 1.18727272727273 6.59999999999991 >
+ <"H.Veltdalsvatn" 0.99047619047618 4.20000000000005 >
+ <"H.Veltdalsvatn" 1.1875 4.0 >
+ <"H.Veltdalsvatn" 1.43 3.0 >
+ <"Onilsavatn" 0.55 5.0 >
+ <"Onilsavatn" 0.6075 4.0 >
+ <"Onilsavatn" 0.667187499999999 6.40000000000001 >
+ <"Fagerbotn" 0.343333333333333 6.0 >
+ <"Fagerbotn" 0.43 5.0 >
+ <"Fagerbotn" 0.550000000000011 4.59999999999991 >
+ <"Fetvatn" 0.404459750322859 7.0 >
+ <"Fetvatn" 0.525226000860955 8.0 >
+ <"Fetvatn" 0.655281962978907 7.0 >
+ <"Tjønna" 0.1 1.0 >
+ <"Smettevatn" 0.0932 2.5 >
+ <"Smettevatn" 0.129666666666667 3.0 >
+ <"Smettevatn" 0.1632 2.5 >
+ <"Zakariasvatn" 0.586521739130435 23.0 >
+ <"Zakariasvatn" 0.938076923076923 26.0 >
+ <"Zakariasvatn" 1.24692307692308 26.0 >
+ <"Kolbeinsvatn" 2.52958205 3.0 >
+ <"Kolbeinsvatn" 2.75984743666667 3.0 >
+ <"Kolbeinsvatn" 2.99757239999992 3.40000000000009 >
+ <"Viavatn" 0.675 18.0 >
+ <"Viavatn" 1.02166666666667 12.0 >
+ <"Viavatn" 1.7 6.5 >
+ <"Sletdalsvatn" 0.450151515151514 6.60000000000002 >
+ <"Sletdalsvatn" 0.5115 6.0 >
+ <"Sletdalsvatn" 0.579841269841274 6.29999999999995 >
+ <"Outlet" 1000000.0 100.0 >
+ <"H.Kaldh.vatn_and_F.Kaldh.vatn" 0.290740740740742 10.8 >
+ <"H.Kaldh.vatn_and_F.Kaldh.vatn" 0.769173151666667 6.0 >
+ <"H.Kaldh.vatn_and_F.Kaldh.vatn" 0.962459016393439 6.10000000000002 >
+ <"Brusebotn_and_Grønvatn" 3.18916666666667 6.0 >
+ <"Brusebotn_and_Grønvatn" 3.57357142857143 7.0 >
+ <"Brusebotn_and_Grønvatn" 3.96194503171246 4.73000000000002 >
+ <"H.Viksvatn_and_F.Viksvatn" 0.71 3.0 >
+ <"H.Viksvatn_and_F.Viksvatn" 3.792 10.0 >
+ <"H.Viksvatn_and_F.Viksvatn" 4.95714285714286 7.0 >
+ }
+;
+
+stations = 
+ { 
+// Id Arc Equi TailLvl RefHead RoR UpRes
+ <"Tafjord_K5_from_Brusebotn" "arc_Brusebotn_node_Zakariasvatn_node" 1990.0 441.5 0.0 0 "Brusebotn_and_Grønvatn" >
+ <"Tafjord_K5_from_Smettevatn" "arc_Smettevatn_node_Zakariasvatn_node" 1990.0 441.5 0.0 0 "Smettevatn" >
+ <"Tafjord_K4" "arc_Zakariasvatn_node_w_w_Havet_end_node" 1060.0 0.3 0.0 0 "Zakariasvatn" >
+ <"Tafjord_K3" "arc_Sletdalsvatn_node_F.Kaldh.vatn_node" 775.3 575.0 0.0 0 "Sletdalsvatn" >
+ <"Tafjord_K2" "arc_H.Kaldh.vatn_node_Onilsavatn_node" 912.0 181.0 0.0 0 "H.Kaldh.vatn_and_F.Kaldh.vatn" >
+ <"Tafjord_K1" "arc_Onilsavatn_node_w_w_Onilsavatn_Havet_w_Tafjord_K4_Havet_node" 375.0 21.0 0.0 0 "Onilsavatn" >
+ <"Tafjord_K6" "arc_H.Viksvatn_node_Brusebotn_node" 93.0 1278.65 0.0 0 "H.Viksvatn_and_F.Viksvatn" >
+ <"Tafjord_K7_Fag" "arc_Fagerbotn_node_Sletdalsvatn_node" 560.0 917.0 0.0 0 "Fagerbotn" >
+ <"Tafjord_K7_Fet" "arc_Fetvatn_node_Sletdalsvatn_node" 300.0 917.0 0.0 0 "Fetvatn" >
+ <"Tafjord_K8" "arc_Viavatn_node_Sletdalsvatn_node" 179.8 916.6 0.0 0 "Viavatn" >
+ }
+;
+
+stationTs = 
+ { 
+// Id Name t releaseMin releaseMax prodMin prodMax prodMinSoft prodMaxSoft prodMinSoftC prodMaxSoftC
+ <"Tafjord_K5_from_Brusebotn" 1 0.0 14.82 0.0 95.0 0.0 95.0 5000.0 5000.0 >
+ <"Tafjord_K5_from_Brusebotn" 2 0.0 14.82 0.0 95.0 0.0 95.0 5000.0 5000.0 >
+ <"Tafjord_K5_from_Brusebotn" 3 0.0 14.82 0.0 95.0 0.0 95.0 5000.0 5000.0 >
+ <"Tafjord_K5_from_Brusebotn" 4 0.0 14.82 0.0 95.0 0.0 95.0 5000.0 5000.0 >
+ <"Tafjord_K5_from_Brusebotn" 5 0.0 14.82 0.0 95.0 0.0 95.0 5000.0 5000.0 >
+ <"Tafjord_K5_from_Brusebotn" 6 0.0 14.82 0.0 95.0 0.0 95.0 5000.0 5000.0 >
+ <"Tafjord_K5_from_Brusebotn" 7 0.0 14.82 0.0 95.0 0.0 95.0 5000.0 5000.0 >
+ <"Tafjord_K5_from_Brusebotn" 8 0.0 14.82 0.0 95.0 0.0 95.0 5000.0 5000.0 >
+ <"Tafjord_K5_from_Brusebotn" 9 0.0 14.82 0.0 95.0 0.0 95.0 5000.0 5000.0 >
+ <"Tafjord_K5_from_Brusebotn" 10 0.0 14.82 0.0 95.0 0.0 95.0 5000.0 5000.0 >
+ <"Tafjord_K5_from_Brusebotn" 11 0.0 14.82 0.0 95.0 0.0 95.0 5000.0 5000.0 >
+ <"Tafjord_K5_from_Brusebotn" 12 0.0 14.82 0.0 95.0 0.0 95.0 5000.0 5000.0 >
+ <"Tafjord_K5_from_Brusebotn" 13 0.0 14.82 0.0 95.0 0.0 95.0 5000.0 5000.0 >
+ <"Tafjord_K5_from_Brusebotn" 14 0.0 14.82 0.0 95.0 0.0 95.0 5000.0 5000.0 >
+ <"Tafjord_K5_from_Brusebotn" 15 0.0 14.82 0.0 95.0 0.0 95.0 5000.0 5000.0 >
+ <"Tafjord_K5_from_Brusebotn" 16 0.0 14.82 0.0 95.0 0.0 95.0 5000.0 5000.0 >
+// Id Name t releaseMin releaseMax prodMin prodMax prodMinSoft prodMaxSoft prodMinSoftC prodMaxSoftC
+ <"Tafjord_K5_from_Smettevatn" 1 0.0 14.82 0.0 95.0 0.0 95.0 5000.0 5000.0 >
+ <"Tafjord_K5_from_Smettevatn" 2 0.0 14.82 0.0 95.0 0.0 95.0 5000.0 5000.0 >
+ <"Tafjord_K5_from_Smettevatn" 3 0.0 14.82 0.0 95.0 0.0 95.0 5000.0 5000.0 >
+ <"Tafjord_K5_from_Smettevatn" 4 0.0 14.82 0.0 95.0 0.0 95.0 5000.0 5000.0 >
+ <"Tafjord_K5_from_Smettevatn" 5 0.0 14.82 0.0 95.0 0.0 95.0 5000.0 5000.0 >
+ <"Tafjord_K5_from_Smettevatn" 6 0.0 14.82 0.0 95.0 0.0 95.0 5000.0 5000.0 >
+ <"Tafjord_K5_from_Smettevatn" 7 0.0 14.82 0.0 95.0 0.0 95.0 5000.0 5000.0 >
+ <"Tafjord_K5_from_Smettevatn" 8 0.0 14.82 0.0 95.0 0.0 95.0 5000.0 5000.0 >
+ <"Tafjord_K5_from_Smettevatn" 9 0.0 14.82 0.0 95.0 0.0 95.0 5000.0 5000.0 >
+ <"Tafjord_K5_from_Smettevatn" 10 0.0 14.82 0.0 95.0 0.0 95.0 5000.0 5000.0 >
+ <"Tafjord_K5_from_Smettevatn" 11 0.0 14.82 0.0 95.0 0.0 95.0 5000.0 5000.0 >
+ <"Tafjord_K5_from_Smettevatn" 12 0.0 14.82 0.0 95.0 0.0 95.0 5000.0 5000.0 >
+ <"Tafjord_K5_from_Smettevatn" 13 0.0 14.82 0.0 95.0 0.0 95.0 5000.0 5000.0 >
+ <"Tafjord_K5_from_Smettevatn" 14 0.0 14.82 0.0 95.0 0.0 95.0 5000.0 5000.0 >
+ <"Tafjord_K5_from_Smettevatn" 15 0.0 14.82 0.0 95.0 0.0 95.0 5000.0 5000.0 >
+ <"Tafjord_K5_from_Smettevatn" 16 0.0 14.82 0.0 95.0 0.0 95.0 5000.0 5000.0 >
+// Id Name t releaseMin releaseMax prodMin prodMax prodMinSoft prodMaxSoft prodMinSoftC prodMaxSoftC
+ <"Tafjord_K4" 1 0.0 30.38 0.0 120.0 0.0 120.0 5000.0 5000.0 >
+ <"Tafjord_K4" 2 0.0 30.38 0.0 120.0 0.0 120.0 5000.0 5000.0 >
+ <"Tafjord_K4" 3 0.0 30.38 0.0 120.0 0.0 120.0 5000.0 5000.0 >
+ <"Tafjord_K4" 4 0.0 30.38 0.0 120.0 0.0 120.0 5000.0 5000.0 >
+ <"Tafjord_K4" 5 0.0 30.38 0.0 120.0 0.0 120.0 5000.0 5000.0 >
+ <"Tafjord_K4" 6 0.0 30.38 0.0 120.0 0.0 120.0 5000.0 5000.0 >
+ <"Tafjord_K4" 7 0.0 30.38 0.0 120.0 0.0 120.0 5000.0 5000.0 >
+ <"Tafjord_K4" 8 0.0 30.38 0.0 120.0 0.0 120.0 5000.0 5000.0 >
+ <"Tafjord_K4" 9 0.0 30.38 0.0 120.0 0.0 120.0 5000.0 5000.0 >
+ <"Tafjord_K4" 10 0.0 30.38 0.0 120.0 0.0 120.0 5000.0 5000.0 >
+ <"Tafjord_K4" 11 0.0 30.38 0.0 120.0 0.0 120.0 5000.0 5000.0 >
+ <"Tafjord_K4" 12 0.0 30.38 0.0 120.0 0.0 120.0 5000.0 5000.0 >
+ <"Tafjord_K4" 13 0.0 30.38 0.0 120.0 0.0 120.0 5000.0 5000.0 >
+ <"Tafjord_K4" 14 0.0 30.38 0.0 120.0 0.0 120.0 5000.0 5000.0 >
+ <"Tafjord_K4" 15 0.0 30.38 0.0 120.0 0.0 120.0 5000.0 5000.0 >
+ <"Tafjord_K4" 16 0.0 30.38 0.0 120.0 0.0 120.0 5000.0 5000.0 >
+// Id Name t releaseMin releaseMax prodMin prodMax prodMinSoft prodMaxSoft prodMinSoftC prodMaxSoftC
+ <"Tafjord_K3" 1 0.0 8.01 0.0 22.0 0.0 22.0 5000.0 5000.0 >
+ <"Tafjord_K3" 2 0.0 8.01 0.0 22.0 0.0 22.0 5000.0 5000.0 >
+ <"Tafjord_K3" 3 0.0 8.01 0.0 22.0 0.0 22.0 5000.0 5000.0 >
+ <"Tafjord_K3" 4 0.0 8.01 0.0 22.0 0.0 22.0 5000.0 5000.0 >
+ <"Tafjord_K3" 5 0.0 8.01 0.0 22.0 0.0 22.0 5000.0 5000.0 >
+ <"Tafjord_K3" 6 0.0 8.01 0.0 22.0 0.0 22.0 5000.0 5000.0 >
+ <"Tafjord_K3" 7 0.0 8.01 0.0 22.0 0.0 22.0 5000.0 5000.0 >
+ <"Tafjord_K3" 8 0.0 8.01 0.0 22.0 0.0 22.0 5000.0 5000.0 >
+ <"Tafjord_K3" 9 0.0 8.01 0.0 22.0 0.0 22.0 5000.0 5000.0 >
+ <"Tafjord_K3" 10 0.0 8.01 0.0 22.0 0.0 22.0 5000.0 5000.0 >
+ <"Tafjord_K3" 11 0.0 8.01 0.0 22.0 0.0 22.0 5000.0 5000.0 >
+ <"Tafjord_K3" 12 0.0 8.01 0.0 22.0 0.0 22.0 5000.0 5000.0 >
+ <"Tafjord_K3" 13 0.0 8.01 0.0 22.0 0.0 22.0 5000.0 5000.0 >
+ <"Tafjord_K3" 14 0.0 8.01 0.0 22.0 0.0 22.0 5000.0 5000.0 >
+ <"Tafjord_K3" 15 0.0 8.01 0.0 22.0 0.0 22.0 5000.0 5000.0 >
+ <"Tafjord_K3" 16 0.0 8.01 0.0 22.0 0.0 22.0 5000.0 5000.0 >
+// Id Name t releaseMin releaseMax prodMin prodMax prodMinSoft prodMaxSoft prodMinSoftC prodMaxSoftC
+ <"Tafjord_K2" 1 0.0 10.0 0.0 29.0 0.0 29.0 5000.0 5000.0 >
+ <"Tafjord_K2" 2 0.0 10.0 0.0 29.0 0.0 29.0 5000.0 5000.0 >
+ <"Tafjord_K2" 3 0.0 10.0 0.0 29.0 0.0 29.0 5000.0 5000.0 >
+ <"Tafjord_K2" 4 0.0 10.0 0.0 29.0 0.0 29.0 5000.0 5000.0 >
+ <"Tafjord_K2" 5 0.0 10.0 0.0 29.0 0.0 29.0 5000.0 5000.0 >
+ <"Tafjord_K2" 6 0.0 10.0 0.0 29.0 0.0 29.0 5000.0 5000.0 >
+ <"Tafjord_K2" 7 0.0 10.0 0.0 29.0 0.0 29.0 5000.0 5000.0 >
+ <"Tafjord_K2" 8 0.0 10.0 0.0 29.0 0.0 29.0 5000.0 5000.0 >
+ <"Tafjord_K2" 9 0.0 10.0 0.0 29.0 0.0 29.0 5000.0 5000.0 >
+ <"Tafjord_K2" 10 0.0 10.0 0.0 29.0 0.0 29.0 5000.0 5000.0 >
+ <"Tafjord_K2" 11 0.0 10.0 0.0 29.0 0.0 29.0 5000.0 5000.0 >
+ <"Tafjord_K2" 12 0.0 10.0 0.0 29.0 0.0 29.0 5000.0 5000.0 >
+ <"Tafjord_K2" 13 0.0 10.0 0.0 29.0 0.0 29.0 5000.0 5000.0 >
+ <"Tafjord_K2" 14 0.0 10.0 0.0 29.0 0.0 29.0 5000.0 5000.0 >
+ <"Tafjord_K2" 15 0.0 10.0 0.0 29.0 0.0 29.0 5000.0 5000.0 >
+ <"Tafjord_K2" 16 0.0 10.0 0.0 29.0 0.0 29.0 5000.0 5000.0 >
+// Id Name t releaseMin releaseMax prodMin prodMax prodMinSoft prodMaxSoft prodMinSoftC prodMaxSoftC
+ <"Tafjord_K1" 1 0.0 19.871 0.0 25.0 0.0 25.0 5000.0 5000.0 >
+ <"Tafjord_K1" 2 0.0 19.871 0.0 25.0 0.0 25.0 5000.0 5000.0 >
+ <"Tafjord_K1" 3 0.0 19.871 0.0 25.0 0.0 25.0 5000.0 5000.0 >
+ <"Tafjord_K1" 4 0.0 19.871 0.0 25.0 0.0 25.0 5000.0 5000.0 >
+ <"Tafjord_K1" 5 0.0 19.871 0.0 25.0 0.0 25.0 5000.0 5000.0 >
+ <"Tafjord_K1" 6 0.0 19.871 0.0 25.0 0.0 25.0 5000.0 5000.0 >
+ <"Tafjord_K1" 7 0.0 19.871 0.0 25.0 0.0 25.0 5000.0 5000.0 >
+ <"Tafjord_K1" 8 0.0 19.871 0.0 25.0 0.0 25.0 5000.0 5000.0 >
+ <"Tafjord_K1" 9 0.0 19.871 0.0 25.0 0.0 25.0 5000.0 5000.0 >
+ <"Tafjord_K1" 10 0.0 19.871 0.0 25.0 0.0 25.0 5000.0 5000.0 >
+ <"Tafjord_K1" 11 0.0 19.871 0.0 25.0 0.0 25.0 5000.0 5000.0 >
+ <"Tafjord_K1" 12 0.0 19.871 0.0 25.0 0.0 25.0 5000.0 5000.0 >
+ <"Tafjord_K1" 13 0.0 19.871 0.0 25.0 0.0 25.0 5000.0 5000.0 >
+ <"Tafjord_K1" 14 0.0 19.871 0.0 25.0 0.0 25.0 5000.0 5000.0 >
+ <"Tafjord_K1" 15 0.0 19.871 0.0 25.0 0.0 25.0 5000.0 5000.0 >
+ <"Tafjord_K1" 16 0.0 19.871 0.0 25.0 0.0 25.0 5000.0 5000.0 >
+// Id Name t releaseMin releaseMax prodMin prodMax prodMinSoft prodMaxSoft prodMinSoftC prodMaxSoftC
+ <"Tafjord_K6" 1 0.0 5.07 0.0 1.6 0.0 1.6 5000.0 5000.0 >
+ <"Tafjord_K6" 2 0.0 5.07 0.0 1.6 0.0 1.6 5000.0 5000.0 >
+ <"Tafjord_K6" 3 0.0 5.07 0.0 1.6 0.0 1.6 5000.0 5000.0 >
+ <"Tafjord_K6" 4 0.0 5.07 0.0 1.6 0.0 1.6 5000.0 5000.0 >
+ <"Tafjord_K6" 5 0.0 5.07 0.0 1.6 0.0 1.6 5000.0 5000.0 >
+ <"Tafjord_K6" 6 0.0 5.07 0.0 1.6 0.0 1.6 5000.0 5000.0 >
+ <"Tafjord_K6" 7 0.0 5.07 0.0 1.6 0.0 1.6 5000.0 5000.0 >
+ <"Tafjord_K6" 8 0.0 5.07 0.0 1.6 0.0 1.6 5000.0 5000.0 >
+ <"Tafjord_K6" 9 0.0 5.07 0.0 1.6 0.0 1.6 5000.0 5000.0 >
+ <"Tafjord_K6" 10 0.0 5.07 0.0 1.6 0.0 1.6 5000.0 5000.0 >
+ <"Tafjord_K6" 11 0.0 5.07 0.0 1.6 0.0 1.6 5000.0 5000.0 >
+ <"Tafjord_K6" 12 0.0 5.07 0.0 1.6 0.0 1.6 5000.0 5000.0 >
+ <"Tafjord_K6" 13 0.0 5.07 0.0 1.6 0.0 1.6 5000.0 5000.0 >
+ <"Tafjord_K6" 14 0.0 5.07 0.0 1.6 0.0 1.6 5000.0 5000.0 >
+ <"Tafjord_K6" 15 0.0 5.07 0.0 1.6 0.0 1.6 5000.0 5000.0 >
+ <"Tafjord_K6" 16 0.0 5.07 0.0 1.6 0.0 1.6 5000.0 5000.0 >
+// Id Name t releaseMin releaseMax prodMin prodMax prodMinSoft prodMaxSoft prodMinSoftC prodMaxSoftC
+ <"Tafjord_K7_Fag" 1 0.0 0.6 0.0 1.2 0.0 1.2 5000.0 5000.0 >
+ <"Tafjord_K7_Fag" 2 0.0 0.6 0.0 1.2 0.0 1.2 5000.0 5000.0 >
+ <"Tafjord_K7_Fag" 3 0.0 0.6 0.0 1.2 0.0 1.2 5000.0 5000.0 >
+ <"Tafjord_K7_Fag" 4 0.0 0.6 0.0 1.2 0.0 1.2 5000.0 5000.0 >
+ <"Tafjord_K7_Fag" 5 0.0 0.6 0.0 1.2 0.0 1.2 5000.0 5000.0 >
+ <"Tafjord_K7_Fag" 6 0.0 0.6 0.0 1.2 0.0 1.2 5000.0 5000.0 >
+ <"Tafjord_K7_Fag" 7 0.0 0.6 0.0 1.2 0.0 1.2 5000.0 5000.0 >
+ <"Tafjord_K7_Fag" 8 0.0 0.6 0.0 1.2 0.0 1.2 5000.0 5000.0 >
+ <"Tafjord_K7_Fag" 9 0.0 0.6 0.0 1.2 0.0 1.2 5000.0 5000.0 >
+ <"Tafjord_K7_Fag" 10 0.0 0.6 0.0 1.2 0.0 1.2 5000.0 5000.0 >
+ <"Tafjord_K7_Fag" 11 0.0 0.6 0.0 1.2 0.0 1.2 5000.0 5000.0 >
+ <"Tafjord_K7_Fag" 12 0.0 0.6 0.0 1.2 0.0 1.2 5000.0 5000.0 >
+ <"Tafjord_K7_Fag" 13 0.0 0.6 0.0 1.2 0.0 1.2 5000.0 5000.0 >
+ <"Tafjord_K7_Fag" 14 0.0 0.6 0.0 1.2 0.0 1.2 5000.0 5000.0 >
+ <"Tafjord_K7_Fag" 15 0.0 0.6 0.0 1.2 0.0 1.2 5000.0 5000.0 >
+ <"Tafjord_K7_Fag" 16 0.0 0.6 0.0 1.2 0.0 1.2 5000.0 5000.0 >
+// Id Name t releaseMin releaseMax prodMin prodMax prodMinSoft prodMaxSoft prodMinSoftC prodMaxSoftC
+ <"Tafjord_K7_Fet" 1 0.0 2.125 0.0 2.2 0.0 2.2 5000.0 5000.0 >
+ <"Tafjord_K7_Fet" 2 0.0 2.125 0.0 2.2 0.0 2.2 5000.0 5000.0 >
+ <"Tafjord_K7_Fet" 3 0.0 2.125 0.0 2.2 0.0 2.2 5000.0 5000.0 >
+ <"Tafjord_K7_Fet" 4 0.0 2.125 0.0 2.2 0.0 2.2 5000.0 5000.0 >
+ <"Tafjord_K7_Fet" 5 0.0 2.125 0.0 2.2 0.0 2.2 5000.0 5000.0 >
+ <"Tafjord_K7_Fet" 6 0.0 2.125 0.0 2.2 0.0 2.2 5000.0 5000.0 >
+ <"Tafjord_K7_Fet" 7 0.0 2.125 0.0 2.2 0.0 2.2 5000.0 5000.0 >
+ <"Tafjord_K7_Fet" 8 0.0 2.125 0.0 2.2 0.0 2.2 5000.0 5000.0 >
+ <"Tafjord_K7_Fet" 9 0.0 2.125 0.0 2.2 0.0 2.2 5000.0 5000.0 >
+ <"Tafjord_K7_Fet" 10 0.0 2.125 0.0 2.2 0.0 2.2 5000.0 5000.0 >
+ <"Tafjord_K7_Fet" 11 0.0 2.125 0.0 2.2 0.0 2.2 5000.0 5000.0 >
+ <"Tafjord_K7_Fet" 12 0.0 2.125 0.0 2.2 0.0 2.2 5000.0 5000.0 >
+ <"Tafjord_K7_Fet" 13 0.0 2.125 0.0 2.2 0.0 2.2 5000.0 5000.0 >
+ <"Tafjord_K7_Fet" 14 0.0 2.125 0.0 2.2 0.0 2.2 5000.0 5000.0 >
+ <"Tafjord_K7_Fet" 15 0.0 2.125 0.0 2.2 0.0 2.2 5000.0 5000.0 >
+ <"Tafjord_K7_Fet" 16 0.0 2.125 0.0 2.2 0.0 2.2 5000.0 5000.0 >
+// Id Name t releaseMin releaseMax prodMin prodMax prodMinSoft prodMaxSoft prodMinSoftC prodMaxSoftC
+ <"Tafjord_K8" 1 0.0 4.25 0.0 2.8 0.0 2.8 5000.0 5000.0 >
+ <"Tafjord_K8" 2 0.0 4.25 0.0 2.8 0.0 2.8 5000.0 5000.0 >
+ <"Tafjord_K8" 3 0.0 4.25 0.0 2.8 0.0 2.8 5000.0 5000.0 >
+ <"Tafjord_K8" 4 0.0 4.25 0.0 2.8 0.0 2.8 5000.0 5000.0 >
+ <"Tafjord_K8" 5 0.0 4.25 0.0 2.8 0.0 2.8 5000.0 5000.0 >
+ <"Tafjord_K8" 6 0.0 4.25 0.0 2.8 0.0 2.8 5000.0 5000.0 >
+ <"Tafjord_K8" 7 0.0 4.25 0.0 2.8 0.0 2.8 5000.0 5000.0 >
+ <"Tafjord_K8" 8 0.0 4.25 0.0 2.8 0.0 2.8 5000.0 5000.0 >
+ <"Tafjord_K8" 9 0.0 4.25 0.0 2.8 0.0 2.8 5000.0 5000.0 >
+ <"Tafjord_K8" 10 0.0 4.25 0.0 2.8 0.0 2.8 5000.0 5000.0 >
+ <"Tafjord_K8" 11 0.0 4.25 0.0 2.8 0.0 2.8 5000.0 5000.0 >
+ <"Tafjord_K8" 12 0.0 4.25 0.0 2.8 0.0 2.8 5000.0 5000.0 >
+ <"Tafjord_K8" 13 0.0 4.25 0.0 2.8 0.0 2.8 5000.0 5000.0 >
+ <"Tafjord_K8" 14 0.0 4.25 0.0 2.8 0.0 2.8 5000.0 5000.0 >
+ <"Tafjord_K8" 15 0.0 4.25 0.0 2.8 0.0 2.8 5000.0 5000.0 >
+ <"Tafjord_K8" 16 0.0 4.25 0.0 2.8 0.0 2.8 5000.0 5000.0 >
+ }
+;
+
+nProductionPoints = 
+6 ;
+
+allProductionPoints = 
+ { 
+ <"Tafjord_K5_from_Brusebotn" 14.64 813.5 84.0812247252 >
+ <"Tafjord_K5_from_Brusebotn" 14.64 813.5 84.0812247252 >
+ <"Tafjord_K5_from_Brusebotn" 0.0 813.5 0.0 >
+ <"Tafjord_K5_from_Brusebotn" 14.82 831.23 104.351996346741 >
+ <"Tafjord_K5_from_Brusebotn" 14.82 831.23 104.351996346741 >
+ <"Tafjord_K5_from_Brusebotn" 0.0 831.23 0.0 >
+ <"Tafjord_K5_from_Smettevatn" 8.42 704.5 51.23791591245 >
+ <"Tafjord_K5_from_Smettevatn" 13.68 704.5 81.12860421516 >
+ <"Tafjord_K5_from_Smettevatn" 0.0 704.5 0.0 >
+ <"Tafjord_K5_from_Smettevatn" 8.77 712.5 53.973779405625 >
+ <"Tafjord_K5_from_Smettevatn" 13.68 712.5 82.049865867 >
+ <"Tafjord_K5_from_Smettevatn" 0.0 712.5 0.0 >
+ <"Tafjord_K4" 13.48 374.7 45.7155701581665 >
+ <"Tafjord_K4" 27.47 374.7 90.9871555205543 >
+ <"Tafjord_K4" 30.38 374.7 99.7278610964304 >
+ <"Tafjord_K4" 0.0 374.7 0.0 >
+ <"Tafjord_K4" 13.48 449.7 54.9173802502847 >
+ <"Tafjord_K4" 27.47 449.7 109.631438895572 >
+ <"Tafjord_K4" 30.38 449.7 120.271999603948 >
+ <"Tafjord_K4" 0.0 449.7 0.0 >
+ <"Tafjord_K3" 7.37 312.4 19.6194075502527 >
+ <"Tafjord_K3" 8.01 312.4 21.0848397950025 >
+ <"Tafjord_K3" 0.0 312.4 0.0 >
+ <"Tafjord_K3" 7.37 331.3 20.8720799487777 >
+ <"Tafjord_K3" 8.01 331.3 22.4447208058595 >
+ <"Tafjord_K3" 0.0 331.3 0.0 >
+ <"Tafjord_K2" 4.0 368.2 12.693787218326 >
+ <"Tafjord_K2" 8.0 368.2 24.8506642186813 >
+ <"Tafjord_K2" 10.0 368.2 30.3768397865849 >
+ <"Tafjord_K2" 0.0 368.2 0.0 >
+ <"Tafjord_K2" 4.0 391.1 13.4884502235192 >
+ <"Tafjord_K2" 8.0 391.1 26.4376140530589 >
+ <"Tafjord_K2" 10.0 391.1 32.3463461034387 >
+ <"Tafjord_K2" 0.0 391.1 0.0 >
+ <"Tafjord_K1" 14.761 139.0 19.00078667856 >
+ <"Tafjord_K1" 17.485 139.0 22.334106432744 >
+ <"Tafjord_K1" 19.871 139.0 25.175501412939 >
+ <"Tafjord_K1" 0.0 139.0 0.0 >
+ <"Tafjord_K1" 14.761 154.4 21.105909806976 >
+ <"Tafjord_K1" 17.485 154.4 24.8085326130624 >
+ <"Tafjord_K1" 19.871 154.4 27.9647296270344 >
+ <"Tafjord_K1" 0.0 154.4 0.0 >
+ <"Tafjord_K6" 4.49 20.3499999999999 0.788351021490151 >
+ <"Tafjord_K6" 5.07 20.3499999999999 0.873693166447142 >
+ <"Tafjord_K6" 0.0 20.3499999999999 0.0 >
+ <"Tafjord_K6" 4.49 40.3499999999999 1.56314318020283 >
+ <"Tafjord_K6" 5.07 40.3499999999999 1.7323596690979 >
+ <"Tafjord_K6" 0.0 40.3499999999999 0.0 >
+ <"Tafjord_K7_Fag" 0.4 215.0 0.7337817216 >
+ <"Tafjord_K7_Fag" 0.6 215.0 1.09879794154893 >
+ <"Tafjord_K7_Fag" 0.0 215.0 0.0 >
+ <"Tafjord_K7_Fag" 0.4 230.6 0.787023558144 >
+ <"Tafjord_K7_Fag" 0.6 230.6 1.17852467591248 >
+ <"Tafjord_K7_Fag" 0.0 230.6 0.0 >
+ <"Tafjord_K7_Fet" 1.7 113.0 1.69359796573222 >
+ <"Tafjord_K7_Fet" 2.125 113.0 2.09435779163455 >
+ <"Tafjord_K7_Fet" 0.0 113.0 0.0 >
+ <"Tafjord_K7_Fet" 1.7 135.0 2.0233250033084 >
+ <"Tafjord_K7_Fet" 2.125 135.0 2.50210886611207 >
+ <"Tafjord_K7_Fet" 0.0 135.0 0.0 >
+ <"Tafjord_K8" 4.2 47.4 1.50084947924059 >
+ <"Tafjord_K8" 4.25 47.4 1.51090491444423 >
+ <"Tafjord_K8" 0.0 47.4 0.0 >
+ <"Tafjord_K8" 4.2 83.9 2.86466026186842 >
+ <"Tafjord_K8" 4.25 83.9 2.88979955593356 >
+ <"Tafjord_K8" 0.0 83.9 0.0 >
+ }
+;
+
+productionCost = 
+[[[0.0 0.0 0.0 0.0 ]
+[0.0 0.0 0.0 0.0 ]
+[0.0 0.0 0.0 0.0 ]
+[0.0 0.0 0.0 0.0 ]
+[0.0 0.0 0.0 0.0 ]
+[0.0 0.0 0.0 0.0 ]
+[0.0 0.0 0.0 0.0 ]
+[0.0 0.0 0.0 0.0 ]
+[0.0 0.0 0.0 0.0 ]
+[0.0 0.0 0.0 0.0 ]
+[0.0 0.0 0.0 0.0 ]
+[0.0 0.0 0.0 0.0 ]
+[0.0 0.0 0.0 0.0 ]
+[0.0 0.0 0.0 0.0 ]
+[0.0 0.0 0.0 0.0 ]
+[0.0 0.0 0.0 0.0 ]
+]
+[[0.0 0.0 0.0 0.0 ]
+[0.0 0.0 0.0 0.0 ]
+[0.0 0.0 0.0 0.0 ]
+[0.0 0.0 0.0 0.0 ]
+[0.0 0.0 0.0 0.0 ]
+[0.0 0.0 0.0 0.0 ]
+[0.0 0.0 0.0 0.0 ]
+[0.0 0.0 0.0 0.0 ]
+[0.0 0.0 0.0 0.0 ]
+[0.0 0.0 0.0 0.0 ]
+[0.0 0.0 0.0 0.0 ]
+[0.0 0.0 0.0 0.0 ]
+[0.0 0.0 0.0 0.0 ]
+[0.0 0.0 0.0 0.0 ]
+[0.0 0.0 0.0 0.0 ]
+[0.0 0.0 0.0 0.0 ]
+]
+[[0.0 0.0 0.0 0.0 ]
+[0.0 0.0 0.0 0.0 ]
+[0.0 0.0 0.0 0.0 ]
+[0.0 0.0 0.0 0.0 ]
+[0.0 0.0 0.0 0.0 ]
+[0.0 0.0 0.0 0.0 ]
+[0.0 0.0 0.0 0.0 ]
+[0.0 0.0 0.0 0.0 ]
+[0.0 0.0 0.0 0.0 ]
+[0.0 0.0 0.0 0.0 ]
+[0.0 0.0 0.0 0.0 ]
+[0.0 0.0 0.0 0.0 ]
+[0.0 0.0 0.0 0.0 ]
+[0.0 0.0 0.0 0.0 ]
+[0.0 0.0 0.0 0.0 ]
+[0.0 0.0 0.0 0.0 ]
+]
+[[0.0 0.0 0.0 0.0 ]
+[0.0 0.0 0.0 0.0 ]
+[0.0 0.0 0.0 0.0 ]
+[0.0 0.0 0.0 0.0 ]
+[0.0 0.0 0.0 0.0 ]
+[0.0 0.0 0.0 0.0 ]
+[0.0 0.0 0.0 0.0 ]
+[0.0 0.0 0.0 0.0 ]
+[0.0 0.0 0.0 0.0 ]
+[0.0 0.0 0.0 0.0 ]
+[0.0 0.0 0.0 0.0 ]
+[0.0 0.0 0.0 0.0 ]
+[0.0 0.0 0.0 0.0 ]
+[0.0 0.0 0.0 0.0 ]
+[0.0 0.0 0.0 0.0 ]
+[0.0 0.0 0.0 0.0 ]
+]
+[[0.0 0.0 0.0 0.0 ]
+[0.0 0.0 0.0 0.0 ]
+[0.0 0.0 0.0 0.0 ]
+[0.0 0.0 0.0 0.0 ]
+[0.0 0.0 0.0 0.0 ]
+[0.0 0.0 0.0 0.0 ]
+[0.0 0.0 0.0 0.0 ]
+[0.0 0.0 0.0 0.0 ]
+[0.0 0.0 0.0 0.0 ]
+[0.0 0.0 0.0 0.0 ]
+[0.0 0.0 0.0 0.0 ]
+[0.0 0.0 0.0 0.0 ]
+[0.0 0.0 0.0 0.0 ]
+[0.0 0.0 0.0 0.0 ]
+[0.0 0.0 0.0 0.0 ]
+[0.0 0.0 0.0 0.0 ]
+]
+[[0.0 0.0 0.0 0.0 ]
+[0.0 0.0 0.0 0.0 ]
+[0.0 0.0 0.0 0.0 ]
+[0.0 0.0 0.0 0.0 ]
+[0.0 0.0 0.0 0.0 ]
+[0.0 0.0 0.0 0.0 ]
+[0.0 0.0 0.0 0.0 ]
+[0.0 0.0 0.0 0.0 ]
+[0.0 0.0 0.0 0.0 ]
+[0.0 0.0 0.0 0.0 ]
+[0.0 0.0 0.0 0.0 ]
+[0.0 0.0 0.0 0.0 ]
+[0.0 0.0 0.0 0.0 ]
+[0.0 0.0 0.0 0.0 ]
+[0.0 0.0 0.0 0.0 ]
+[0.0 0.0 0.0 0.0 ]
+]
+[[0.0 0.0 0.0 0.0 ]
+[0.0 0.0 0.0 0.0 ]
+[0.0 0.0 0.0 0.0 ]
+[0.0 0.0 0.0 0.0 ]
+[0.0 0.0 0.0 0.0 ]
+[0.0 0.0 0.0 0.0 ]
+[0.0 0.0 0.0 0.0 ]
+[0.0 0.0 0.0 0.0 ]
+[0.0 0.0 0.0 0.0 ]
+[0.0 0.0 0.0 0.0 ]
+[0.0 0.0 0.0 0.0 ]
+[0.0 0.0 0.0 0.0 ]
+[0.0 0.0 0.0 0.0 ]
+[0.0 0.0 0.0 0.0 ]
+[0.0 0.0 0.0 0.0 ]
+[0.0 0.0 0.0 0.0 ]
+]
+[[0.0 0.0 0.0 0.0 ]
+[0.0 0.0 0.0 0.0 ]
+[0.0 0.0 0.0 0.0 ]
+[0.0 0.0 0.0 0.0 ]
+[0.0 0.0 0.0 0.0 ]
+[0.0 0.0 0.0 0.0 ]
+[0.0 0.0 0.0 0.0 ]
+[0.0 0.0 0.0 0.0 ]
+[0.0 0.0 0.0 0.0 ]
+[0.0 0.0 0.0 0.0 ]
+[0.0 0.0 0.0 0.0 ]
+[0.0 0.0 0.0 0.0 ]
+[0.0 0.0 0.0 0.0 ]
+[0.0 0.0 0.0 0.0 ]
+[0.0 0.0 0.0 0.0 ]
+[0.0 0.0 0.0 0.0 ]
+]
+[[0.0 0.0 0.0 0.0 ]
+[0.0 0.0 0.0 0.0 ]
+[0.0 0.0 0.0 0.0 ]
+[0.0 0.0 0.0 0.0 ]
+[0.0 0.0 0.0 0.0 ]
+[0.0 0.0 0.0 0.0 ]
+[0.0 0.0 0.0 0.0 ]
+[0.0 0.0 0.0 0.0 ]
+[0.0 0.0 0.0 0.0 ]
+[0.0 0.0 0.0 0.0 ]
+[0.0 0.0 0.0 0.0 ]
+[0.0 0.0 0.0 0.0 ]
+[0.0 0.0 0.0 0.0 ]
+[0.0 0.0 0.0 0.0 ]
+[0.0 0.0 0.0 0.0 ]
+[0.0 0.0 0.0 0.0 ]
+]
+[[0.0 0.0 0.0 0.0 ]
+[0.0 0.0 0.0 0.0 ]
+[0.0 0.0 0.0 0.0 ]
+[0.0 0.0 0.0 0.0 ]
+[0.0 0.0 0.0 0.0 ]
+[0.0 0.0 0.0 0.0 ]
+[0.0 0.0 0.0 0.0 ]
+[0.0 0.0 0.0 0.0 ]
+[0.0 0.0 0.0 0.0 ]
+[0.0 0.0 0.0 0.0 ]
+[0.0 0.0 0.0 0.0 ]
+[0.0 0.0 0.0 0.0 ]
+[0.0 0.0 0.0 0.0 ]
+[0.0 0.0 0.0 0.0 ]
+[0.0 0.0 0.0 0.0 ]
+[0.0 0.0 0.0 0.0 ]
+]
+]
+;
+
+groups = 
+ { 
+"Group_Tafjord.basis_data" "Tafjord_K5_group"  }
+;
+
+groupDefinitions = 
+ { 
+ <"Group_Tafjord.basis_data" "Tafjord_K5_from_Brusebotn" >
+ <"Group_Tafjord.basis_data" "Tafjord_K5_from_Smettevatn" >
+ <"Group_Tafjord.basis_data" "Tafjord_K4" >
+ <"Group_Tafjord.basis_data" "Tafjord_K3" >
+ <"Group_Tafjord.basis_data" "Tafjord_K2" >
+ <"Group_Tafjord.basis_data" "Tafjord_K1" >
+ <"Group_Tafjord.basis_data" "Tafjord_K6" >
+ <"Group_Tafjord.basis_data" "Tafjord_K7_Fag" >
+ <"Group_Tafjord.basis_data" "Tafjord_K7_Fet" >
+ <"Group_Tafjord.basis_data" "Tafjord_K8" >
+ <"Tafjord_K5_group" "Tafjord_K5_from_Brusebotn" >
+ <"Tafjord_K5_group" "Tafjord_K5_from_Smettevatn" >
+ }
+;
+
+stationGroupTs = 
+ { 
+// Id Name t ProdMin ProdMax ReleaseMin ReleaseMax
+ <"Group_Tafjord.basis_data" 1 0.0 1000000.0 0.0 100000.0 >
+ <"Group_Tafjord.basis_data" 2 0.0 1000000.0 0.0 100000.0 >
+ <"Group_Tafjord.basis_data" 3 0.0 1000000.0 0.0 100000.0 >
+ <"Group_Tafjord.basis_data" 4 0.0 1000000.0 0.0 100000.0 >
+ <"Group_Tafjord.basis_data" 5 0.0 1000000.0 0.0 100000.0 >
+ <"Group_Tafjord.basis_data" 6 0.0 1000000.0 0.0 100000.0 >
+ <"Group_Tafjord.basis_data" 7 0.0 1000000.0 0.0 100000.0 >
+ <"Group_Tafjord.basis_data" 8 0.0 1000000.0 0.0 100000.0 >
+ <"Group_Tafjord.basis_data" 9 0.0 1000000.0 0.0 100000.0 >
+ <"Group_Tafjord.basis_data" 10 0.0 1000000.0 0.0 100000.0 >
+ <"Group_Tafjord.basis_data" 11 0.0 1000000.0 0.0 100000.0 >
+ <"Group_Tafjord.basis_data" 12 0.0 1000000.0 0.0 100000.0 >
+ <"Group_Tafjord.basis_data" 13 0.0 1000000.0 0.0 100000.0 >
+ <"Group_Tafjord.basis_data" 14 0.0 1000000.0 0.0 100000.0 >
+ <"Group_Tafjord.basis_data" 15 0.0 1000000.0 0.0 100000.0 >
+ <"Group_Tafjord.basis_data" 16 0.0 1000000.0 0.0 100000.0 >
+// Id Name t ProdMin ProdMax ReleaseMin ReleaseMax
+ <"Tafjord_K5_group" 1 0.0 95.0 0.0 14.82 >
+ <"Tafjord_K5_group" 2 0.0 95.0 0.0 14.82 >
+ <"Tafjord_K5_group" 3 0.0 95.0 0.0 14.82 >
+ <"Tafjord_K5_group" 4 0.0 95.0 0.0 14.82 >
+ <"Tafjord_K5_group" 5 0.0 95.0 0.0 14.82 >
+ <"Tafjord_K5_group" 6 0.0 95.0 0.0 14.82 >
+ <"Tafjord_K5_group" 7 0.0 95.0 0.0 14.82 >
+ <"Tafjord_K5_group" 8 0.0 95.0 0.0 14.82 >
+ <"Tafjord_K5_group" 9 0.0 95.0 0.0 14.82 >
+ <"Tafjord_K5_group" 10 0.0 95.0 0.0 14.82 >
+ <"Tafjord_K5_group" 11 0.0 95.0 0.0 14.82 >
+ <"Tafjord_K5_group" 12 0.0 95.0 0.0 14.82 >
+ <"Tafjord_K5_group" 13 0.0 95.0 0.0 14.82 >
+ <"Tafjord_K5_group" 14 0.0 95.0 0.0 14.82 >
+ <"Tafjord_K5_group" 15 0.0 95.0 0.0 14.82 >
+ <"Tafjord_K5_group" 16 0.0 95.0 0.0 14.82 >
+ }
+;
+
+waterways = 
+ { 
+ <"f_Zakariasvatn_Onilsavatn" "arc_f_Zakariasvatn_Onilsavatn" >
+ <"f_Onilsavatn_Havet" "arc_f_Onilsavatn_Havet" >
+ <"f_Fagerbotn_Sletdalsvatn" "arc_f_Fagerbotn_Sletdalsvatn" >
+ <"f_Fetvatn_Sletdalsvatn" "arc_f_Fetvatn_Sletdalsvatn" >
+ <"f_Kolbeinsvatn_Viavatn" "arc_f_Kolbeinsvatn_Viavatn" >
+ <"f_H.Kaldh.vatn_Onilsavatn" "arc_f_H.Kaldh.vatn_Onilsavatn" >
+ <"f_Viavatn_Sletdalsvatn" "arc_f_Viavatn_Sletdalsvatn" >
+ <"f_H.Viksvatn_Zakariasvatn" "arc_f_H.Viksvatn_Zakariasvatn" >
+ <"f_Grønvatn_Havet" "arc_f_Grønvatn_Havet" >
+ <"w_Kolbeinsvatn_Viavatn" "arc_w_Kolbeinsvatn_Viavatn" >
+ <"f_Tjønna_Zakariasvatn" "arc_f_Tjønna_Zakariasvatn" >
+ <"w_F.Veltdalsvatn_H.Veltdalsvatn" "arc_w_F.Veltdalsvatn_H.Veltdalsvatn" >
+ <"f_F.Veltdalsvatn_H.Veltdalsvatn" "arc_f_F.Veltdalsvatn_H.Veltdalsvatn" >
+ <"f_H.Veltdalsvatn_Smettevatn" "arc_f_H.Veltdalsvatn_Smettevatn" >
+ <"f_Smettevatn_Zakariasvatn" "arc_f_Smettevatn_Zakariasvatn" >
+ <"w_H.Veltdalsvatn_Smettevatn" "arc_w_H.Veltdalsvatn_Smettevatn" >
+ <"w_w_Onilsavatn_Havet_w_Tafjord_K4_Havet" "arc_w_w_Onilsavatn_Havet_w_Tafjord_K4_Havet" >
+ <"b_Onilsavatn_w_Onilsavatn_Havet" "arc_b_Onilsavatn_w_Onilsavatn_Havet" >
+ <"f_Sletdalsvatn_F.Kaldh.vatn" "arc_f_Sletdalsvatn_F.Kaldh.vatn" >
+ <"b_H.Viksvatn_Brusebotn" "arc_b_H.Viksvatn_Brusebotn" >
+ <"f_Brusebotn_w_Havet" "arc_f_Brusebotn_w_Havet" >
+ <"b_Viavatn_Sletdalsvatn" "arc_b_Viavatn_Sletdalsvatn" >
+ <"b_Tjønna_Zakariasvatn" "arc_b_Tjønna_Zakariasvatn" >
+ <"w_w_Havet_end" "arc_w_w_Havet_end" >
+ <"b_Zakariasvatn_Onilsavatn" "arc_b_Zakariasvatn_Onilsavatn" >
+ }
+;
+
+pumps = 
+ { 
+ <"Pumpe_1" "arc_Tjønna_node_H.Viksvatn_node" 116.0 1309.0 "Tjønna" >
+ }
+;
+
+pumpTs = 
+ { 
+// Id Name t PowerMax PowerMin FlowMin FlowMax
+ <"Pumpe_1" 1 0.0 1000.0 0.0 0.57 >
+ <"Pumpe_1" 2 0.0 1000.0 0.0 0.57 >
+ <"Pumpe_1" 3 0.0 1000.0 0.0 0.57 >
+ <"Pumpe_1" 4 0.0 1000.0 0.0 0.57 >
+ <"Pumpe_1" 5 0.0 1000.0 0.0 0.57 >
+ <"Pumpe_1" 6 0.0 1000.0 0.0 0.57 >
+ <"Pumpe_1" 7 0.0 1000.0 0.0 0.57 >
+ <"Pumpe_1" 8 0.0 1000.0 0.0 0.57 >
+ <"Pumpe_1" 9 0.0 1000.0 0.0 0.57 >
+ <"Pumpe_1" 10 0.0 1000.0 0.0 0.57 >
+ <"Pumpe_1" 11 0.0 1000.0 0.0 0.57 >
+ <"Pumpe_1" 12 0.0 1000.0 0.0 0.57 >
+ <"Pumpe_1" 13 0.0 1000.0 0.0 0.57 >
+ <"Pumpe_1" 14 0.0 1000.0 0.0 0.57 >
+ <"Pumpe_1" 15 0.0 1000.0 0.0 0.57 >
+ <"Pumpe_1" 16 0.0 1000.0 0.0 0.57 >
+ }
+;
+
+pumpCost = 
+[[[0.0 0.0 0.0 0.0 ]
+[0.0 0.0 0.0 0.0 ]
+[0.0 0.0 0.0 0.0 ]
+[0.0 0.0 0.0 0.0 ]
+[0.0 0.0 0.0 0.0 ]
+[0.0 0.0 0.0 0.0 ]
+[0.0 0.0 0.0 0.0 ]
+[0.0 0.0 0.0 0.0 ]
+[0.0 0.0 0.0 0.0 ]
+[0.0 0.0 0.0 0.0 ]
+[0.0 0.0 0.0 0.0 ]
+[0.0 0.0 0.0 0.0 ]
+[0.0 0.0 0.0 0.0 ]
+[0.0 0.0 0.0 0.0 ]
+[0.0 0.0 0.0 0.0 ]
+[0.0 0.0 0.0 0.0 ]
+]
+]
+;
+
+nConsumptionPoints = 
+6 ;
+
+allConsumptionPoints = 
+ { 
+ <"Pumpe_1" 0.57 21.5 0.171745071428571 >
+ <"Pumpe_1" 0.0 21.5 0.0 >
+ <"Pumpe_1" 0.57 21.501 0.171753059571429 >
+ <"Pumpe_1" 0.0 21.501 0.0 >
+ <"Pumpe_1" 1.11409090909091 11.0 0.171745071428571 >
+ <"Pumpe_1" 0.0 11.0 0.0 >
+ }
+;
+
+OverFlowArcs = 
+ { 
+"arc_f_Zakariasvatn_Onilsavatn" "arc_f_Onilsavatn_Havet" "arc_f_Fagerbotn_Sletdalsvatn" "arc_f_Fetvatn_Sletdalsvatn" "arc_f_Kolbeinsvatn_Viavatn" "arc_f_H.Kaldh.vatn_Onilsavatn" "arc_f_Viavatn_Sletdalsvatn" "arc_f_H.Viksvatn_Zakariasvatn" "arc_f_Grønvatn_Havet" "arc_f_Tjønna_Zakariasvatn" "arc_f_F.Veltdalsvatn_H.Veltdalsvatn" "arc_f_H.Veltdalsvatn_Smettevatn" "arc_f_Smettevatn_Zakariasvatn" "arc_f_Sletdalsvatn_F.Kaldh.vatn" "arc_f_Brusebotn_w_Havet"  }
+;
+
+HydroNodes = 
+ { 
+ <"Node F.Veltdalsvatn_node(id=248_1)" >
+ <"Node H.Veltdalsvatn_node(id=249_1)" >
+ <"Node Onilsavatn_node(id=251_1)" >
+ <"Node Fagerbotn_node(id=252_1)" >
+ <"Node Fetvatn_node(id=253_1)" >
+ <"Node Tjønna_node(id=254_1)" >
+ <"Node Smettevatn_node(id=255_1)" >
+ <"Node Zakariasvatn_node(id=259_1)" >
+ <"Node Kolbeinsvatn_node(id=260_1)" >
+ <"Node Viavatn_node(id=261_1)" >
+ <"Node Sletdalsvatn_node(id=262_1)" >
+ <"Node w_w_Havet_end_node(id=99478_1)" >
+ <"Node w_Saudebotn_Tafjord_K3_node(id=289_1)" >
+ <"Node w_Muldal_Tafjord_K4_node(id=285_1)" >
+ <"Node w_N.Koppane_Tafjord_K5_node(id=303_1)" >
+ <"Node w_w_Onilsavatn_Havet_w_Tafjord_K4_Havet_node(id=398_1)" >
+ <"Node Outlet_node(id=1000)" >
+ <"Node H.Kaldh.vatn_and_F.Kaldh.vatn_node(id=250_1_408_1)" >
+ <"Node Brusebotn_and_Grønvatn_node(id=257_1_256_1)" >
+ <"Node H.Viksvatn_and_F.Viksvatn_node(id=258_1_424_1)" >
+ }
+;
+
+HydroArcs = 
+ { 
+ <"arc_f_Zakariasvatn_Onilsavatn" "Node Zakariasvatn_node(id=259_1)" "Node Onilsavatn_node(id=251_1)" >
+ <"arc_f_Onilsavatn_Havet" "Node Onilsavatn_node(id=251_1)" "Node w_w_Havet_end_node(id=99478_1)" >
+ <"arc_f_Fagerbotn_Sletdalsvatn" "Node Fagerbotn_node(id=252_1)" "Node Sletdalsvatn_node(id=262_1)" >
+ <"arc_f_Fetvatn_Sletdalsvatn" "Node Fetvatn_node(id=253_1)" "Node Sletdalsvatn_node(id=262_1)" >
+ <"arc_f_Kolbeinsvatn_Viavatn" "Node Kolbeinsvatn_node(id=260_1)" "Node Viavatn_node(id=261_1)" >
+ <"arc_f_H.Kaldh.vatn_Onilsavatn" "Node H.Kaldh.vatn_and_F.Kaldh.vatn_node(id=250_1_408_1)" "Node Onilsavatn_node(id=251_1)" >
+ <"arc_f_Viavatn_Sletdalsvatn" "Node Viavatn_node(id=261_1)" "Node Sletdalsvatn_node(id=262_1)" >
+ <"arc_f_H.Viksvatn_Zakariasvatn" "Node H.Viksvatn_and_F.Viksvatn_node(id=258_1_424_1)" "Node Zakariasvatn_node(id=259_1)" >
+ <"arc_f_Grønvatn_Havet" "Node Brusebotn_and_Grønvatn_node(id=257_1_256_1)" "Node w_w_Havet_end_node(id=99478_1)" >
+ <"arc_w_Kolbeinsvatn_Viavatn" "Node Kolbeinsvatn_node(id=260_1)" "Node Viavatn_node(id=261_1)" >
+ <"arc_f_Tjønna_Zakariasvatn" "Node Tjønna_node(id=254_1)" "Node Zakariasvatn_node(id=259_1)" >
+ <"arc_w_F.Veltdalsvatn_H.Veltdalsvatn" "Node F.Veltdalsvatn_node(id=248_1)" "Node H.Veltdalsvatn_node(id=249_1)" >
+ <"arc_f_F.Veltdalsvatn_H.Veltdalsvatn" "Node F.Veltdalsvatn_node(id=248_1)" "Node H.Veltdalsvatn_node(id=249_1)" >
+ <"arc_f_H.Veltdalsvatn_Smettevatn" "Node H.Veltdalsvatn_node(id=249_1)" "Node Smettevatn_node(id=255_1)" >
+ <"arc_f_Smettevatn_Zakariasvatn" "Node Smettevatn_node(id=255_1)" "Node Zakariasvatn_node(id=259_1)" >
+ <"arc_w_H.Veltdalsvatn_Smettevatn" "Node H.Veltdalsvatn_node(id=249_1)" "Node Smettevatn_node(id=255_1)" >
+ <"arc_w_w_Onilsavatn_Havet_w_Tafjord_K4_Havet" "Node w_w_Onilsavatn_Havet_w_Tafjord_K4_Havet_node(id=398_1)" "Node w_w_Havet_end_node(id=99478_1)" >
+ <"arc_b_Onilsavatn_w_Onilsavatn_Havet" "Node Onilsavatn_node(id=251_1)" "Node w_w_Onilsavatn_Havet_w_Tafjord_K4_Havet_node(id=398_1)" >
+ <"arc_f_Sletdalsvatn_F.Kaldh.vatn" "Node Sletdalsvatn_node(id=262_1)" "Node H.Kaldh.vatn_and_F.Kaldh.vatn_node(id=250_1_408_1)" >
+ <"arc_b_H.Viksvatn_Brusebotn" "Node H.Viksvatn_and_F.Viksvatn_node(id=258_1_424_1)" "Node Brusebotn_and_Grønvatn_node(id=257_1_256_1)" >
+ <"arc_f_Brusebotn_w_Havet" "Node Brusebotn_and_Grønvatn_node(id=257_1_256_1)" "Node w_w_Havet_end_node(id=99478_1)" >
+ <"arc_b_Viavatn_Sletdalsvatn" "Node Viavatn_node(id=261_1)" "Node Sletdalsvatn_node(id=262_1)" >
+ <"arc_b_Tjønna_Zakariasvatn" "Node Tjønna_node(id=254_1)" "Node Zakariasvatn_node(id=259_1)" >
+ <"arc_w_w_Havet_end" "Node w_w_Havet_end_node(id=99478_1)" "Node Outlet_node(id=1000)" >
+ <"arc_b_Zakariasvatn_Onilsavatn" "Node Zakariasvatn_node(id=259_1)" "Node Onilsavatn_node(id=251_1)" >
+ <"arc_Brusebotn_node_Zakariasvatn_node" "Node Brusebotn_and_Grønvatn_node(id=257_1_256_1)" "Node Zakariasvatn_node(id=259_1)" >
+ <"arc_Smettevatn_node_Zakariasvatn_node" "Node Smettevatn_node(id=255_1)" "Node Zakariasvatn_node(id=259_1)" >
+ <"arc_Zakariasvatn_node_w_w_Havet_end_node" "Node Zakariasvatn_node(id=259_1)" "Node w_w_Havet_end_node(id=99478_1)" >
+ <"arc_Sletdalsvatn_node_F.Kaldh.vatn_node" "Node Sletdalsvatn_node(id=262_1)" "Node H.Kaldh.vatn_and_F.Kaldh.vatn_node(id=250_1_408_1)" >
+ <"arc_H.Kaldh.vatn_node_Onilsavatn_node" "Node H.Kaldh.vatn_and_F.Kaldh.vatn_node(id=250_1_408_1)" "Node Onilsavatn_node(id=251_1)" >
+ <"arc_Onilsavatn_node_w_w_Onilsavatn_Havet_w_Tafjord_K4_Havet_node" "Node Onilsavatn_node(id=251_1)" "Node w_w_Onilsavatn_Havet_w_Tafjord_K4_Havet_node(id=398_1)" >
+ <"arc_H.Viksvatn_node_Brusebotn_node" "Node H.Viksvatn_and_F.Viksvatn_node(id=258_1_424_1)" "Node Brusebotn_and_Grønvatn_node(id=257_1_256_1)" >
+ <"arc_Tjønna_node_H.Viksvatn_node" "Node Tjønna_node(id=254_1)" "Node H.Viksvatn_and_F.Viksvatn_node(id=258_1_424_1)" >
+ <"arc_Fagerbotn_node_Sletdalsvatn_node" "Node Fagerbotn_node(id=252_1)" "Node Sletdalsvatn_node(id=262_1)" >
+ <"arc_Fetvatn_node_Sletdalsvatn_node" "Node Fetvatn_node(id=253_1)" "Node Sletdalsvatn_node(id=262_1)" >
+ <"arc_Viavatn_node_Sletdalsvatn_node" "Node Viavatn_node(id=261_1)" "Node Sletdalsvatn_node(id=262_1)" >
+ }
+;
+
+HydroArcTs = 
+ { 
+// Id FlowMin FlowMax FlowMinSoft FlowMaxSoft FlowMinSoftC FlowMaxSoftC
+ <"arc_f_Zakariasvatn_Onilsavatn" 1 0.0 1000.0 0.0 1000.0 10000.0 10000.0 >
+ <"arc_f_Zakariasvatn_Onilsavatn" 2 0.0 1000.0 0.0 1000.0 10000.0 10000.0 >
+ <"arc_f_Zakariasvatn_Onilsavatn" 3 0.0 1000.0 0.0 1000.0 10000.0 10000.0 >
+ <"arc_f_Zakariasvatn_Onilsavatn" 4 0.0 1000.0 0.0 1000.0 10000.0 10000.0 >
+ <"arc_f_Zakariasvatn_Onilsavatn" 5 0.0 1000.0 0.0 1000.0 10000.0 10000.0 >
+ <"arc_f_Zakariasvatn_Onilsavatn" 6 0.0 1000.0 0.0 1000.0 10000.0 10000.0 >
+ <"arc_f_Zakariasvatn_Onilsavatn" 7 0.0 1000.0 0.0 1000.0 10000.0 10000.0 >
+ <"arc_f_Zakariasvatn_Onilsavatn" 8 0.0 1000.0 0.0 1000.0 10000.0 10000.0 >
+ <"arc_f_Zakariasvatn_Onilsavatn" 9 0.0 1000.0 0.0 1000.0 10000.0 10000.0 >
+ <"arc_f_Zakariasvatn_Onilsavatn" 10 0.0 1000.0 0.0 1000.0 10000.0 10000.0 >
+ <"arc_f_Zakariasvatn_Onilsavatn" 11 0.0 1000.0 0.0 1000.0 10000.0 10000.0 >
+ <"arc_f_Zakariasvatn_Onilsavatn" 12 0.0 1000.0 0.0 1000.0 10000.0 10000.0 >
+ <"arc_f_Zakariasvatn_Onilsavatn" 13 0.0 1000.0 0.0 1000.0 10000.0 10000.0 >
+ <"arc_f_Zakariasvatn_Onilsavatn" 14 0.0 1000.0 0.0 1000.0 10000.0 10000.0 >
+ <"arc_f_Zakariasvatn_Onilsavatn" 15 0.0 1000.0 0.0 1000.0 10000.0 10000.0 >
+ <"arc_f_Zakariasvatn_Onilsavatn" 16 0.0 1000.0 0.0 1000.0 10000.0 10000.0 >
+// Id FlowMin FlowMax FlowMinSoft FlowMaxSoft FlowMinSoftC FlowMaxSoftC
+ <"arc_f_Onilsavatn_Havet" 1 0.0 1000.0 0.0 1000.0 10000.0 10000.0 >
+ <"arc_f_Onilsavatn_Havet" 2 0.0 1000.0 0.0 1000.0 10000.0 10000.0 >
+ <"arc_f_Onilsavatn_Havet" 3 0.0 1000.0 0.0 1000.0 10000.0 10000.0 >
+ <"arc_f_Onilsavatn_Havet" 4 0.0 1000.0 0.0 1000.0 10000.0 10000.0 >
+ <"arc_f_Onilsavatn_Havet" 5 0.0 1000.0 0.0 1000.0 10000.0 10000.0 >
+ <"arc_f_Onilsavatn_Havet" 6 0.0 1000.0 0.0 1000.0 10000.0 10000.0 >
+ <"arc_f_Onilsavatn_Havet" 7 0.0 1000.0 0.0 1000.0 10000.0 10000.0 >
+ <"arc_f_Onilsavatn_Havet" 8 0.0 1000.0 0.0 1000.0 10000.0 10000.0 >
+ <"arc_f_Onilsavatn_Havet" 9 0.0 1000.0 0.0 1000.0 10000.0 10000.0 >
+ <"arc_f_Onilsavatn_Havet" 10 0.0 1000.0 0.0 1000.0 10000.0 10000.0 >
+ <"arc_f_Onilsavatn_Havet" 11 0.0 1000.0 0.0 1000.0 10000.0 10000.0 >
+ <"arc_f_Onilsavatn_Havet" 12 0.0 1000.0 0.0 1000.0 10000.0 10000.0 >
+ <"arc_f_Onilsavatn_Havet" 13 0.0 1000.0 0.0 1000.0 10000.0 10000.0 >
+ <"arc_f_Onilsavatn_Havet" 14 0.0 1000.0 0.0 1000.0 10000.0 10000.0 >
+ <"arc_f_Onilsavatn_Havet" 15 0.0 1000.0 0.0 1000.0 10000.0 10000.0 >
+ <"arc_f_Onilsavatn_Havet" 16 0.0 1000.0 0.0 1000.0 10000.0 10000.0 >
+// Id FlowMin FlowMax FlowMinSoft FlowMaxSoft FlowMinSoftC FlowMaxSoftC
+ <"arc_f_Fagerbotn_Sletdalsvatn" 1 0.0 1000.0 0.0 1000.0 10000.0 10000.0 >
+ <"arc_f_Fagerbotn_Sletdalsvatn" 2 0.0 1000.0 0.0 1000.0 10000.0 10000.0 >
+ <"arc_f_Fagerbotn_Sletdalsvatn" 3 0.0 1000.0 0.0 1000.0 10000.0 10000.0 >
+ <"arc_f_Fagerbotn_Sletdalsvatn" 4 0.0 1000.0 0.0 1000.0 10000.0 10000.0 >
+ <"arc_f_Fagerbotn_Sletdalsvatn" 5 0.0 1000.0 0.0 1000.0 10000.0 10000.0 >
+ <"arc_f_Fagerbotn_Sletdalsvatn" 6 0.0 1000.0 0.0 1000.0 10000.0 10000.0 >
+ <"arc_f_Fagerbotn_Sletdalsvatn" 7 0.0 1000.0 0.0 1000.0 10000.0 10000.0 >
+ <"arc_f_Fagerbotn_Sletdalsvatn" 8 0.0 1000.0 0.0 1000.0 10000.0 10000.0 >
+ <"arc_f_Fagerbotn_Sletdalsvatn" 9 0.0 1000.0 0.0 1000.0 10000.0 10000.0 >
+ <"arc_f_Fagerbotn_Sletdalsvatn" 10 0.0 1000.0 0.0 1000.0 10000.0 10000.0 >
+ <"arc_f_Fagerbotn_Sletdalsvatn" 11 0.0 1000.0 0.0 1000.0 10000.0 10000.0 >
+ <"arc_f_Fagerbotn_Sletdalsvatn" 12 0.0 1000.0 0.0 1000.0 10000.0 10000.0 >
+ <"arc_f_Fagerbotn_Sletdalsvatn" 13 0.0 1000.0 0.0 1000.0 10000.0 10000.0 >
+ <"arc_f_Fagerbotn_Sletdalsvatn" 14 0.0 1000.0 0.0 1000.0 10000.0 10000.0 >
+ <"arc_f_Fagerbotn_Sletdalsvatn" 15 0.0 1000.0 0.0 1000.0 10000.0 10000.0 >
+ <"arc_f_Fagerbotn_Sletdalsvatn" 16 0.0 1000.0 0.0 1000.0 10000.0 10000.0 >
+// Id FlowMin FlowMax FlowMinSoft FlowMaxSoft FlowMinSoftC FlowMaxSoftC
+ <"arc_f_Fetvatn_Sletdalsvatn" 1 0.0 1000.0 0.0 1000.0 10000.0 10000.0 >
+ <"arc_f_Fetvatn_Sletdalsvatn" 2 0.0 1000.0 0.0 1000.0 10000.0 10000.0 >
+ <"arc_f_Fetvatn_Sletdalsvatn" 3 0.0 1000.0 0.0 1000.0 10000.0 10000.0 >
+ <"arc_f_Fetvatn_Sletdalsvatn" 4 0.0 1000.0 0.0 1000.0 10000.0 10000.0 >
+ <"arc_f_Fetvatn_Sletdalsvatn" 5 0.0 1000.0 0.0 1000.0 10000.0 10000.0 >
+ <"arc_f_Fetvatn_Sletdalsvatn" 6 0.0 1000.0 0.0 1000.0 10000.0 10000.0 >
+ <"arc_f_Fetvatn_Sletdalsvatn" 7 0.0 1000.0 0.0 1000.0 10000.0 10000.0 >
+ <"arc_f_Fetvatn_Sletdalsvatn" 8 0.0 1000.0 0.0 1000.0 10000.0 10000.0 >
+ <"arc_f_Fetvatn_Sletdalsvatn" 9 0.0 1000.0 0.0 1000.0 10000.0 10000.0 >
+ <"arc_f_Fetvatn_Sletdalsvatn" 10 0.0 1000.0 0.0 1000.0 10000.0 10000.0 >
+ <"arc_f_Fetvatn_Sletdalsvatn" 11 0.0 1000.0 0.0 1000.0 10000.0 10000.0 >
+ <"arc_f_Fetvatn_Sletdalsvatn" 12 0.0 1000.0 0.0 1000.0 10000.0 10000.0 >
+ <"arc_f_Fetvatn_Sletdalsvatn" 13 0.0 1000.0 0.0 1000.0 10000.0 10000.0 >
+ <"arc_f_Fetvatn_Sletdalsvatn" 14 0.0 1000.0 0.0 1000.0 10000.0 10000.0 >
+ <"arc_f_Fetvatn_Sletdalsvatn" 15 0.0 1000.0 0.0 1000.0 10000.0 10000.0 >
+ <"arc_f_Fetvatn_Sletdalsvatn" 16 0.0 1000.0 0.0 1000.0 10000.0 10000.0 >
+// Id FlowMin FlowMax FlowMinSoft FlowMaxSoft FlowMinSoftC FlowMaxSoftC
+ <"arc_f_Kolbeinsvatn_Viavatn" 1 0.0 1000.0 0.0 1000.0 10000.0 10000.0 >
+ <"arc_f_Kolbeinsvatn_Viavatn" 2 0.0 1000.0 0.0 1000.0 10000.0 10000.0 >
+ <"arc_f_Kolbeinsvatn_Viavatn" 3 0.0 1000.0 0.0 1000.0 10000.0 10000.0 >
+ <"arc_f_Kolbeinsvatn_Viavatn" 4 0.0 1000.0 0.0 1000.0 10000.0 10000.0 >
+ <"arc_f_Kolbeinsvatn_Viavatn" 5 0.0 1000.0 0.0 1000.0 10000.0 10000.0 >
+ <"arc_f_Kolbeinsvatn_Viavatn" 6 0.0 1000.0 0.0 1000.0 10000.0 10000.0 >
+ <"arc_f_Kolbeinsvatn_Viavatn" 7 0.0 1000.0 0.0 1000.0 10000.0 10000.0 >
+ <"arc_f_Kolbeinsvatn_Viavatn" 8 0.0 1000.0 0.0 1000.0 10000.0 10000.0 >
+ <"arc_f_Kolbeinsvatn_Viavatn" 9 0.0 1000.0 0.0 1000.0 10000.0 10000.0 >
+ <"arc_f_Kolbeinsvatn_Viavatn" 10 0.0 1000.0 0.0 1000.0 10000.0 10000.0 >
+ <"arc_f_Kolbeinsvatn_Viavatn" 11 0.0 1000.0 0.0 1000.0 10000.0 10000.0 >
+ <"arc_f_Kolbeinsvatn_Viavatn" 12 0.0 1000.0 0.0 1000.0 10000.0 10000.0 >
+ <"arc_f_Kolbeinsvatn_Viavatn" 13 0.0 1000.0 0.0 1000.0 10000.0 10000.0 >
+ <"arc_f_Kolbeinsvatn_Viavatn" 14 0.0 1000.0 0.0 1000.0 10000.0 10000.0 >
+ <"arc_f_Kolbeinsvatn_Viavatn" 15 0.0 1000.0 0.0 1000.0 10000.0 10000.0 >
+ <"arc_f_Kolbeinsvatn_Viavatn" 16 0.0 1000.0 0.0 1000.0 10000.0 10000.0 >
+// Id FlowMin FlowMax FlowMinSoft FlowMaxSoft FlowMinSoftC FlowMaxSoftC
+ <"arc_f_H.Kaldh.vatn_Onilsavatn" 1 0.0 1000.0 0.0 1000.0 10000.0 10000.0 >
+ <"arc_f_H.Kaldh.vatn_Onilsavatn" 2 0.0 1000.0 0.0 1000.0 10000.0 10000.0 >
+ <"arc_f_H.Kaldh.vatn_Onilsavatn" 3 0.0 1000.0 0.0 1000.0 10000.0 10000.0 >
+ <"arc_f_H.Kaldh.vatn_Onilsavatn" 4 0.0 1000.0 0.0 1000.0 10000.0 10000.0 >
+ <"arc_f_H.Kaldh.vatn_Onilsavatn" 5 0.0 1000.0 0.0 1000.0 10000.0 10000.0 >
+ <"arc_f_H.Kaldh.vatn_Onilsavatn" 6 0.0 1000.0 0.0 1000.0 10000.0 10000.0 >
+ <"arc_f_H.Kaldh.vatn_Onilsavatn" 7 0.0 1000.0 0.0 1000.0 10000.0 10000.0 >
+ <"arc_f_H.Kaldh.vatn_Onilsavatn" 8 0.0 1000.0 0.0 1000.0 10000.0 10000.0 >
+ <"arc_f_H.Kaldh.vatn_Onilsavatn" 9 0.0 1000.0 0.0 1000.0 10000.0 10000.0 >
+ <"arc_f_H.Kaldh.vatn_Onilsavatn" 10 0.0 1000.0 0.0 1000.0 10000.0 10000.0 >
+ <"arc_f_H.Kaldh.vatn_Onilsavatn" 11 0.0 1000.0 0.0 1000.0 10000.0 10000.0 >
+ <"arc_f_H.Kaldh.vatn_Onilsavatn" 12 0.0 1000.0 0.0 1000.0 10000.0 10000.0 >
+ <"arc_f_H.Kaldh.vatn_Onilsavatn" 13 0.0 1000.0 0.0 1000.0 10000.0 10000.0 >
+ <"arc_f_H.Kaldh.vatn_Onilsavatn" 14 0.0 1000.0 0.0 1000.0 10000.0 10000.0 >
+ <"arc_f_H.Kaldh.vatn_Onilsavatn" 15 0.0 1000.0 0.0 1000.0 10000.0 10000.0 >
+ <"arc_f_H.Kaldh.vatn_Onilsavatn" 16 0.0 1000.0 0.0 1000.0 10000.0 10000.0 >
+// Id FlowMin FlowMax FlowMinSoft FlowMaxSoft FlowMinSoftC FlowMaxSoftC
+ <"arc_f_Viavatn_Sletdalsvatn" 1 0.0 1000.0 0.0 1000.0 10000.0 10000.0 >
+ <"arc_f_Viavatn_Sletdalsvatn" 2 0.0 1000.0 0.0 1000.0 10000.0 10000.0 >
+ <"arc_f_Viavatn_Sletdalsvatn" 3 0.0 1000.0 0.0 1000.0 10000.0 10000.0 >
+ <"arc_f_Viavatn_Sletdalsvatn" 4 0.0 1000.0 0.0 1000.0 10000.0 10000.0 >
+ <"arc_f_Viavatn_Sletdalsvatn" 5 0.0 1000.0 0.0 1000.0 10000.0 10000.0 >
+ <"arc_f_Viavatn_Sletdalsvatn" 6 0.0 1000.0 0.0 1000.0 10000.0 10000.0 >
+ <"arc_f_Viavatn_Sletdalsvatn" 7 0.0 1000.0 0.0 1000.0 10000.0 10000.0 >
+ <"arc_f_Viavatn_Sletdalsvatn" 8 0.0 1000.0 0.0 1000.0 10000.0 10000.0 >
+ <"arc_f_Viavatn_Sletdalsvatn" 9 0.0 1000.0 0.0 1000.0 10000.0 10000.0 >
+ <"arc_f_Viavatn_Sletdalsvatn" 10 0.0 1000.0 0.0 1000.0 10000.0 10000.0 >
+ <"arc_f_Viavatn_Sletdalsvatn" 11 0.0 1000.0 0.0 1000.0 10000.0 10000.0 >
+ <"arc_f_Viavatn_Sletdalsvatn" 12 0.0 1000.0 0.0 1000.0 10000.0 10000.0 >
+ <"arc_f_Viavatn_Sletdalsvatn" 13 0.0 1000.0 0.0 1000.0 10000.0 10000.0 >
+ <"arc_f_Viavatn_Sletdalsvatn" 14 0.0 1000.0 0.0 1000.0 10000.0 10000.0 >
+ <"arc_f_Viavatn_Sletdalsvatn" 15 0.0 1000.0 0.0 1000.0 10000.0 10000.0 >
+ <"arc_f_Viavatn_Sletdalsvatn" 16 0.0 1000.0 0.0 1000.0 10000.0 10000.0 >
+// Id FlowMin FlowMax FlowMinSoft FlowMaxSoft FlowMinSoftC FlowMaxSoftC
+ <"arc_f_H.Viksvatn_Zakariasvatn" 1 0.0 1000.0 0.0 1000.0 10000.0 10000.0 >
+ <"arc_f_H.Viksvatn_Zakariasvatn" 2 0.0 1000.0 0.0 1000.0 10000.0 10000.0 >
+ <"arc_f_H.Viksvatn_Zakariasvatn" 3 0.0 1000.0 0.0 1000.0 10000.0 10000.0 >
+ <"arc_f_H.Viksvatn_Zakariasvatn" 4 0.0 1000.0 0.0 1000.0 10000.0 10000.0 >
+ <"arc_f_H.Viksvatn_Zakariasvatn" 5 0.0 1000.0 0.0 1000.0 10000.0 10000.0 >
+ <"arc_f_H.Viksvatn_Zakariasvatn" 6 0.0 1000.0 0.0 1000.0 10000.0 10000.0 >
+ <"arc_f_H.Viksvatn_Zakariasvatn" 7 0.0 1000.0 0.0 1000.0 10000.0 10000.0 >
+ <"arc_f_H.Viksvatn_Zakariasvatn" 8 0.0 1000.0 0.0 1000.0 10000.0 10000.0 >
+ <"arc_f_H.Viksvatn_Zakariasvatn" 9 0.0 1000.0 0.0 1000.0 10000.0 10000.0 >
+ <"arc_f_H.Viksvatn_Zakariasvatn" 10 0.0 1000.0 0.0 1000.0 10000.0 10000.0 >
+ <"arc_f_H.Viksvatn_Zakariasvatn" 11 0.0 1000.0 0.0 1000.0 10000.0 10000.0 >
+ <"arc_f_H.Viksvatn_Zakariasvatn" 12 0.0 1000.0 0.0 1000.0 10000.0 10000.0 >
+ <"arc_f_H.Viksvatn_Zakariasvatn" 13 0.0 1000.0 0.0 1000.0 10000.0 10000.0 >
+ <"arc_f_H.Viksvatn_Zakariasvatn" 14 0.0 1000.0 0.0 1000.0 10000.0 10000.0 >
+ <"arc_f_H.Viksvatn_Zakariasvatn" 15 0.0 1000.0 0.0 1000.0 10000.0 10000.0 >
+ <"arc_f_H.Viksvatn_Zakariasvatn" 16 0.0 1000.0 0.0 1000.0 10000.0 10000.0 >
+// Id FlowMin FlowMax FlowMinSoft FlowMaxSoft FlowMinSoftC FlowMaxSoftC
+ <"arc_f_Grønvatn_Havet" 1 0.0 1000.0 0.0 1000.0 10000.0 10000.0 >
+ <"arc_f_Grønvatn_Havet" 2 0.0 1000.0 0.0 1000.0 10000.0 10000.0 >
+ <"arc_f_Grønvatn_Havet" 3 0.0 1000.0 0.0 1000.0 10000.0 10000.0 >
+ <"arc_f_Grønvatn_Havet" 4 0.0 1000.0 0.0 1000.0 10000.0 10000.0 >
+ <"arc_f_Grønvatn_Havet" 5 0.0 1000.0 0.0 1000.0 10000.0 10000.0 >
+ <"arc_f_Grønvatn_Havet" 6 0.0 1000.0 0.0 1000.0 10000.0 10000.0 >
+ <"arc_f_Grønvatn_Havet" 7 0.0 1000.0 0.0 1000.0 10000.0 10000.0 >
+ <"arc_f_Grønvatn_Havet" 8 0.0 1000.0 0.0 1000.0 10000.0 10000.0 >
+ <"arc_f_Grønvatn_Havet" 9 0.0 1000.0 0.0 1000.0 10000.0 10000.0 >
+ <"arc_f_Grønvatn_Havet" 10 0.0 1000.0 0.0 1000.0 10000.0 10000.0 >
+ <"arc_f_Grønvatn_Havet" 11 0.0 1000.0 0.0 1000.0 10000.0 10000.0 >
+ <"arc_f_Grønvatn_Havet" 12 0.0 1000.0 0.0 1000.0 10000.0 10000.0 >
+ <"arc_f_Grønvatn_Havet" 13 0.0 1000.0 0.0 1000.0 10000.0 10000.0 >
+ <"arc_f_Grønvatn_Havet" 14 0.0 1000.0 0.0 1000.0 10000.0 10000.0 >
+ <"arc_f_Grønvatn_Havet" 15 0.0 1000.0 0.0 1000.0 10000.0 10000.0 >
+ <"arc_f_Grønvatn_Havet" 16 0.0 1000.0 0.0 1000.0 10000.0 10000.0 >
+// Id FlowMin FlowMax FlowMinSoft FlowMaxSoft FlowMinSoftC FlowMaxSoftC
+ <"arc_w_Kolbeinsvatn_Viavatn" 1 0.0 5.1 0.0 5.1 10000.0 10000.0 >
+ <"arc_w_Kolbeinsvatn_Viavatn" 2 0.0 5.1 0.0 5.1 10000.0 10000.0 >
+ <"arc_w_Kolbeinsvatn_Viavatn" 3 0.0 5.1 0.0 5.1 10000.0 10000.0 >
+ <"arc_w_Kolbeinsvatn_Viavatn" 4 0.0 5.1 0.0 5.1 10000.0 10000.0 >
+ <"arc_w_Kolbeinsvatn_Viavatn" 5 0.0 5.1 0.0 5.1 10000.0 10000.0 >
+ <"arc_w_Kolbeinsvatn_Viavatn" 6 0.0 5.1 0.0 5.1 10000.0 10000.0 >
+ <"arc_w_Kolbeinsvatn_Viavatn" 7 0.0 5.1 0.0 5.1 10000.0 10000.0 >
+ <"arc_w_Kolbeinsvatn_Viavatn" 8 0.0 5.1 0.0 5.1 10000.0 10000.0 >
+ <"arc_w_Kolbeinsvatn_Viavatn" 9 0.0 5.1 0.0 5.1 10000.0 10000.0 >
+ <"arc_w_Kolbeinsvatn_Viavatn" 10 0.0 5.1 0.0 5.1 10000.0 10000.0 >
+ <"arc_w_Kolbeinsvatn_Viavatn" 11 0.0 5.1 0.0 5.1 10000.0 10000.0 >
+ <"arc_w_Kolbeinsvatn_Viavatn" 12 0.0 5.1 0.0 5.1 10000.0 10000.0 >
+ <"arc_w_Kolbeinsvatn_Viavatn" 13 0.0 5.1 0.0 5.1 10000.0 10000.0 >
+ <"arc_w_Kolbeinsvatn_Viavatn" 14 0.0 5.1 0.0 5.1 10000.0 10000.0 >
+ <"arc_w_Kolbeinsvatn_Viavatn" 15 0.0 5.1 0.0 5.1 10000.0 10000.0 >
+ <"arc_w_Kolbeinsvatn_Viavatn" 16 0.0 5.1 0.0 5.1 10000.0 10000.0 >
+// Id FlowMin FlowMax FlowMinSoft FlowMaxSoft FlowMinSoftC FlowMaxSoftC
+ <"arc_f_Tjønna_Zakariasvatn" 1 0.0 1000.0 0.0 1000.0 10000.0 10000.0 >
+ <"arc_f_Tjønna_Zakariasvatn" 2 0.0 1000.0 0.0 1000.0 10000.0 10000.0 >
+ <"arc_f_Tjønna_Zakariasvatn" 3 0.0 1000.0 0.0 1000.0 10000.0 10000.0 >
+ <"arc_f_Tjønna_Zakariasvatn" 4 0.0 1000.0 0.0 1000.0 10000.0 10000.0 >
+ <"arc_f_Tjønna_Zakariasvatn" 5 0.0 1000.0 0.0 1000.0 10000.0 10000.0 >
+ <"arc_f_Tjønna_Zakariasvatn" 6 0.0 1000.0 0.0 1000.0 10000.0 10000.0 >
+ <"arc_f_Tjønna_Zakariasvatn" 7 0.0 1000.0 0.0 1000.0 10000.0 10000.0 >
+ <"arc_f_Tjønna_Zakariasvatn" 8 0.0 1000.0 0.0 1000.0 10000.0 10000.0 >
+ <"arc_f_Tjønna_Zakariasvatn" 9 0.0 1000.0 0.0 1000.0 10000.0 10000.0 >
+ <"arc_f_Tjønna_Zakariasvatn" 10 0.0 1000.0 0.0 1000.0 10000.0 10000.0 >
+ <"arc_f_Tjønna_Zakariasvatn" 11 0.0 1000.0 0.0 1000.0 10000.0 10000.0 >
+ <"arc_f_Tjønna_Zakariasvatn" 12 0.0 1000.0 0.0 1000.0 10000.0 10000.0 >
+ <"arc_f_Tjønna_Zakariasvatn" 13 0.0 1000.0 0.0 1000.0 10000.0 10000.0 >
+ <"arc_f_Tjønna_Zakariasvatn" 14 0.0 1000.0 0.0 1000.0 10000.0 10000.0 >
+ <"arc_f_Tjønna_Zakariasvatn" 15 0.0 1000.0 0.0 1000.0 10000.0 10000.0 >
+ <"arc_f_Tjønna_Zakariasvatn" 16 0.0 1000.0 0.0 1000.0 10000.0 10000.0 >
+// Id FlowMin FlowMax FlowMinSoft FlowMaxSoft FlowMinSoftC FlowMaxSoftC
+ <"arc_w_F.Veltdalsvatn_H.Veltdalsvatn" 1 0.0 3.71 0.0 3.71 10000.0 10000.0 >
+ <"arc_w_F.Veltdalsvatn_H.Veltdalsvatn" 2 0.0 3.71 0.0 3.71 10000.0 10000.0 >
+ <"arc_w_F.Veltdalsvatn_H.Veltdalsvatn" 3 0.0 3.71 0.0 3.71 10000.0 10000.0 >
+ <"arc_w_F.Veltdalsvatn_H.Veltdalsvatn" 4 0.0 3.71 0.0 3.71 10000.0 10000.0 >
+ <"arc_w_F.Veltdalsvatn_H.Veltdalsvatn" 5 0.0 3.71 0.0 3.71 10000.0 10000.0 >
+ <"arc_w_F.Veltdalsvatn_H.Veltdalsvatn" 6 0.0 3.71 0.0 3.71 10000.0 10000.0 >
+ <"arc_w_F.Veltdalsvatn_H.Veltdalsvatn" 7 0.0 3.71 0.0 3.71 10000.0 10000.0 >
+ <"arc_w_F.Veltdalsvatn_H.Veltdalsvatn" 8 0.0 3.71 0.0 3.71 10000.0 10000.0 >
+ <"arc_w_F.Veltdalsvatn_H.Veltdalsvatn" 9 0.0 3.71 0.0 3.71 10000.0 10000.0 >
+ <"arc_w_F.Veltdalsvatn_H.Veltdalsvatn" 10 0.0 3.71 0.0 3.71 10000.0 10000.0 >
+ <"arc_w_F.Veltdalsvatn_H.Veltdalsvatn" 11 0.0 3.71 0.0 3.71 10000.0 10000.0 >
+ <"arc_w_F.Veltdalsvatn_H.Veltdalsvatn" 12 0.0 3.71 0.0 3.71 10000.0 10000.0 >
+ <"arc_w_F.Veltdalsvatn_H.Veltdalsvatn" 13 0.0 3.71 0.0 3.71 10000.0 10000.0 >
+ <"arc_w_F.Veltdalsvatn_H.Veltdalsvatn" 14 0.0 3.71 0.0 3.71 10000.0 10000.0 >
+ <"arc_w_F.Veltdalsvatn_H.Veltdalsvatn" 15 0.0 3.71 0.0 3.71 10000.0 10000.0 >
+ <"arc_w_F.Veltdalsvatn_H.Veltdalsvatn" 16 0.0 3.71 0.0 3.71 10000.0 10000.0 >
+// Id FlowMin FlowMax FlowMinSoft FlowMaxSoft FlowMinSoftC FlowMaxSoftC
+ <"arc_f_F.Veltdalsvatn_H.Veltdalsvatn" 1 0.0 1000.0 0.0 1000.0 10000.0 10000.0 >
+ <"arc_f_F.Veltdalsvatn_H.Veltdalsvatn" 2 0.0 1000.0 0.0 1000.0 10000.0 10000.0 >
+ <"arc_f_F.Veltdalsvatn_H.Veltdalsvatn" 3 0.0 1000.0 0.0 1000.0 10000.0 10000.0 >
+ <"arc_f_F.Veltdalsvatn_H.Veltdalsvatn" 4 0.0 1000.0 0.0 1000.0 10000.0 10000.0 >
+ <"arc_f_F.Veltdalsvatn_H.Veltdalsvatn" 5 0.0 1000.0 0.0 1000.0 10000.0 10000.0 >
+ <"arc_f_F.Veltdalsvatn_H.Veltdalsvatn" 6 0.0 1000.0 0.0 1000.0 10000.0 10000.0 >
+ <"arc_f_F.Veltdalsvatn_H.Veltdalsvatn" 7 0.0 1000.0 0.0 1000.0 10000.0 10000.0 >
+ <"arc_f_F.Veltdalsvatn_H.Veltdalsvatn" 8 0.0 1000.0 0.0 1000.0 10000.0 10000.0 >
+ <"arc_f_F.Veltdalsvatn_H.Veltdalsvatn" 9 0.0 1000.0 0.0 1000.0 10000.0 10000.0 >
+ <"arc_f_F.Veltdalsvatn_H.Veltdalsvatn" 10 0.0 1000.0 0.0 1000.0 10000.0 10000.0 >
+ <"arc_f_F.Veltdalsvatn_H.Veltdalsvatn" 11 0.0 1000.0 0.0 1000.0 10000.0 10000.0 >
+ <"arc_f_F.Veltdalsvatn_H.Veltdalsvatn" 12 0.0 1000.0 0.0 1000.0 10000.0 10000.0 >
+ <"arc_f_F.Veltdalsvatn_H.Veltdalsvatn" 13 0.0 1000.0 0.0 1000.0 10000.0 10000.0 >
+ <"arc_f_F.Veltdalsvatn_H.Veltdalsvatn" 14 0.0 1000.0 0.0 1000.0 10000.0 10000.0 >
+ <"arc_f_F.Veltdalsvatn_H.Veltdalsvatn" 15 0.0 1000.0 0.0 1000.0 10000.0 10000.0 >
+ <"arc_f_F.Veltdalsvatn_H.Veltdalsvatn" 16 0.0 1000.0 0.0 1000.0 10000.0 10000.0 >
+// Id FlowMin FlowMax FlowMinSoft FlowMaxSoft FlowMinSoftC FlowMaxSoftC
+ <"arc_f_H.Veltdalsvatn_Smettevatn" 1 0.0 1000.0 0.0 1000.0 10000.0 10000.0 >
+ <"arc_f_H.Veltdalsvatn_Smettevatn" 2 0.0 1000.0 0.0 1000.0 10000.0 10000.0 >
+ <"arc_f_H.Veltdalsvatn_Smettevatn" 3 0.0 1000.0 0.0 1000.0 10000.0 10000.0 >
+ <"arc_f_H.Veltdalsvatn_Smettevatn" 4 0.0 1000.0 0.0 1000.0 10000.0 10000.0 >
+ <"arc_f_H.Veltdalsvatn_Smettevatn" 5 0.0 1000.0 0.0 1000.0 10000.0 10000.0 >
+ <"arc_f_H.Veltdalsvatn_Smettevatn" 6 0.0 1000.0 0.0 1000.0 10000.0 10000.0 >
+ <"arc_f_H.Veltdalsvatn_Smettevatn" 7 0.0 1000.0 0.0 1000.0 10000.0 10000.0 >
+ <"arc_f_H.Veltdalsvatn_Smettevatn" 8 0.0 1000.0 0.0 1000.0 10000.0 10000.0 >
+ <"arc_f_H.Veltdalsvatn_Smettevatn" 9 0.0 1000.0 0.0 1000.0 10000.0 10000.0 >
+ <"arc_f_H.Veltdalsvatn_Smettevatn" 10 0.0 1000.0 0.0 1000.0 10000.0 10000.0 >
+ <"arc_f_H.Veltdalsvatn_Smettevatn" 11 0.0 1000.0 0.0 1000.0 10000.0 10000.0 >
+ <"arc_f_H.Veltdalsvatn_Smettevatn" 12 0.0 1000.0 0.0 1000.0 10000.0 10000.0 >
+ <"arc_f_H.Veltdalsvatn_Smettevatn" 13 0.0 1000.0 0.0 1000.0 10000.0 10000.0 >
+ <"arc_f_H.Veltdalsvatn_Smettevatn" 14 0.0 1000.0 0.0 1000.0 10000.0 10000.0 >
+ <"arc_f_H.Veltdalsvatn_Smettevatn" 15 0.0 1000.0 0.0 1000.0 10000.0 10000.0 >
+ <"arc_f_H.Veltdalsvatn_Smettevatn" 16 0.0 1000.0 0.0 1000.0 10000.0 10000.0 >
+// Id FlowMin FlowMax FlowMinSoft FlowMaxSoft FlowMinSoftC FlowMaxSoftC
+ <"arc_f_Smettevatn_Zakariasvatn" 1 0.0 1000.0 0.0 1000.0 10000.0 10000.0 >
+ <"arc_f_Smettevatn_Zakariasvatn" 2 0.0 1000.0 0.0 1000.0 10000.0 10000.0 >
+ <"arc_f_Smettevatn_Zakariasvatn" 3 0.0 1000.0 0.0 1000.0 10000.0 10000.0 >
+ <"arc_f_Smettevatn_Zakariasvatn" 4 0.0 1000.0 0.0 1000.0 10000.0 10000.0 >
+ <"arc_f_Smettevatn_Zakariasvatn" 5 0.0 1000.0 0.0 1000.0 10000.0 10000.0 >
+ <"arc_f_Smettevatn_Zakariasvatn" 6 0.0 1000.0 0.0 1000.0 10000.0 10000.0 >
+ <"arc_f_Smettevatn_Zakariasvatn" 7 0.0 1000.0 0.0 1000.0 10000.0 10000.0 >
+ <"arc_f_Smettevatn_Zakariasvatn" 8 0.0 1000.0 0.0 1000.0 10000.0 10000.0 >
+ <"arc_f_Smettevatn_Zakariasvatn" 9 0.0 1000.0 0.0 1000.0 10000.0 10000.0 >
+ <"arc_f_Smettevatn_Zakariasvatn" 10 0.0 1000.0 0.0 1000.0 10000.0 10000.0 >
+ <"arc_f_Smettevatn_Zakariasvatn" 11 0.0 1000.0 0.0 1000.0 10000.0 10000.0 >
+ <"arc_f_Smettevatn_Zakariasvatn" 12 0.0 1000.0 0.0 1000.0 10000.0 10000.0 >
+ <"arc_f_Smettevatn_Zakariasvatn" 13 0.0 1000.0 0.0 1000.0 10000.0 10000.0 >
+ <"arc_f_Smettevatn_Zakariasvatn" 14 0.0 1000.0 0.0 1000.0 10000.0 10000.0 >
+ <"arc_f_Smettevatn_Zakariasvatn" 15 0.0 1000.0 0.0 1000.0 10000.0 10000.0 >
+ <"arc_f_Smettevatn_Zakariasvatn" 16 0.0 1000.0 0.0 1000.0 10000.0 10000.0 >
+// Id FlowMin FlowMax FlowMinSoft FlowMaxSoft FlowMinSoftC FlowMaxSoftC
+ <"arc_w_H.Veltdalsvatn_Smettevatn" 1 0.0 14.5 0.0 14.5 10000.0 10000.0 >
+ <"arc_w_H.Veltdalsvatn_Smettevatn" 2 0.0 14.5 0.0 14.5 10000.0 10000.0 >
+ <"arc_w_H.Veltdalsvatn_Smettevatn" 3 0.0 14.5 0.0 14.5 10000.0 10000.0 >
+ <"arc_w_H.Veltdalsvatn_Smettevatn" 4 0.0 14.5 0.0 14.5 10000.0 10000.0 >
+ <"arc_w_H.Veltdalsvatn_Smettevatn" 5 0.0 14.5 0.0 14.5 10000.0 10000.0 >
+ <"arc_w_H.Veltdalsvatn_Smettevatn" 6 0.0 14.5 0.0 14.5 10000.0 10000.0 >
+ <"arc_w_H.Veltdalsvatn_Smettevatn" 7 0.0 14.5 0.0 14.5 10000.0 10000.0 >
+ <"arc_w_H.Veltdalsvatn_Smettevatn" 8 0.0 14.5 0.0 14.5 10000.0 10000.0 >
+ <"arc_w_H.Veltdalsvatn_Smettevatn" 9 0.0 14.5 0.0 14.5 10000.0 10000.0 >
+ <"arc_w_H.Veltdalsvatn_Smettevatn" 10 0.0 14.5 0.0 14.5 10000.0 10000.0 >
+ <"arc_w_H.Veltdalsvatn_Smettevatn" 11 0.0 14.5 0.0 14.5 10000.0 10000.0 >
+ <"arc_w_H.Veltdalsvatn_Smettevatn" 12 0.0 14.5 0.0 14.5 10000.0 10000.0 >
+ <"arc_w_H.Veltdalsvatn_Smettevatn" 13 0.0 14.5 0.0 14.5 10000.0 10000.0 >
+ <"arc_w_H.Veltdalsvatn_Smettevatn" 14 0.0 14.5 0.0 14.5 10000.0 10000.0 >
+ <"arc_w_H.Veltdalsvatn_Smettevatn" 15 0.0 14.5 0.0 14.5 10000.0 10000.0 >
+ <"arc_w_H.Veltdalsvatn_Smettevatn" 16 0.0 14.5 0.0 14.5 10000.0 10000.0 >
+// Id FlowMin FlowMax FlowMinSoft FlowMaxSoft FlowMinSoftC FlowMaxSoftC
+ <"arc_w_w_Onilsavatn_Havet_w_Tafjord_K4_Havet" 1 0.0 1000.0 0.0 1000.0 10000.0 10000.0 >
+ <"arc_w_w_Onilsavatn_Havet_w_Tafjord_K4_Havet" 2 0.0 1000.0 0.0 1000.0 10000.0 10000.0 >
+ <"arc_w_w_Onilsavatn_Havet_w_Tafjord_K4_Havet" 3 0.0 1000.0 0.0 1000.0 10000.0 10000.0 >
+ <"arc_w_w_Onilsavatn_Havet_w_Tafjord_K4_Havet" 4 0.0 1000.0 0.0 1000.0 10000.0 10000.0 >
+ <"arc_w_w_Onilsavatn_Havet_w_Tafjord_K4_Havet" 5 0.0 1000.0 0.0 1000.0 10000.0 10000.0 >
+ <"arc_w_w_Onilsavatn_Havet_w_Tafjord_K4_Havet" 6 0.0 1000.0 0.0 1000.0 10000.0 10000.0 >
+ <"arc_w_w_Onilsavatn_Havet_w_Tafjord_K4_Havet" 7 0.0 1000.0 0.0 1000.0 10000.0 10000.0 >
+ <"arc_w_w_Onilsavatn_Havet_w_Tafjord_K4_Havet" 8 0.0 1000.0 0.0 1000.0 10000.0 10000.0 >
+ <"arc_w_w_Onilsavatn_Havet_w_Tafjord_K4_Havet" 9 0.0 1000.0 0.0 1000.0 10000.0 10000.0 >
+ <"arc_w_w_Onilsavatn_Havet_w_Tafjord_K4_Havet" 10 0.0 1000.0 0.0 1000.0 10000.0 10000.0 >
+ <"arc_w_w_Onilsavatn_Havet_w_Tafjord_K4_Havet" 11 0.0 1000.0 0.0 1000.0 10000.0 10000.0 >
+ <"arc_w_w_Onilsavatn_Havet_w_Tafjord_K4_Havet" 12 0.0 1000.0 0.0 1000.0 10000.0 10000.0 >
+ <"arc_w_w_Onilsavatn_Havet_w_Tafjord_K4_Havet" 13 0.0 1000.0 0.0 1000.0 10000.0 10000.0 >
+ <"arc_w_w_Onilsavatn_Havet_w_Tafjord_K4_Havet" 14 0.0 1000.0 0.0 1000.0 10000.0 10000.0 >
+ <"arc_w_w_Onilsavatn_Havet_w_Tafjord_K4_Havet" 15 0.0 1000.0 0.0 1000.0 10000.0 10000.0 >
+ <"arc_w_w_Onilsavatn_Havet_w_Tafjord_K4_Havet" 16 0.0 1000.0 0.0 1000.0 10000.0 10000.0 >
+// Id FlowMin FlowMax FlowMinSoft FlowMaxSoft FlowMinSoftC FlowMaxSoftC
+ <"arc_b_Onilsavatn_w_Onilsavatn_Havet" 1 0.0 1000.0 0.0 1000.0 10000.0 10000.0 >
+ <"arc_b_Onilsavatn_w_Onilsavatn_Havet" 2 0.0 1000.0 0.0 1000.0 10000.0 10000.0 >
+ <"arc_b_Onilsavatn_w_Onilsavatn_Havet" 3 0.0 1000.0 0.0 1000.0 10000.0 10000.0 >
+ <"arc_b_Onilsavatn_w_Onilsavatn_Havet" 4 0.0 1000.0 0.0 1000.0 10000.0 10000.0 >
+ <"arc_b_Onilsavatn_w_Onilsavatn_Havet" 5 0.0 1000.0 0.0 1000.0 10000.0 10000.0 >
+ <"arc_b_Onilsavatn_w_Onilsavatn_Havet" 6 0.0 1000.0 0.0 1000.0 10000.0 10000.0 >
+ <"arc_b_Onilsavatn_w_Onilsavatn_Havet" 7 0.0 1000.0 0.0 1000.0 10000.0 10000.0 >
+ <"arc_b_Onilsavatn_w_Onilsavatn_Havet" 8 0.0 1000.0 0.0 1000.0 10000.0 10000.0 >
+ <"arc_b_Onilsavatn_w_Onilsavatn_Havet" 9 0.0 1000.0 0.0 1000.0 10000.0 10000.0 >
+ <"arc_b_Onilsavatn_w_Onilsavatn_Havet" 10 0.0 1000.0 0.0 1000.0 10000.0 10000.0 >
+ <"arc_b_Onilsavatn_w_Onilsavatn_Havet" 11 0.0 1000.0 0.0 1000.0 10000.0 10000.0 >
+ <"arc_b_Onilsavatn_w_Onilsavatn_Havet" 12 0.0 1000.0 0.0 1000.0 10000.0 10000.0 >
+ <"arc_b_Onilsavatn_w_Onilsavatn_Havet" 13 0.0 1000.0 0.0 1000.0 10000.0 10000.0 >
+ <"arc_b_Onilsavatn_w_Onilsavatn_Havet" 14 0.0 1000.0 0.0 1000.0 10000.0 10000.0 >
+ <"arc_b_Onilsavatn_w_Onilsavatn_Havet" 15 0.0 1000.0 0.0 1000.0 10000.0 10000.0 >
+ <"arc_b_Onilsavatn_w_Onilsavatn_Havet" 16 0.0 1000.0 0.0 1000.0 10000.0 10000.0 >
+// Id FlowMin FlowMax FlowMinSoft FlowMaxSoft FlowMinSoftC FlowMaxSoftC
+ <"arc_f_Sletdalsvatn_F.Kaldh.vatn" 1 0.0 1000.0 0.0 1000.0 10000.0 10000.0 >
+ <"arc_f_Sletdalsvatn_F.Kaldh.vatn" 2 0.0 1000.0 0.0 1000.0 10000.0 10000.0 >
+ <"arc_f_Sletdalsvatn_F.Kaldh.vatn" 3 0.0 1000.0 0.0 1000.0 10000.0 10000.0 >
+ <"arc_f_Sletdalsvatn_F.Kaldh.vatn" 4 0.0 1000.0 0.0 1000.0 10000.0 10000.0 >
+ <"arc_f_Sletdalsvatn_F.Kaldh.vatn" 5 0.0 1000.0 0.0 1000.0 10000.0 10000.0 >
+ <"arc_f_Sletdalsvatn_F.Kaldh.vatn" 6 0.0 1000.0 0.0 1000.0 10000.0 10000.0 >
+ <"arc_f_Sletdalsvatn_F.Kaldh.vatn" 7 0.0 1000.0 0.0 1000.0 10000.0 10000.0 >
+ <"arc_f_Sletdalsvatn_F.Kaldh.vatn" 8 0.0 1000.0 0.0 1000.0 10000.0 10000.0 >
+ <"arc_f_Sletdalsvatn_F.Kaldh.vatn" 9 0.0 1000.0 0.0 1000.0 10000.0 10000.0 >
+ <"arc_f_Sletdalsvatn_F.Kaldh.vatn" 10 0.0 1000.0 0.0 1000.0 10000.0 10000.0 >
+ <"arc_f_Sletdalsvatn_F.Kaldh.vatn" 11 0.0 1000.0 0.0 1000.0 10000.0 10000.0 >
+ <"arc_f_Sletdalsvatn_F.Kaldh.vatn" 12 0.0 1000.0 0.0 1000.0 10000.0 10000.0 >
+ <"arc_f_Sletdalsvatn_F.Kaldh.vatn" 13 0.0 1000.0 0.0 1000.0 10000.0 10000.0 >
+ <"arc_f_Sletdalsvatn_F.Kaldh.vatn" 14 0.0 1000.0 0.0 1000.0 10000.0 10000.0 >
+ <"arc_f_Sletdalsvatn_F.Kaldh.vatn" 15 0.0 1000.0 0.0 1000.0 10000.0 10000.0 >
+ <"arc_f_Sletdalsvatn_F.Kaldh.vatn" 16 0.0 1000.0 0.0 1000.0 10000.0 10000.0 >
+// Id FlowMin FlowMax FlowMinSoft FlowMaxSoft FlowMinSoftC FlowMaxSoftC
+ <"arc_b_H.Viksvatn_Brusebotn" 1 0.0 1000.0 0.0 1000.0 10000.0 10000.0 >
+ <"arc_b_H.Viksvatn_Brusebotn" 2 0.0 1000.0 0.0 1000.0 10000.0 10000.0 >
+ <"arc_b_H.Viksvatn_Brusebotn" 3 0.0 1000.0 0.0 1000.0 10000.0 10000.0 >
+ <"arc_b_H.Viksvatn_Brusebotn" 4 0.0 1000.0 0.0 1000.0 10000.0 10000.0 >
+ <"arc_b_H.Viksvatn_Brusebotn" 5 0.0 1000.0 0.0 1000.0 10000.0 10000.0 >
+ <"arc_b_H.Viksvatn_Brusebotn" 6 0.0 1000.0 0.0 1000.0 10000.0 10000.0 >
+ <"arc_b_H.Viksvatn_Brusebotn" 7 0.0 1000.0 0.0 1000.0 10000.0 10000.0 >
+ <"arc_b_H.Viksvatn_Brusebotn" 8 0.0 1000.0 0.0 1000.0 10000.0 10000.0 >
+ <"arc_b_H.Viksvatn_Brusebotn" 9 0.0 1000.0 0.0 1000.0 10000.0 10000.0 >
+ <"arc_b_H.Viksvatn_Brusebotn" 10 0.0 1000.0 0.0 1000.0 10000.0 10000.0 >
+ <"arc_b_H.Viksvatn_Brusebotn" 11 0.0 1000.0 0.0 1000.0 10000.0 10000.0 >
+ <"arc_b_H.Viksvatn_Brusebotn" 12 0.0 1000.0 0.0 1000.0 10000.0 10000.0 >
+ <"arc_b_H.Viksvatn_Brusebotn" 13 0.0 1000.0 0.0 1000.0 10000.0 10000.0 >
+ <"arc_b_H.Viksvatn_Brusebotn" 14 0.0 1000.0 0.0 1000.0 10000.0 10000.0 >
+ <"arc_b_H.Viksvatn_Brusebotn" 15 0.0 1000.0 0.0 1000.0 10000.0 10000.0 >
+ <"arc_b_H.Viksvatn_Brusebotn" 16 0.0 1000.0 0.0 1000.0 10000.0 10000.0 >
+// Id FlowMin FlowMax FlowMinSoft FlowMaxSoft FlowMinSoftC FlowMaxSoftC
+ <"arc_f_Brusebotn_w_Havet" 1 0.0 100.0 0.0 100.0 10000.0 10000.0 >
+ <"arc_f_Brusebotn_w_Havet" 2 0.0 100.0 0.0 100.0 10000.0 10000.0 >
+ <"arc_f_Brusebotn_w_Havet" 3 0.0 100.0 0.0 100.0 10000.0 10000.0 >
+ <"arc_f_Brusebotn_w_Havet" 4 0.0 100.0 0.0 100.0 10000.0 10000.0 >
+ <"arc_f_Brusebotn_w_Havet" 5 0.0 100.0 0.0 100.0 10000.0 10000.0 >
+ <"arc_f_Brusebotn_w_Havet" 6 0.0 100.0 0.0 100.0 10000.0 10000.0 >
+ <"arc_f_Brusebotn_w_Havet" 7 0.0 100.0 0.0 100.0 10000.0 10000.0 >
+ <"arc_f_Brusebotn_w_Havet" 8 0.0 100.0 0.0 100.0 10000.0 10000.0 >
+ <"arc_f_Brusebotn_w_Havet" 9 0.0 100.0 0.0 100.0 10000.0 10000.0 >
+ <"arc_f_Brusebotn_w_Havet" 10 0.0 100.0 0.0 100.0 10000.0 10000.0 >
+ <"arc_f_Brusebotn_w_Havet" 11 0.0 100.0 0.0 100.0 10000.0 10000.0 >
+ <"arc_f_Brusebotn_w_Havet" 12 0.0 100.0 0.0 100.0 10000.0 10000.0 >
+ <"arc_f_Brusebotn_w_Havet" 13 0.0 100.0 0.0 100.0 10000.0 10000.0 >
+ <"arc_f_Brusebotn_w_Havet" 14 0.0 100.0 0.0 100.0 10000.0 10000.0 >
+ <"arc_f_Brusebotn_w_Havet" 15 0.0 100.0 0.0 100.0 10000.0 10000.0 >
+ <"arc_f_Brusebotn_w_Havet" 16 0.0 100.0 0.0 100.0 10000.0 10000.0 >
+// Id FlowMin FlowMax FlowMinSoft FlowMaxSoft FlowMinSoftC FlowMaxSoftC
+ <"arc_b_Viavatn_Sletdalsvatn" 1 0.0 4.5 0.0 4.5 10000.0 10000.0 >
+ <"arc_b_Viavatn_Sletdalsvatn" 2 0.0 4.5 0.0 4.5 10000.0 10000.0 >
+ <"arc_b_Viavatn_Sletdalsvatn" 3 0.0 4.5 0.0 4.5 10000.0 10000.0 >
+ <"arc_b_Viavatn_Sletdalsvatn" 4 0.0 4.5 0.0 4.5 10000.0 10000.0 >
+ <"arc_b_Viavatn_Sletdalsvatn" 5 0.0 4.5 0.0 4.5 10000.0 10000.0 >
+ <"arc_b_Viavatn_Sletdalsvatn" 6 0.0 4.5 0.0 4.5 10000.0 10000.0 >
+ <"arc_b_Viavatn_Sletdalsvatn" 7 0.0 4.5 0.0 4.5 10000.0 10000.0 >
+ <"arc_b_Viavatn_Sletdalsvatn" 8 0.0 4.5 0.0 4.5 10000.0 10000.0 >
+ <"arc_b_Viavatn_Sletdalsvatn" 9 0.0 4.5 0.0 4.5 10000.0 10000.0 >
+ <"arc_b_Viavatn_Sletdalsvatn" 10 0.0 4.5 0.0 4.5 10000.0 10000.0 >
+ <"arc_b_Viavatn_Sletdalsvatn" 11 0.0 4.5 0.0 4.5 10000.0 10000.0 >
+ <"arc_b_Viavatn_Sletdalsvatn" 12 0.0 4.5 0.0 4.5 10000.0 10000.0 >
+ <"arc_b_Viavatn_Sletdalsvatn" 13 0.0 4.5 0.0 4.5 10000.0 10000.0 >
+ <"arc_b_Viavatn_Sletdalsvatn" 14 0.0 4.5 0.0 4.5 10000.0 10000.0 >
+ <"arc_b_Viavatn_Sletdalsvatn" 15 0.0 4.5 0.0 4.5 10000.0 10000.0 >
+ <"arc_b_Viavatn_Sletdalsvatn" 16 0.0 4.5 0.0 4.5 10000.0 10000.0 >
+// Id FlowMin FlowMax FlowMinSoft FlowMaxSoft FlowMinSoftC FlowMaxSoftC
+ <"arc_b_Tjønna_Zakariasvatn" 1 0.0 1000.0 0.0 1000.0 10000.0 10000.0 >
+ <"arc_b_Tjønna_Zakariasvatn" 2 0.0 1000.0 0.0 1000.0 10000.0 10000.0 >
+ <"arc_b_Tjønna_Zakariasvatn" 3 0.0 1000.0 0.0 1000.0 10000.0 10000.0 >
+ <"arc_b_Tjønna_Zakariasvatn" 4 0.0 1000.0 0.0 1000.0 10000.0 10000.0 >
+ <"arc_b_Tjønna_Zakariasvatn" 5 0.0 1000.0 0.0 1000.0 10000.0 10000.0 >
+ <"arc_b_Tjønna_Zakariasvatn" 6 0.0 1000.0 0.0 1000.0 10000.0 10000.0 >
+ <"arc_b_Tjønna_Zakariasvatn" 7 0.0 1000.0 0.0 1000.0 10000.0 10000.0 >
+ <"arc_b_Tjønna_Zakariasvatn" 8 0.0 1000.0 0.0 1000.0 10000.0 10000.0 >
+ <"arc_b_Tjønna_Zakariasvatn" 9 0.0 1000.0 0.0 1000.0 10000.0 10000.0 >
+ <"arc_b_Tjønna_Zakariasvatn" 10 0.0 1000.0 0.0 1000.0 10000.0 10000.0 >
+ <"arc_b_Tjønna_Zakariasvatn" 11 0.0 1000.0 0.0 1000.0 10000.0 10000.0 >
+ <"arc_b_Tjønna_Zakariasvatn" 12 0.0 1000.0 0.0 1000.0 10000.0 10000.0 >
+ <"arc_b_Tjønna_Zakariasvatn" 13 0.0 1000.0 0.0 1000.0 10000.0 10000.0 >
+ <"arc_b_Tjønna_Zakariasvatn" 14 0.0 1000.0 0.0 1000.0 10000.0 10000.0 >
+ <"arc_b_Tjønna_Zakariasvatn" 15 0.0 1000.0 0.0 1000.0 10000.0 10000.0 >
+ <"arc_b_Tjønna_Zakariasvatn" 16 0.0 1000.0 0.0 1000.0 10000.0 10000.0 >
+// Id FlowMin FlowMax FlowMinSoft FlowMaxSoft FlowMinSoftC FlowMaxSoftC
+ <"arc_w_w_Havet_end" 1 0.0 1000.0 0.0 1000.0 10000.0 10000.0 >
+ <"arc_w_w_Havet_end" 2 0.0 1000.0 0.0 1000.0 10000.0 10000.0 >
+ <"arc_w_w_Havet_end" 3 0.0 1000.0 0.0 1000.0 10000.0 10000.0 >
+ <"arc_w_w_Havet_end" 4 0.0 1000.0 0.0 1000.0 10000.0 10000.0 >
+ <"arc_w_w_Havet_end" 5 0.0 1000.0 0.0 1000.0 10000.0 10000.0 >
+ <"arc_w_w_Havet_end" 6 0.0 1000.0 0.0 1000.0 10000.0 10000.0 >
+ <"arc_w_w_Havet_end" 7 0.0 1000.0 0.0 1000.0 10000.0 10000.0 >
+ <"arc_w_w_Havet_end" 8 0.0 1000.0 0.0 1000.0 10000.0 10000.0 >
+ <"arc_w_w_Havet_end" 9 0.0 1000.0 0.0 1000.0 10000.0 10000.0 >
+ <"arc_w_w_Havet_end" 10 0.0 1000.0 0.0 1000.0 10000.0 10000.0 >
+ <"arc_w_w_Havet_end" 11 0.0 1000.0 0.0 1000.0 10000.0 10000.0 >
+ <"arc_w_w_Havet_end" 12 0.0 1000.0 0.0 1000.0 10000.0 10000.0 >
+ <"arc_w_w_Havet_end" 13 0.0 1000.0 0.0 1000.0 10000.0 10000.0 >
+ <"arc_w_w_Havet_end" 14 0.0 1000.0 0.0 1000.0 10000.0 10000.0 >
+ <"arc_w_w_Havet_end" 15 0.0 1000.0 0.0 1000.0 10000.0 10000.0 >
+ <"arc_w_w_Havet_end" 16 0.0 1000.0 0.0 1000.0 10000.0 10000.0 >
+// Id FlowMin FlowMax FlowMinSoft FlowMaxSoft FlowMinSoftC FlowMaxSoftC
+ <"arc_b_Zakariasvatn_Onilsavatn" 1 0.0 1000.0 0.0 1000.0 10000.0 10000.0 >
+ <"arc_b_Zakariasvatn_Onilsavatn" 2 0.0 1000.0 0.0 1000.0 10000.0 10000.0 >
+ <"arc_b_Zakariasvatn_Onilsavatn" 3 0.0 1000.0 0.0 1000.0 10000.0 10000.0 >
+ <"arc_b_Zakariasvatn_Onilsavatn" 4 0.0 1000.0 0.0 1000.0 10000.0 10000.0 >
+ <"arc_b_Zakariasvatn_Onilsavatn" 5 0.0 1000.0 0.0 1000.0 10000.0 10000.0 >
+ <"arc_b_Zakariasvatn_Onilsavatn" 6 0.0 1000.0 0.0 1000.0 10000.0 10000.0 >
+ <"arc_b_Zakariasvatn_Onilsavatn" 7 0.0 1000.0 0.0 1000.0 10000.0 10000.0 >
+ <"arc_b_Zakariasvatn_Onilsavatn" 8 0.0 1000.0 0.0 1000.0 10000.0 10000.0 >
+ <"arc_b_Zakariasvatn_Onilsavatn" 9 0.0 1000.0 0.0 1000.0 10000.0 10000.0 >
+ <"arc_b_Zakariasvatn_Onilsavatn" 10 0.0 1000.0 0.0 1000.0 10000.0 10000.0 >
+ <"arc_b_Zakariasvatn_Onilsavatn" 11 0.0 1000.0 0.0 1000.0 10000.0 10000.0 >
+ <"arc_b_Zakariasvatn_Onilsavatn" 12 0.0 1000.0 0.0 1000.0 10000.0 10000.0 >
+ <"arc_b_Zakariasvatn_Onilsavatn" 13 0.0 1000.0 0.0 1000.0 10000.0 10000.0 >
+ <"arc_b_Zakariasvatn_Onilsavatn" 14 0.0 1000.0 0.0 1000.0 10000.0 10000.0 >
+ <"arc_b_Zakariasvatn_Onilsavatn" 15 0.0 1000.0 0.0 1000.0 10000.0 10000.0 >
+ <"arc_b_Zakariasvatn_Onilsavatn" 16 0.0 1000.0 0.0 1000.0 10000.0 10000.0 >
+// Id FlowMin FlowMax FlowMinSoft FlowMaxSoft FlowMinSoftC FlowMaxSoftC
+ <"arc_Brusebotn_node_Zakariasvatn_node" 1 0.0 1000.0 0.0 14.82 10000.0 10000.0 >
+ <"arc_Brusebotn_node_Zakariasvatn_node" 2 0.0 1000.0 0.0 14.82 10000.0 10000.0 >
+ <"arc_Brusebotn_node_Zakariasvatn_node" 3 0.0 1000.0 0.0 14.82 10000.0 10000.0 >
+ <"arc_Brusebotn_node_Zakariasvatn_node" 4 0.0 1000.0 0.0 14.82 10000.0 10000.0 >
+ <"arc_Brusebotn_node_Zakariasvatn_node" 5 0.0 1000.0 0.0 14.82 10000.0 10000.0 >
+ <"arc_Brusebotn_node_Zakariasvatn_node" 6 0.0 1000.0 0.0 14.82 10000.0 10000.0 >
+ <"arc_Brusebotn_node_Zakariasvatn_node" 7 0.0 1000.0 0.0 14.82 10000.0 10000.0 >
+ <"arc_Brusebotn_node_Zakariasvatn_node" 8 0.0 1000.0 0.0 14.82 10000.0 10000.0 >
+ <"arc_Brusebotn_node_Zakariasvatn_node" 9 0.0 1000.0 0.0 14.82 10000.0 10000.0 >
+ <"arc_Brusebotn_node_Zakariasvatn_node" 10 0.0 1000.0 0.0 14.82 10000.0 10000.0 >
+ <"arc_Brusebotn_node_Zakariasvatn_node" 11 0.0 1000.0 0.0 14.82 10000.0 10000.0 >
+ <"arc_Brusebotn_node_Zakariasvatn_node" 12 0.0 1000.0 0.0 14.82 10000.0 10000.0 >
+ <"arc_Brusebotn_node_Zakariasvatn_node" 13 0.0 1000.0 0.0 14.82 10000.0 10000.0 >
+ <"arc_Brusebotn_node_Zakariasvatn_node" 14 0.0 1000.0 0.0 14.82 10000.0 10000.0 >
+ <"arc_Brusebotn_node_Zakariasvatn_node" 15 0.0 1000.0 0.0 14.82 10000.0 10000.0 >
+ <"arc_Brusebotn_node_Zakariasvatn_node" 16 0.0 1000.0 0.0 14.82 10000.0 10000.0 >
+// Id FlowMin FlowMax FlowMinSoft FlowMaxSoft FlowMinSoftC FlowMaxSoftC
+ <"arc_Smettevatn_node_Zakariasvatn_node" 1 0.0 1000.0 0.0 14.82 10000.0 10000.0 >
+ <"arc_Smettevatn_node_Zakariasvatn_node" 2 0.0 1000.0 0.0 14.82 10000.0 10000.0 >
+ <"arc_Smettevatn_node_Zakariasvatn_node" 3 0.0 1000.0 0.0 14.82 10000.0 10000.0 >
+ <"arc_Smettevatn_node_Zakariasvatn_node" 4 0.0 1000.0 0.0 14.82 10000.0 10000.0 >
+ <"arc_Smettevatn_node_Zakariasvatn_node" 5 0.0 1000.0 0.0 14.82 10000.0 10000.0 >
+ <"arc_Smettevatn_node_Zakariasvatn_node" 6 0.0 1000.0 0.0 14.82 10000.0 10000.0 >
+ <"arc_Smettevatn_node_Zakariasvatn_node" 7 0.0 1000.0 0.0 14.82 10000.0 10000.0 >
+ <"arc_Smettevatn_node_Zakariasvatn_node" 8 0.0 1000.0 0.0 14.82 10000.0 10000.0 >
+ <"arc_Smettevatn_node_Zakariasvatn_node" 9 0.0 1000.0 0.0 14.82 10000.0 10000.0 >
+ <"arc_Smettevatn_node_Zakariasvatn_node" 10 0.0 1000.0 0.0 14.82 10000.0 10000.0 >
+ <"arc_Smettevatn_node_Zakariasvatn_node" 11 0.0 1000.0 0.0 14.82 10000.0 10000.0 >
+ <"arc_Smettevatn_node_Zakariasvatn_node" 12 0.0 1000.0 0.0 14.82 10000.0 10000.0 >
+ <"arc_Smettevatn_node_Zakariasvatn_node" 13 0.0 1000.0 0.0 14.82 10000.0 10000.0 >
+ <"arc_Smettevatn_node_Zakariasvatn_node" 14 0.0 1000.0 0.0 14.82 10000.0 10000.0 >
+ <"arc_Smettevatn_node_Zakariasvatn_node" 15 0.0 1000.0 0.0 14.82 10000.0 10000.0 >
+ <"arc_Smettevatn_node_Zakariasvatn_node" 16 0.0 1000.0 0.0 14.82 10000.0 10000.0 >
+// Id FlowMin FlowMax FlowMinSoft FlowMaxSoft FlowMinSoftC FlowMaxSoftC
+ <"arc_Zakariasvatn_node_w_w_Havet_end_node" 1 0.0 1000.0 0.0 30.38 10000.0 10000.0 >
+ <"arc_Zakariasvatn_node_w_w_Havet_end_node" 2 0.0 1000.0 0.0 30.38 10000.0 10000.0 >
+ <"arc_Zakariasvatn_node_w_w_Havet_end_node" 3 0.0 1000.0 0.0 30.38 10000.0 10000.0 >
+ <"arc_Zakariasvatn_node_w_w_Havet_end_node" 4 0.0 1000.0 0.0 30.38 10000.0 10000.0 >
+ <"arc_Zakariasvatn_node_w_w_Havet_end_node" 5 0.0 1000.0 0.0 30.38 10000.0 10000.0 >
+ <"arc_Zakariasvatn_node_w_w_Havet_end_node" 6 0.0 1000.0 0.0 30.38 10000.0 10000.0 >
+ <"arc_Zakariasvatn_node_w_w_Havet_end_node" 7 0.0 1000.0 0.0 30.38 10000.0 10000.0 >
+ <"arc_Zakariasvatn_node_w_w_Havet_end_node" 8 0.0 1000.0 0.0 30.38 10000.0 10000.0 >
+ <"arc_Zakariasvatn_node_w_w_Havet_end_node" 9 0.0 1000.0 0.0 30.38 10000.0 10000.0 >
+ <"arc_Zakariasvatn_node_w_w_Havet_end_node" 10 0.0 1000.0 0.0 30.38 10000.0 10000.0 >
+ <"arc_Zakariasvatn_node_w_w_Havet_end_node" 11 0.0 1000.0 0.0 30.38 10000.0 10000.0 >
+ <"arc_Zakariasvatn_node_w_w_Havet_end_node" 12 0.0 1000.0 0.0 30.38 10000.0 10000.0 >
+ <"arc_Zakariasvatn_node_w_w_Havet_end_node" 13 0.0 1000.0 0.0 30.38 10000.0 10000.0 >
+ <"arc_Zakariasvatn_node_w_w_Havet_end_node" 14 0.0 1000.0 0.0 30.38 10000.0 10000.0 >
+ <"arc_Zakariasvatn_node_w_w_Havet_end_node" 15 0.0 1000.0 0.0 30.38 10000.0 10000.0 >
+ <"arc_Zakariasvatn_node_w_w_Havet_end_node" 16 0.0 1000.0 0.0 30.38 10000.0 10000.0 >
+// Id FlowMin FlowMax FlowMinSoft FlowMaxSoft FlowMinSoftC FlowMaxSoftC
+ <"arc_Sletdalsvatn_node_F.Kaldh.vatn_node" 1 0.0 1000.0 0.0 8.01 10000.0 10000.0 >
+ <"arc_Sletdalsvatn_node_F.Kaldh.vatn_node" 2 0.0 1000.0 0.0 8.01 10000.0 10000.0 >
+ <"arc_Sletdalsvatn_node_F.Kaldh.vatn_node" 3 0.0 1000.0 0.0 8.01 10000.0 10000.0 >
+ <"arc_Sletdalsvatn_node_F.Kaldh.vatn_node" 4 0.0 1000.0 0.0 8.01 10000.0 10000.0 >
+ <"arc_Sletdalsvatn_node_F.Kaldh.vatn_node" 5 0.0 1000.0 0.0 8.01 10000.0 10000.0 >
+ <"arc_Sletdalsvatn_node_F.Kaldh.vatn_node" 6 0.0 1000.0 0.0 8.01 10000.0 10000.0 >
+ <"arc_Sletdalsvatn_node_F.Kaldh.vatn_node" 7 0.0 1000.0 0.0 8.01 10000.0 10000.0 >
+ <"arc_Sletdalsvatn_node_F.Kaldh.vatn_node" 8 0.0 1000.0 0.0 8.01 10000.0 10000.0 >
+ <"arc_Sletdalsvatn_node_F.Kaldh.vatn_node" 9 0.0 1000.0 0.0 8.01 10000.0 10000.0 >
+ <"arc_Sletdalsvatn_node_F.Kaldh.vatn_node" 10 0.0 1000.0 0.0 8.01 10000.0 10000.0 >
+ <"arc_Sletdalsvatn_node_F.Kaldh.vatn_node" 11 0.0 1000.0 0.0 8.01 10000.0 10000.0 >
+ <"arc_Sletdalsvatn_node_F.Kaldh.vatn_node" 12 0.0 1000.0 0.0 8.01 10000.0 10000.0 >
+ <"arc_Sletdalsvatn_node_F.Kaldh.vatn_node" 13 0.0 1000.0 0.0 8.01 10000.0 10000.0 >
+ <"arc_Sletdalsvatn_node_F.Kaldh.vatn_node" 14 0.0 1000.0 0.0 8.01 10000.0 10000.0 >
+ <"arc_Sletdalsvatn_node_F.Kaldh.vatn_node" 15 0.0 1000.0 0.0 8.01 10000.0 10000.0 >
+ <"arc_Sletdalsvatn_node_F.Kaldh.vatn_node" 16 0.0 1000.0 0.0 8.01 10000.0 10000.0 >
+// Id FlowMin FlowMax FlowMinSoft FlowMaxSoft FlowMinSoftC FlowMaxSoftC
+ <"arc_H.Kaldh.vatn_node_Onilsavatn_node" 1 0.0 1000.0 0.0 10.0 10000.0 10000.0 >
+ <"arc_H.Kaldh.vatn_node_Onilsavatn_node" 2 0.0 1000.0 0.0 10.0 10000.0 10000.0 >
+ <"arc_H.Kaldh.vatn_node_Onilsavatn_node" 3 0.0 1000.0 0.0 10.0 10000.0 10000.0 >
+ <"arc_H.Kaldh.vatn_node_Onilsavatn_node" 4 0.0 1000.0 0.0 10.0 10000.0 10000.0 >
+ <"arc_H.Kaldh.vatn_node_Onilsavatn_node" 5 0.0 1000.0 0.0 10.0 10000.0 10000.0 >
+ <"arc_H.Kaldh.vatn_node_Onilsavatn_node" 6 0.0 1000.0 0.0 10.0 10000.0 10000.0 >
+ <"arc_H.Kaldh.vatn_node_Onilsavatn_node" 7 0.0 1000.0 0.0 10.0 10000.0 10000.0 >
+ <"arc_H.Kaldh.vatn_node_Onilsavatn_node" 8 0.0 1000.0 0.0 10.0 10000.0 10000.0 >
+ <"arc_H.Kaldh.vatn_node_Onilsavatn_node" 9 0.0 1000.0 0.0 10.0 10000.0 10000.0 >
+ <"arc_H.Kaldh.vatn_node_Onilsavatn_node" 10 0.0 1000.0 0.0 10.0 10000.0 10000.0 >
+ <"arc_H.Kaldh.vatn_node_Onilsavatn_node" 11 0.0 1000.0 0.0 10.0 10000.0 10000.0 >
+ <"arc_H.Kaldh.vatn_node_Onilsavatn_node" 12 0.0 1000.0 0.0 10.0 10000.0 10000.0 >
+ <"arc_H.Kaldh.vatn_node_Onilsavatn_node" 13 0.0 1000.0 0.0 10.0 10000.0 10000.0 >
+ <"arc_H.Kaldh.vatn_node_Onilsavatn_node" 14 0.0 1000.0 0.0 10.0 10000.0 10000.0 >
+ <"arc_H.Kaldh.vatn_node_Onilsavatn_node" 15 0.0 1000.0 0.0 10.0 10000.0 10000.0 >
+ <"arc_H.Kaldh.vatn_node_Onilsavatn_node" 16 0.0 1000.0 0.0 10.0 10000.0 10000.0 >
+// Id FlowMin FlowMax FlowMinSoft FlowMaxSoft FlowMinSoftC FlowMaxSoftC
+ <"arc_Onilsavatn_node_w_w_Onilsavatn_Havet_w_Tafjord_K4_Havet_node" 1 0.0 1000.0 0.0 19.871 10000.0 10000.0 >
+ <"arc_Onilsavatn_node_w_w_Onilsavatn_Havet_w_Tafjord_K4_Havet_node" 2 0.0 1000.0 0.0 19.871 10000.0 10000.0 >
+ <"arc_Onilsavatn_node_w_w_Onilsavatn_Havet_w_Tafjord_K4_Havet_node" 3 0.0 1000.0 0.0 19.871 10000.0 10000.0 >
+ <"arc_Onilsavatn_node_w_w_Onilsavatn_Havet_w_Tafjord_K4_Havet_node" 4 0.0 1000.0 0.0 19.871 10000.0 10000.0 >
+ <"arc_Onilsavatn_node_w_w_Onilsavatn_Havet_w_Tafjord_K4_Havet_node" 5 0.0 1000.0 0.0 19.871 10000.0 10000.0 >
+ <"arc_Onilsavatn_node_w_w_Onilsavatn_Havet_w_Tafjord_K4_Havet_node" 6 0.0 1000.0 0.0 19.871 10000.0 10000.0 >
+ <"arc_Onilsavatn_node_w_w_Onilsavatn_Havet_w_Tafjord_K4_Havet_node" 7 0.0 1000.0 0.0 19.871 10000.0 10000.0 >
+ <"arc_Onilsavatn_node_w_w_Onilsavatn_Havet_w_Tafjord_K4_Havet_node" 8 0.0 1000.0 0.0 19.871 10000.0 10000.0 >
+ <"arc_Onilsavatn_node_w_w_Onilsavatn_Havet_w_Tafjord_K4_Havet_node" 9 0.0 1000.0 0.0 19.871 10000.0 10000.0 >
+ <"arc_Onilsavatn_node_w_w_Onilsavatn_Havet_w_Tafjord_K4_Havet_node" 10 0.0 1000.0 0.0 19.871 10000.0 10000.0 >
+ <"arc_Onilsavatn_node_w_w_Onilsavatn_Havet_w_Tafjord_K4_Havet_node" 11 0.0 1000.0 0.0 19.871 10000.0 10000.0 >
+ <"arc_Onilsavatn_node_w_w_Onilsavatn_Havet_w_Tafjord_K4_Havet_node" 12 0.0 1000.0 0.0 19.871 10000.0 10000.0 >
+ <"arc_Onilsavatn_node_w_w_Onilsavatn_Havet_w_Tafjord_K4_Havet_node" 13 0.0 1000.0 0.0 19.871 10000.0 10000.0 >
+ <"arc_Onilsavatn_node_w_w_Onilsavatn_Havet_w_Tafjord_K4_Havet_node" 14 0.0 1000.0 0.0 19.871 10000.0 10000.0 >
+ <"arc_Onilsavatn_node_w_w_Onilsavatn_Havet_w_Tafjord_K4_Havet_node" 15 0.0 1000.0 0.0 19.871 10000.0 10000.0 >
+ <"arc_Onilsavatn_node_w_w_Onilsavatn_Havet_w_Tafjord_K4_Havet_node" 16 0.0 1000.0 0.0 19.871 10000.0 10000.0 >
+// Id FlowMin FlowMax FlowMinSoft FlowMaxSoft FlowMinSoftC FlowMaxSoftC
+ <"arc_H.Viksvatn_node_Brusebotn_node" 1 0.0 1000.0 0.0 5.07 10000.0 10000.0 >
+ <"arc_H.Viksvatn_node_Brusebotn_node" 2 0.0 1000.0 0.0 5.07 10000.0 10000.0 >
+ <"arc_H.Viksvatn_node_Brusebotn_node" 3 0.0 1000.0 0.0 5.07 10000.0 10000.0 >
+ <"arc_H.Viksvatn_node_Brusebotn_node" 4 0.0 1000.0 0.0 5.07 10000.0 10000.0 >
+ <"arc_H.Viksvatn_node_Brusebotn_node" 5 0.0 1000.0 0.0 5.07 10000.0 10000.0 >
+ <"arc_H.Viksvatn_node_Brusebotn_node" 6 0.0 1000.0 0.0 5.07 10000.0 10000.0 >
+ <"arc_H.Viksvatn_node_Brusebotn_node" 7 0.0 1000.0 0.0 5.07 10000.0 10000.0 >
+ <"arc_H.Viksvatn_node_Brusebotn_node" 8 0.0 1000.0 0.0 5.07 10000.0 10000.0 >
+ <"arc_H.Viksvatn_node_Brusebotn_node" 9 0.0 1000.0 0.0 5.07 10000.0 10000.0 >
+ <"arc_H.Viksvatn_node_Brusebotn_node" 10 0.0 1000.0 0.0 5.07 10000.0 10000.0 >
+ <"arc_H.Viksvatn_node_Brusebotn_node" 11 0.0 1000.0 0.0 5.07 10000.0 10000.0 >
+ <"arc_H.Viksvatn_node_Brusebotn_node" 12 0.0 1000.0 0.0 5.07 10000.0 10000.0 >
+ <"arc_H.Viksvatn_node_Brusebotn_node" 13 0.0 1000.0 0.0 5.07 10000.0 10000.0 >
+ <"arc_H.Viksvatn_node_Brusebotn_node" 14 0.0 1000.0 0.0 5.07 10000.0 10000.0 >
+ <"arc_H.Viksvatn_node_Brusebotn_node" 15 0.0 1000.0 0.0 5.07 10000.0 10000.0 >
+ <"arc_H.Viksvatn_node_Brusebotn_node" 16 0.0 1000.0 0.0 5.07 10000.0 10000.0 >
+// Id FlowMin FlowMax FlowMinSoft FlowMaxSoft FlowMinSoftC FlowMaxSoftC
+ <"arc_Tjønna_node_H.Viksvatn_node" 1 0.0 1000.0 0.0 0.57 10000.0 10000.0 >
+ <"arc_Tjønna_node_H.Viksvatn_node" 2 0.0 1000.0 0.0 0.57 10000.0 10000.0 >
+ <"arc_Tjønna_node_H.Viksvatn_node" 3 0.0 1000.0 0.0 0.57 10000.0 10000.0 >
+ <"arc_Tjønna_node_H.Viksvatn_node" 4 0.0 1000.0 0.0 0.57 10000.0 10000.0 >
+ <"arc_Tjønna_node_H.Viksvatn_node" 5 0.0 1000.0 0.0 0.57 10000.0 10000.0 >
+ <"arc_Tjønna_node_H.Viksvatn_node" 6 0.0 1000.0 0.0 0.57 10000.0 10000.0 >
+ <"arc_Tjønna_node_H.Viksvatn_node" 7 0.0 1000.0 0.0 0.57 10000.0 10000.0 >
+ <"arc_Tjønna_node_H.Viksvatn_node" 8 0.0 1000.0 0.0 0.57 10000.0 10000.0 >
+ <"arc_Tjønna_node_H.Viksvatn_node" 9 0.0 1000.0 0.0 0.57 10000.0 10000.0 >
+ <"arc_Tjønna_node_H.Viksvatn_node" 10 0.0 1000.0 0.0 0.57 10000.0 10000.0 >
+ <"arc_Tjønna_node_H.Viksvatn_node" 11 0.0 1000.0 0.0 0.57 10000.0 10000.0 >
+ <"arc_Tjønna_node_H.Viksvatn_node" 12 0.0 1000.0 0.0 0.57 10000.0 10000.0 >
+ <"arc_Tjønna_node_H.Viksvatn_node" 13 0.0 1000.0 0.0 0.57 10000.0 10000.0 >
+ <"arc_Tjønna_node_H.Viksvatn_node" 14 0.0 1000.0 0.0 0.57 10000.0 10000.0 >
+ <"arc_Tjønna_node_H.Viksvatn_node" 15 0.0 1000.0 0.0 0.57 10000.0 10000.0 >
+ <"arc_Tjønna_node_H.Viksvatn_node" 16 0.0 1000.0 0.0 0.57 10000.0 10000.0 >
+// Id FlowMin FlowMax FlowMinSoft FlowMaxSoft FlowMinSoftC FlowMaxSoftC
+ <"arc_Fagerbotn_node_Sletdalsvatn_node" 1 0.0 1000.0 0.0 0.6 10000.0 10000.0 >
+ <"arc_Fagerbotn_node_Sletdalsvatn_node" 2 0.0 1000.0 0.0 0.6 10000.0 10000.0 >
+ <"arc_Fagerbotn_node_Sletdalsvatn_node" 3 0.0 1000.0 0.0 0.6 10000.0 10000.0 >
+ <"arc_Fagerbotn_node_Sletdalsvatn_node" 4 0.0 1000.0 0.0 0.6 10000.0 10000.0 >
+ <"arc_Fagerbotn_node_Sletdalsvatn_node" 5 0.0 1000.0 0.0 0.6 10000.0 10000.0 >
+ <"arc_Fagerbotn_node_Sletdalsvatn_node" 6 0.0 1000.0 0.0 0.6 10000.0 10000.0 >
+ <"arc_Fagerbotn_node_Sletdalsvatn_node" 7 0.0 1000.0 0.0 0.6 10000.0 10000.0 >
+ <"arc_Fagerbotn_node_Sletdalsvatn_node" 8 0.0 1000.0 0.0 0.6 10000.0 10000.0 >
+ <"arc_Fagerbotn_node_Sletdalsvatn_node" 9 0.0 1000.0 0.0 0.6 10000.0 10000.0 >
+ <"arc_Fagerbotn_node_Sletdalsvatn_node" 10 0.0 1000.0 0.0 0.6 10000.0 10000.0 >
+ <"arc_Fagerbotn_node_Sletdalsvatn_node" 11 0.0 1000.0 0.0 0.6 10000.0 10000.0 >
+ <"arc_Fagerbotn_node_Sletdalsvatn_node" 12 0.0 1000.0 0.0 0.6 10000.0 10000.0 >
+ <"arc_Fagerbotn_node_Sletdalsvatn_node" 13 0.0 1000.0 0.0 0.6 10000.0 10000.0 >
+ <"arc_Fagerbotn_node_Sletdalsvatn_node" 14 0.0 1000.0 0.0 0.6 10000.0 10000.0 >
+ <"arc_Fagerbotn_node_Sletdalsvatn_node" 15 0.0 1000.0 0.0 0.6 10000.0 10000.0 >
+ <"arc_Fagerbotn_node_Sletdalsvatn_node" 16 0.0 1000.0 0.0 0.6 10000.0 10000.0 >
+// Id FlowMin FlowMax FlowMinSoft FlowMaxSoft FlowMinSoftC FlowMaxSoftC
+ <"arc_Fetvatn_node_Sletdalsvatn_node" 1 0.0 1000.0 0.0 2.125 10000.0 10000.0 >
+ <"arc_Fetvatn_node_Sletdalsvatn_node" 2 0.0 1000.0 0.0 2.125 10000.0 10000.0 >
+ <"arc_Fetvatn_node_Sletdalsvatn_node" 3 0.0 1000.0 0.0 2.125 10000.0 10000.0 >
+ <"arc_Fetvatn_node_Sletdalsvatn_node" 4 0.0 1000.0 0.0 2.125 10000.0 10000.0 >
+ <"arc_Fetvatn_node_Sletdalsvatn_node" 5 0.0 1000.0 0.0 2.125 10000.0 10000.0 >
+ <"arc_Fetvatn_node_Sletdalsvatn_node" 6 0.0 1000.0 0.0 2.125 10000.0 10000.0 >
+ <"arc_Fetvatn_node_Sletdalsvatn_node" 7 0.0 1000.0 0.0 2.125 10000.0 10000.0 >
+ <"arc_Fetvatn_node_Sletdalsvatn_node" 8 0.0 1000.0 0.0 2.125 10000.0 10000.0 >
+ <"arc_Fetvatn_node_Sletdalsvatn_node" 9 0.0 1000.0 0.0 2.125 10000.0 10000.0 >
+ <"arc_Fetvatn_node_Sletdalsvatn_node" 10 0.0 1000.0 0.0 2.125 10000.0 10000.0 >
+ <"arc_Fetvatn_node_Sletdalsvatn_node" 11 0.0 1000.0 0.0 2.125 10000.0 10000.0 >
+ <"arc_Fetvatn_node_Sletdalsvatn_node" 12 0.0 1000.0 0.0 2.125 10000.0 10000.0 >
+ <"arc_Fetvatn_node_Sletdalsvatn_node" 13 0.0 1000.0 0.0 2.125 10000.0 10000.0 >
+ <"arc_Fetvatn_node_Sletdalsvatn_node" 14 0.0 1000.0 0.0 2.125 10000.0 10000.0 >
+ <"arc_Fetvatn_node_Sletdalsvatn_node" 15 0.0 1000.0 0.0 2.125 10000.0 10000.0 >
+ <"arc_Fetvatn_node_Sletdalsvatn_node" 16 0.0 1000.0 0.0 2.125 10000.0 10000.0 >
+// Id FlowMin FlowMax FlowMinSoft FlowMaxSoft FlowMinSoftC FlowMaxSoftC
+ <"arc_Viavatn_node_Sletdalsvatn_node" 1 0.0 1000.0 0.0 4.25 10000.0 10000.0 >
+ <"arc_Viavatn_node_Sletdalsvatn_node" 2 0.0 1000.0 0.0 4.25 10000.0 10000.0 >
+ <"arc_Viavatn_node_Sletdalsvatn_node" 3 0.0 1000.0 0.0 4.25 10000.0 10000.0 >
+ <"arc_Viavatn_node_Sletdalsvatn_node" 4 0.0 1000.0 0.0 4.25 10000.0 10000.0 >
+ <"arc_Viavatn_node_Sletdalsvatn_node" 5 0.0 1000.0 0.0 4.25 10000.0 10000.0 >
+ <"arc_Viavatn_node_Sletdalsvatn_node" 6 0.0 1000.0 0.0 4.25 10000.0 10000.0 >
+ <"arc_Viavatn_node_Sletdalsvatn_node" 7 0.0 1000.0 0.0 4.25 10000.0 10000.0 >
+ <"arc_Viavatn_node_Sletdalsvatn_node" 8 0.0 1000.0 0.0 4.25 10000.0 10000.0 >
+ <"arc_Viavatn_node_Sletdalsvatn_node" 9 0.0 1000.0 0.0 4.25 10000.0 10000.0 >
+ <"arc_Viavatn_node_Sletdalsvatn_node" 10 0.0 1000.0 0.0 4.25 10000.0 10000.0 >
+ <"arc_Viavatn_node_Sletdalsvatn_node" 11 0.0 1000.0 0.0 4.25 10000.0 10000.0 >
+ <"arc_Viavatn_node_Sletdalsvatn_node" 12 0.0 1000.0 0.0 4.25 10000.0 10000.0 >
+ <"arc_Viavatn_node_Sletdalsvatn_node" 13 0.0 1000.0 0.0 4.25 10000.0 10000.0 >
+ <"arc_Viavatn_node_Sletdalsvatn_node" 14 0.0 1000.0 0.0 4.25 10000.0 10000.0 >
+ <"arc_Viavatn_node_Sletdalsvatn_node" 15 0.0 1000.0 0.0 4.25 10000.0 10000.0 >
+ <"arc_Viavatn_node_Sletdalsvatn_node" 16 0.0 1000.0 0.0 4.25 10000.0 10000.0 >
+ }
+;
+
+junctions = 
+ { 
+ <"w_w_Havet_end_j" "Node w_w_Havet_end_node(id=99478_1)" >
+ <"w_Saudebotn_Tafjord_K3_j" "Node w_Saudebotn_Tafjord_K3_node(id=289_1)" >
+ <"w_Muldal_Tafjord_K4_j" "Node w_Muldal_Tafjord_K4_node(id=285_1)" >
+ <"w_N.Koppane_Tafjord_K5_j" "Node w_N.Koppane_Tafjord_K5_node(id=303_1)" >
+ <"w_w_Onilsavatn_Havet_w_Tafjord_K4_Havet_j" "Node w_w_Onilsavatn_Havet_w_Tafjord_K4_Havet_node(id=398_1)" >
+ }
+;
+
+powerLoad = 
+[[0.0 0.0 0.0 0.0 ]
+[0.0 0.0 0.0 0.0 ]
+[0.0 0.0 0.0 0.0 ]
+[0.0 0.0 0.0 0.0 ]
+[0.0 0.0 0.0 0.0 ]
+[0.0 0.0 0.0 0.0 ]
+[0.0 0.0 0.0 0.0 ]
+[0.0 0.0 0.0 0.0 ]
+[0.0 0.0 0.0 0.0 ]
+[0.0 0.0 0.0 0.0 ]
+[0.0 0.0 0.0 0.0 ]
+[0.0 0.0 0.0 0.0 ]
+[0.0 0.0 0.0 0.0 ]
+[0.0 0.0 0.0 0.0 ]
+[0.0 0.0 0.0 0.0 ]
+[0.0 0.0 0.0 0.0 ]
+]
+;
+
+contracts = 
+ { 
+ }
+;
+
+contractTs = 
+ { 
+ }
+;
+
+marketTs = 
+ { 
+// t MaxBuy MaxSell
+ <1 1000000.0 1000000.0 >
+ <2 1000000.0 1000000.0 >
+ <3 1000000.0 1000000.0 >
+ <4 1000000.0 1000000.0 >
+ <5 1000000.0 1000000.0 >
+ <6 1000000.0 1000000.0 >
+ <7 1000000.0 1000000.0 >
+ <8 1000000.0 1000000.0 >
+ <9 1000000.0 1000000.0 >
+ <10 1000000.0 1000000.0 >
+ <11 1000000.0 1000000.0 >
+ <12 1000000.0 1000000.0 >
+ <13 1000000.0 1000000.0 >
+ <14 1000000.0 1000000.0 >
+ <15 1000000.0 1000000.0 >
+ <16 1000000.0 1000000.0 >
+ }
+;
+
+reserves = 
+ { 
+// Id Direction
+ }
+;
+
+reserveT = 
+ { 
+ }
+;
+
+stationReserves = 
+ { 
+// Id  ReserveId StationId
+ }
+;
+
+stationReservesT = 
+ { 
+ }
+;
+
+symmetricReserves = 
+ { 
+ }
+;
+
+nCuts = 
+1 ;
+
+cuts = 
+[[0.0 0.0 0.0 0.0 0.0 0.0 122000.0 42400.0 0.0 0.0 0.0 0.0 0.0 122000.0 125720.0 ]
+]
+;
+
+cutRHS = 
+[0.0 ]
+;
+
+perLengthHours = 
+[168 168 168 168 168 168 168 168 168 168 168 167 168 168 168 168 ]
+;
+
+nHoursPerPriceSegment = 
+[[87 47 26 8 ]
+[78 32 37 21 ]
+[102 51 14 1 ]
+[90 67 10 1 ]
+[83 27 30 28 ]
+[65 58 23 22 ]
+[87 42 38 1 ]
+[90 40 34 4 ]
+[86 49 28 5 ]
+[71 29 40 28 ]
+[82 60 21 5 ]
+[70 73 24 1 ]
+[67 80 20 1 ]
+[11 72 59 26 ]
+[45 57 42 24 ]
+[64 31 50 23 ]
+]
+;
+
+discountFactor = 
+[1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 ]
+;
+
+nodes = 
+ { 
+ <0 1.0 0 0 >
+ <1 1.0 1 0 >
+ <2 1.0 2 1 >
+ <3 1.0 3 2 >
+ <4 1.0 4 3 >
+ <5 1.0 5 4 >
+ <6 1.0 6 5 >
+ <7 1.0 7 6 >
+ <8 1.0 8 7 >
+ <9 1.0 9 8 >
+ <10 1.0 10 9 >
+ <11 1.0 11 10 >
+ <12 1.0 12 11 >
+ <13 1.0 13 12 >
+ <14 1.0 14 13 >
+ <15 1.0 15 14 >
+ <16 1.0 16 15 >
+ }
+;
+
+marketPrice = 
+[[39.8706439678363 44.2477677630865 48.0500904930805 53.288317139135 ]
+[39.853669611546 43.6128085906128 48.2965348712154 52.4205764364206 ]
+[40.0570471268164 47.9111315139975 56.5322891381292 71.2614379170457 ]
+[41.9719870509894 48.4485630904461 62.5002964749994 79.464473601071 ]
+[40.9298249695081 44.7730172661064 49.0355778794356 58.9602044629602 ]
+[44.987969648998 47.8339984081636 50.6607314109907 54.5551473949478 ]
+[44.0913528803654 48.8195418272782 55.3751459259216 73.375997477504 ]
+[43.2180132553666 46.453493518937 50.9094476640422 59.2277830231219 ]
+[41.6839542400433 44.7013549748528 47.5766636491933 51.9707064463756 ]
+[39.3988737940037 41.3683443342518 42.895454276115 46.641416539965 ]
+[37.7579623311924 40.5568804288204 43.3646735144557 46.0298529902028 ]
+[35.6785720146981 38.0224741343928 41.6822563629377 48.4516265019404 ]
+[33.4513926982212 35.7207224290225 41.3254226778617 48.1625041446892 ]
+[29.2443656719895 31.8483583527362 34.3976417681483 37.7282561963577 ]
+[28.3035404417381 30.7390054167034 33.0046435943892 36.0325406679448 ]
+[26.0915192116585 28.967578871364 31.5262193961429 34.0951642465285 ]
+[26.0915192116585 28.967578871364 31.5262193961429 34.0951642465285 ]
+]
+;
+
+inflow = 
+[[0.0 -6.15529644198714E+231 -8.11976407900056E+231 0.322846699182138 0.321987079498018 0.312058534646042 0.298556223270511 0.292120376211769 0.291495357048079 0.293449299510542 0.298212641545137 0.302739317970699 0.305875898319736 0.313873788165714 0.440244243928591 0.48624572453594 0.550802326158443 ]
+[0.0 -1.09433474051656E+232 -1.44359252234165E+232 0.573981061848023 0.572452765537959 0.554801054273202 0.530795632999379 0.519353501678148 0.518242295758562 0.521716161132548 0.530184787653706 0.538232652315072 0.543809099972342 0.558028348048805 0.782699216819477 0.86448409723633 0.979257662654386 ]
+[0.0 -6.28481846285961E+231 -1.07999742041055E+232 0.540771493108566 0.541542343520781 0.543535284629562 0.537676356009163 0.552690957381797 0.585915215504873 0.599077023960249 0.599484482890034 0.633572038543298 0.693235488557444 0.741161980415818 0.958510608704169 1.08303047923419 1.21871504841935 ]
+[0.0 -2.85049887430373E+294 -3.11820725209672E+294 0.093751121517651 0.0949912838161874 0.0915695196719566 0.0870501511832993 0.0912263134079829 0.0982720520121277 0.0973462818839358 0.0946585127815297 0.103065745567932 0.117727739890308 0.12866854218257 0.21855015650815 0.260712330927364 0.30237538240673 ]
+[0.0 -1.01643518530374E+295 -1.11189504218787E+295 0.334299162266828 0.338721351684558 0.326519973521037 0.310404741241402 0.325296163451634 0.350419964370359 0.34711883929264 0.337534751713145 0.367513389109469 0.41979534947203 0.458808227202155 0.77930944239641 0.929651959472725 1.07821469644659 ]
+[0.0 -1.2829933919083E+230 -3.74607567328436E+230 0.0320456836255872 0.0320681012169052 0.0301232058698406 0.0278384993958358 0.0274658741039806 0.0278610288518274 0.0279669077344363 0.0285864253237659 0.0296979266471509 0.0310849708272379 0.0331362343829653 0.054311008654993 0.0625335600869476 0.0745052886643493 ]
+[0.0 -6.44014685399134E+231 -8.49552472108809E+231 0.337787168116976 0.336887767567142 0.326499756608482 0.312372594911836 0.305638914320046 0.304984970965951 0.307029336581988 0.312013113156797 0.316749271880569 0.320031004654534 0.328399015133899 0.460617552581952 0.508747856849916 0.576291962769422 ]
+[0.0 0.952526 -8.23579803020783E+231 2.30865433637361 2.32541668199723 2.35177916493729 2.34642791880786 2.35864509312877 2.43703622573274 2.5061024621294 2.53740328620897 2.6147975573366 2.76222693115712 2.960143987671 4.09581559530592 4.9870552725733 5.89826926844784 ]
+[0.0 -8.14419158170682E+294 -8.90906412259026E+294 0.267857357013034 0.271400638311174 0.261624278464396 0.248711941212923 0.260643700085277 0.280774157088457 0.278129129106659 0.270449874540129 0.2944702714965 0.336361216203678 0.36762030236891 0.624422047964901 0.744884058691109 0.863920019794356 ]
+[0.0 -1.66113633328062E+295 -1.81714415250285E+295 0.546337329379988 0.553564410477387 0.533623982522343 0.507287234005556 0.531623938249267 0.572683180530152 0.567288228754979 0.551625177800201 0.600618566184722 0.686061755469273 0.749819592270228 1.27360725833835 1.51930852996218 1.76210114844592 ]
+[0.0 -7.85425948876023E+294 -8.59190267306593E+294 0.258321672181605 0.261738813156012 0.252310490366483 0.239857830533768 0.251364820441924 0.270778635962355 0.26822777061057 0.260821896443605 0.28398717059336 0.324386803467729 0.354533070492528 0.602192709493161 0.718366289312505 0.833164586678066 ]
+[0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 ]
+[0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 ]
+[0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 ]
+[0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 ]
+[0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 ]
+[0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 ]
+[0.0 -7.90241068723614E+231 -1.35796812711063E+232 0.679955746016786 0.68092499860089 0.683430884683381 0.676063979749022 0.694943052717138 0.736718600255837 0.753268006800476 0.753780337875809 0.796641379238895 0.871661061639497 0.931922917045742 1.20521293062244 1.36178183734023 1.53238902288716 ]
+[0.0 -2.32508662939622E+231 -6.78877265899623E+231 0.58074336935509 0.58114962898328 0.545903538118317 0.50449926816411 0.497746419012029 0.504907555044026 0.506826330119892 0.518053450015525 0.538196475551415 0.563332987538474 0.600506721221511 0.984243573265201 1.13325559869368 1.35021155670275 ]
+[0.0 -1.63348270132263E+231 -4.76943205533898E+231 0.40799952817057 0.408284944664951 0.383522908279187 0.354434461476388 0.349690267374068 0.354721302210445 0.356069331937393 0.363956911653059 0.378108334378207 0.395767916168978 0.421884212287623 0.691477397224627 0.79616535282552 0.948587116331479 ]
+]
+;

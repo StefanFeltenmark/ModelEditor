@@ -1,0 +1,10 @@
+// External data
+cost = [10 20 30 40 50];
+resourceUsage = [
+[1 2 3]
+[2 3 4]
+[4 5 6]
+[1 5 4]
+[3 6 5]
+];
+resourceLimit = [100 200 250];

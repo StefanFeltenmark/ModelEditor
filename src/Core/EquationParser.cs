@@ -204,6 +204,13 @@ namespace Core
                         text.Substring(0, match.Index).Count(c => c == '\n') + 1);
                 }
 
+                // Preserve newlines to maintain line number alignment
+                int newlineCount = tupleDefinition.Count(c => c == '\n');
+                for (int i = 0; i < newlineCount; i++)
+                {
+                    resultText.Append('\n');
+                }
+
                 lastIndex = closingBraceIndex + 1;
             }
 
@@ -253,11 +260,19 @@ namespace Core
                 int blockStartIndex = match.Index + match.Length;
                 string blockContent = text.Substring(blockStartIndex, closingBraceIndex - blockStartIndex);
 
-                // Simply append the block content (constraints will be parsed normally)
-                // The "subject to" is just syntactic sugar for grouping - we extract the contents
-                resultText.AppendLine();
+                // Preserve line alignment: replace "subject to {" with blank lines
+                string subjectToHeader = text.Substring(match.Index, match.Length);
+                int headerNewlines = subjectToHeader.Count(c => c == '\n');
+                for (int i = 0; i < headerNewlines; i++)
+                {
+                    resultText.Append('\n');
+                }
+
+                // Append the block content as-is (constraints will be parsed normally)
                 resultText.Append(blockContent);
-                resultText.AppendLine();
+
+                // Replace closing "}" with blank line to preserve line count
+                resultText.Append('\n');
 
                 lastIndex = closingBraceIndex + 1;
             }
@@ -342,14 +357,14 @@ namespace Core
             string text,
             Dictionary<int, int> lineMapping)
         {
-            // Split by lines first to handle comments properly
-            string[] lines = text.Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries);
+            // Split by line terminators, preserving empty lines for accurate line counting
+            string[] lines = text.Split(new[] { "\r\n", "\n", "\r" }, StringSplitOptions.None);
             var processedLines = new List<(string content, int lineNumber)>();
 
-            int currentLineNumber = 1;
-            foreach (string line in lines)
+            for (int i = 0; i < lines.Length; i++)
             {
-                string lineWithoutComment = line.Split(new[] { "//" }, StringSplitOptions.None)[0].Trim();
+                int currentLineNumber = i + 1;
+                string lineWithoutComment = lines[i].Split(new[] { "//" }, StringSplitOptions.None)[0].Trim();
                 if (!string.IsNullOrWhiteSpace(lineWithoutComment))
                 {
                     // Map to original line number
@@ -358,8 +373,6 @@ namespace Core
                         : currentLineNumber;
                     processedLines.Add((lineWithoutComment, originalLineNumber));
                 }
-
-                currentLineNumber++;
             }
 
             // Group lines by statements (split by semicolons, respecting braces)
@@ -428,7 +441,7 @@ namespace Core
             if (matches.Count == 0)
             {
                 // No execute blocks, return original text with identity mapping
-                var lines = text.Split(new[] { '\r', '\n' });
+                var lines = text.Split(new[] { "\r\n", "\n", "\r" }, StringSplitOptions.None);
                 for (int i = 0; i < lines.Length; i++)
                 {
                     lineMapping[i + 1] = i + 1;
@@ -521,7 +534,7 @@ namespace Core
             ref int currentOutputLine,
             ref int currentInputLine)
         {
-            var lines = text.Split(new[] { '\r', '\n' });
+            var lines = text.Split(new[] { "\r\n", "\n", "\r" }, StringSplitOptions.None);
             foreach (var line in lines)
             {
                 lineMapping[currentOutputLine] = currentInputLine;
