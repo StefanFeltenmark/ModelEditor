@@ -67,7 +67,7 @@ namespace Core.Parsing
        
 
         /// <summary>
-        /// Parses dimension specifications like [i in Set][j in Set2] or [Set1][Set2]
+        /// Parses dimension specifications like [i in Set][j in Set2], [Set1][Set2], or [Set1,Set2]
         /// </summary>
         private bool ParseDimensions(string dimensionsStr, List<string> indexSetNames, out string error)
         {
@@ -87,9 +87,27 @@ namespace Core.Parsing
             {
                 string content = match.Groups[1].Value.Trim();
 
+                // Check for comma-separated dimensions inside a single bracket pair: [I,J]
+                // But not if it contains "in" (that's an iterator like [i in I, j in J])
+                if (content.Contains(',') && !Regex.IsMatch(content, @"\bin\b"))
+                {
+                    var parts = content.Split(',');
+                    foreach (var part in parts)
+                    {
+                        string trimmed = part.Trim();
+                        if (Regex.IsMatch(trimmed, @"^[a-zA-Z][a-zA-Z0-9_]*$"))
+                        {
+                            indexSetNames.Add(trimmed);
+                        }
+                        else
+                        {
+                            error = $"Invalid dimension: '{trimmed}'";
+                            return false;
+                        }
+                    }
+                }
                 // Check for iterator syntax: "var in Set" or "var in 1..5"
-                var iterMatch = Regex.Match(content, @"^[a-zA-Z][a-zA-Z0-9_]*\s+in\s+(.+)$");
-                if (iterMatch.Success)
+                else if (Regex.Match(content, @"^[a-zA-Z][a-zA-Z0-9_]*\s+in\s+(.+)$") is { Success: true } iterMatch)
                 {
                     indexSetNames.Add(iterMatch.Groups[1].Value.Trim());
                 }

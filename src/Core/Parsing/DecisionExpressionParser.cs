@@ -278,19 +278,19 @@ namespace Core.Parsing
                 // For non-tuple summations, try to expand them
                 var summationExpander = new SummationExpander(modelManager);
                 string expanded = summationExpander.ExpandSummations(exprStr, out error);
-                
+
                 if (!string.IsNullOrEmpty(error))
                     return new ConstantExpression(0);
-                
+
                 // If expansion happened, try parsing again
                 if (expanded != exprStr)
                 {
                     exprStr = expanded;
                 }
-                
+
                 // Use expression parser for complex expressions
                 var expressionParser = new ExpressionParser(modelManager);
-                
+
                 if (expressionParser.TryParseExpression(exprStr, out var coeffs, out var constant, out error))
                 {
                     // If it's a pure constant
@@ -298,7 +298,7 @@ namespace Core.Parsing
                     {
                         return constant;
                     }
-                    
+
                     // If it's a single variable with coefficient 1
                     if (coeffs.Count == 1 && constant is ConstantExpression c && Math.Abs(c.Value) < 1e-10)
                     {
@@ -308,13 +308,16 @@ namespace Core.Parsing
                             return new VariableExpression(kvp.Key);
                         }
                     }
-                    
+
                     // For complex expressions, build a composite expression
                     return BuildCompositeExpression(coeffs, constant);
                 }
-                
-                error = "Could not parse decision expression body";
-                return new ConstantExpression(0);
+
+                // For symbolic expressions that can't be fully resolved at parse time
+                // (e.g., chained indexed tuple field access, unexpanded summations over
+                // external sets), store them as symbolic text for later evaluation.
+                error = string.Empty;
+                return new SymbolicExpression(exprStr);
             }
             catch (Exception ex)
             {

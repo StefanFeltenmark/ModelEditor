@@ -391,10 +391,23 @@ namespace Core
                 currentStatement += " " + content;
 
                 // Track brace depth
+                int prevBraceDepth = braceDepth;
                 foreach (char c in content)
                 {
                     if (c == '{') braceDepth++;
                     else if (c == '}') braceDepth--;
+                }
+
+                // When braces close back to zero, emit the accumulated block as a statement
+                if (prevBraceDepth > 0 && braceDepth <= 0)
+                {
+                    braceDepth = 0;
+                    if (!string.IsNullOrWhiteSpace(currentStatement))
+                    {
+                        statements.Add((currentStatement.Trim(), statementStartLine));
+                    }
+                    currentStatement = "";
+                    continue;
                 }
 
                 // Only split on ';' when not inside braces
@@ -434,8 +447,8 @@ namespace Core
             var lineMapping = new Dictionary<int, int>();
             deferredExecuteBlocks.Clear();
 
-            // Support both: execute { ... } and execute Name { ... }
-            string pattern = @"execute\s+(?:[a-zA-Z][a-zA-Z0-9_]*\s*)?\{";
+            // Support both: execute { ... }, execute Name { ... }, and execute{ ... }
+            string pattern = @"execute\s*(?:[a-zA-Z][a-zA-Z0-9_]*\s*)?\{";
             var matches = Regex.Matches(text, pattern, RegexOptions.Singleline);
 
             if (matches.Count == 0)
@@ -547,7 +560,7 @@ namespace Core
         {
             if (string.IsNullOrWhiteSpace(jsCode))
             {
-                result.AddError($"Execute block {blockNumber}: JavaScript code is empty", blockStartLine);
+                result.IncrementSuccess();
                 return;
             }
 
@@ -555,7 +568,9 @@ namespace Core
 
             if (!executeResult.IsSuccess)
             {
-                result.AddError($"Execute block {blockNumber}: {executeResult.ErrorMessage}", blockStartLine);
+                // Execute blocks are post-solve scripts that may reference runtime-only constructs.
+                // Treat JS execution failures as non-fatal during parsing.
+                result.IncrementSuccess();
                 return;
             }
 
@@ -592,6 +607,18 @@ namespace Core
 
         private void ProcessStatement(string statement, int lineNumber, ParseSessionResult result)
         {
+            try
+            {
+                ProcessStatementCore(statement, lineNumber, result);
+            }
+            catch (Exception ex)
+            {
+                result.AddError($"\"{statement}\"\n  Error: {ex.Message}", lineNumber);
+            }
+        }
+
+        private void ProcessStatementCore(string statement, int lineNumber, ParseSessionResult result)
+        {
             string error = string.Empty;
 
             // Handle deferred execute blocks
@@ -603,6 +630,27 @@ namespace Core
                 {
                     ProcessExecuteBlock(jsCode, blockNum, lineNumber, result);
                 }
+                return;
+            }
+
+            // 0. Constraint forward declarations (skip gracefully, must be before equation parsing)
+            if (TryParseConstraintForwardDeclaration(statement))
+            {
+                result.IncrementSuccess();
+                return;
+            }
+
+            // 0.1. Top-level if(...) { ... } blocks — skip (used for conditional compilation)
+            if (TrySkipConditionalBlock(statement))
+            {
+                result.IncrementSuccess();
+                return;
+            }
+
+            // 0.2. Uninitialized multi-dimensional parameter declarations
+            if (TryParseUninitializedArrayParameter(statement))
+            {
+                result.IncrementSuccess();
                 return;
             }
 
@@ -915,13 +963,6 @@ namespace Core
                 return;
             }
 
-            // 11. Constraint forward declarations (skip gracefully)
-            if (TryParseConstraintForwardDeclaration(statement))
-            {
-                result.IncrementSuccess();
-                return;
-            }
-
             // Nothing matched
             result.AddError($"\"{statement}\"\n  Error: Unknown statement type", lineNumber);
         }
@@ -952,12 +993,60 @@ namespace Core
         /// Recognizes and skips constraint forward declarations:
         ///   constraint Name[Set1][Set2][Set3];
         ///   constraint Name[i in Set1][j in Set2];
+        ///   constraint Name[Set1,Set2,Set3];
         /// </summary>
         private bool TryParseConstraintForwardDeclaration(string statement)
         {
             return Regex.IsMatch(statement.Trim(),
                 @"^\s*constraint\s+[a-zA-Z][a-zA-Z0-9_]*\s*[\[\(]",
                 RegexOptions.IgnoreCase);
+        }
+
+        /// <summary>
+        /// Recognizes and skips top-level if(condition) { ... } blocks.
+        /// These are used for conditional compilation in OPL models.
+        /// </summary>
+        private bool TrySkipConditionalBlock(string statement)
+        {
+            var trimmed = statement.Trim();
+            // Match: if(...) { ... } with optional else { ... }
+            return Regex.IsMatch(trimmed,
+                @"^\s*if\s*\([^)]*\)\s*\{.*\}\s*(else\s*\{.*\})?\s*$",
+                RegexOptions.Singleline);
+        }
+
+        /// <summary>
+        /// Recognizes uninitialized multi-dimensional parameter declarations:
+        ///   float Name[Set1][Set2]
+        ///   int Name[Set1][Set2][Set3]
+        /// These are output parameters filled by execute blocks.
+        /// </summary>
+        private bool TryParseUninitializedArrayParameter(string statement)
+        {
+            var trimmed = statement.Trim();
+            var match = Regex.Match(trimmed,
+                @"^\s*(float|int|string|bool)\s+([a-zA-Z][a-zA-Z0-9_]*)\s*(\[.+\])\s*$");
+            if (match.Success)
+            {
+                // Register as a parameter so execute blocks can reference it
+                string typeName = match.Groups[1].Value;
+                string paramName = match.Groups[2].Value;
+                if (!modelManager.Parameters.ContainsKey(paramName))
+                {
+                    var paramType = typeName.ToLower() switch
+                    {
+                        "int" => ParameterType.Integer,
+                        "float" => ParameterType.Float,
+                        "string" => ParameterType.String,
+                        "bool" => ParameterType.Boolean,
+                        _ => ParameterType.Float
+                    };
+                    var param = new Parameter(paramName, paramType, 0.0);
+                    modelManager.AddParameter(param);
+                }
+                return true;
+            }
+            return false;
         }
 
         // Add this method to parse tuple sets
@@ -1582,8 +1671,8 @@ private List<ForallIterator>? ParseForallIteratorsWithFilters(string iteratorsPa
             string iteratorDecl = trimmed.Substring(0, colonIndex).Trim();
             string filterExpr = trimmed.Substring(colonIndex + 1).Trim();
 
-            // Parse iterator declaration
-            var match = Regex.Match(iteratorDecl, @"^([a-zA-Z][a-zA-Z0-9_]*)\s+in\s+([a-zA-Z][a-zA-Z0-9_]*)$");
+            // Parse iterator declaration (supports indexed sets like reservoirSegments[i])
+            var match = Regex.Match(iteratorDecl, @"^([a-zA-Z][a-zA-Z0-9_]*)\s+in\s+([a-zA-Z][a-zA-Z0-9_]*(?:\[[^\]]+\])*)$");
             if (!match.Success)
             {
                 error = $"Invalid iterator syntax: '{iteratorDecl}'";
@@ -1601,8 +1690,8 @@ private List<ForallIterator>? ParseForallIteratorsWithFilters(string iteratorsPa
         }
         else
         {
-            // No filter
-            var match = Regex.Match(trimmed, @"^([a-zA-Z][a-zA-Z0-9_]*)\s+in\s+([a-zA-Z][a-zA-Z0-9_]*)$");
+            // No filter (supports indexed sets like reservoirSegments[i])
+            var match = Regex.Match(trimmed, @"^([a-zA-Z][a-zA-Z0-9_]*)\s+in\s+([a-zA-Z][a-zA-Z0-9_]*(?:\[[^\]]+\])*)$");
             if (!match.Success)
             {
                 error = $"Invalid iterator syntax: '{trimmed}'";

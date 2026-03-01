@@ -48,9 +48,13 @@ namespace Core.Models
         {
             Name = name;
             Type = type;
-            IndexSetNames = new List<string> { indexSetName }; // Normalize to list
             IsExternal = isExternal;
-            indexedValues = new Dictionary<int, object>();
+
+            if (!string.IsNullOrEmpty(indexSetName))
+            {
+                IndexSetNames = new List<string> { indexSetName };
+                indexedValues = new Dictionary<int, object>();
+            }
         }
 
         // Multi-dimensional constructor

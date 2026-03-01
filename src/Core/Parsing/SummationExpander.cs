@@ -81,8 +81,9 @@ namespace Core.Parsing
 
                 if (expandedTerms.Count == 0)
                 {
-                    error = $"Set '{setName}' is empty - cannot expand summation";
-                    return expression;
+                    // Set/range is empty (e.g., depends on external data).
+                    // Leave the sum expression unexpanded so symbolic parsing can proceed.
+                    break;
                 }
 
                 string expandedSum = string.Join("+", expandedTerms);

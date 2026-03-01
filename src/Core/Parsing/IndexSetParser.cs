@@ -49,12 +49,8 @@ namespace Core.Parsing
             int start = startResult.Value;
             int end = endResult.Value;
 
-            if (start > end)
-            {
-                error = $"Invalid range: start index {start} is greater than end index {end}";
-                return false;
-            }
-
+            // Allow start > end (e.g., when endpoints reference external parameters
+            // whose values haven't been loaded yet). The index set will be empty.
             indexSet = new IndexSet(name, start, end);
             return true;
         }

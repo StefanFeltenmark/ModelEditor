@@ -1379,4 +1379,28 @@ namespace Core.Models
         public override string ToString() => $"{Function}({string.Join(", ", Arguments.AsEnumerable())})";
         public override bool IsConstant => Arguments.All(a => a.IsConstant);
     }
+
+    /// <summary>
+    /// Represents an expression that could not be fully resolved at parse time
+    /// (e.g., depends on external data, chained indexed tuple field access).
+    /// Stored as symbolic text for later evaluation at solve time.
+    /// </summary>
+    public class SymbolicExpression : Expression
+    {
+        public string ExpressionText { get; }
+
+        public SymbolicExpression(string expressionText)
+        {
+            ExpressionText = expressionText;
+        }
+
+        public override double Evaluate(ModelManager modelManager)
+        {
+            throw new InvalidOperationException(
+                $"Cannot evaluate symbolic expression at this time: {ExpressionText}");
+        }
+
+        public override string ToString() => ExpressionText;
+        public override bool IsConstant => false;
+    }
 }
