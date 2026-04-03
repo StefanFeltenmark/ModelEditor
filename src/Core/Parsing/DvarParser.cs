@@ -63,12 +63,25 @@ namespace Core.Parsing
             VariableType varType = ParseVariableType(typeStr);
             ParseSignConstraint(signConstraint, out double? lowerBound, out double? upperBound);
 
+            List<(double Lo, double Hi)>? semiContinuousRanges = null;
             if (!string.IsNullOrEmpty(boundsExpr))
             {
-                if (!ParseBounds(boundsExpr, out var lb, out var ub, out error))
-                    return false;
-                if (lb.HasValue) lowerBound = lb.Value;
-                if (ub.HasValue) upperBound = ub.Value;
+                if (boundsExpr.Contains('|'))
+                {
+                    semiContinuousRanges = ParseSemiContinuousRanges(boundsExpr, out error);
+                    if (semiContinuousRanges == null) return false;
+                    // Use the non-zero range for LowerBound/UpperBound (last non-zero range)
+                    var nonZero = semiContinuousRanges.FirstOrDefault(r => r.Hi > 1e-10);
+                    lowerBound = nonZero.Lo;
+                    upperBound = double.IsPositiveInfinity(nonZero.Hi) ? null : nonZero.Hi;
+                }
+                else
+                {
+                    if (!ParseBounds(boundsExpr, out var lb, out var ub, out error))
+                        return false;
+                    if (lb.HasValue) lowerBound = lb.Value;
+                    if (ub.HasValue) upperBound = ub.Value;
+                }
             }
 
             if (string.IsNullOrEmpty(indexingPart))
@@ -76,7 +89,8 @@ namespace Core.Parsing
                 variable = new IndexedVariable(varName, null, varType, null)
                 {
                     LowerBound = lowerBound,
-                    UpperBound = upperBound
+                    UpperBound = upperBound,
+                    SemiContinuousRanges = semiContinuousRanges
                 };
                 return true;
             }
@@ -92,6 +106,7 @@ namespace Core.Parsing
                 return false;
 
             variable = CreateVariable(varName, varType, indexSets, lowerBound, upperBound);
+            if (semiContinuousRanges != null) variable.SemiContinuousRanges = semiContinuousRanges;
             return true;
         }
 
@@ -246,6 +261,26 @@ namespace Core.Parsing
         /// <summary>
         /// Parses bounds expression: "0..100", "minVal..maxVal", "..100", "0.."
         /// </summary>
+        /// <summary>
+        /// Parses semi-continuous bound alternation: lo1..hi1 | lo2..hi2 ...
+        /// Returns the list of range segments if alternation is present.
+        /// </summary>
+        private List<(double Lo, double Hi)>? ParseSemiContinuousRanges(string boundsExpr, out string error)
+        {
+            error = string.Empty;
+            var segments = boundsExpr.Split('|').Select(s => s.Trim()).ToList();
+            if (segments.Count < 2) return null;
+
+            var result = new List<(double Lo, double Hi)>();
+            foreach (var seg in segments)
+            {
+                if (!ParseBounds(seg, out double? lo, out double? hi, out error))
+                    return null;
+                result.Add((lo ?? 0, hi ?? double.PositiveInfinity));
+            }
+            return result;
+        }
+
         private bool ParseBounds(string boundsExpr, out double? lowerBound, out double? upperBound, out string error)
         {
             lowerBound = null;

@@ -32,9 +32,9 @@ namespace Core.Parsing
             statement = statement.Trim();
 
             // Pattern 1: Indexed set collection
-            // {Type} setName[index] = {...}
+            // {Type} setName[index] = {...}  — Singleline lets .+ capture multi-line comprehensions
             var indexedPattern = @"^\s*\{([a-zA-Z][a-zA-Z0-9_]*)\}\s+([a-zA-Z][a-zA-Z0-9_]*)\s*\[([a-zA-Z][a-zA-Z0-9_]*)\s+in\s+([a-zA-Z][a-zA-Z0-9_]*)\]\s*=\s*(.+)$";
-            var indexedMatch = Regex.Match(statement, indexedPattern);
+            var indexedMatch = Regex.Match(statement, indexedPattern, RegexOptions.Singleline);
 
             if (indexedMatch.Success)
             {
@@ -42,9 +42,9 @@ namespace Core.Parsing
             }
 
             // Pattern 2: Simple set comprehension
-            // {Type} setName = {expr | iterators: condition}
+            // {Type} setName = {expr | iterators: condition}  — Singleline for multi-line content
             var simplePattern = @"^\s*\{([a-zA-Z][a-zA-Z0-9_]*)\}\s+([a-zA-Z][a-zA-Z0-9_]*)\s*=\s*(.+)$";
-            var simpleMatch = Regex.Match(statement, simplePattern);
+            var simpleMatch = Regex.Match(statement, simplePattern, RegexOptions.Singleline);
 
             if (!simpleMatch.Success)
             {

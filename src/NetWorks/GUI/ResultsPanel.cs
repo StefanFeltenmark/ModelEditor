@@ -4,6 +4,7 @@ using System.Linq;
 using System.Windows.Forms;
 using Core;
 using Core.Models;
+using Core.Solving;
 
 namespace GUI.Controls
 {
@@ -17,6 +18,14 @@ namespace GUI.Controls
         private ListView errorsListView;
         private TreeView modelTreeView;
         private RichTextBox statisticsTextBox;
+
+        // Solution tab controls
+        private Label solutionStatusLabel;
+        private Label solutionObjectiveLabel;
+        private Label solutionTimeLabel;
+        private Label solutionMipGapLabel;
+        private DataGridView solutionVariablesGrid;
+        private DataGridView solutionSlacksGrid;
         
         public event EventHandler<ErrorNavigationEventArgs> ErrorDoubleClicked;
 
@@ -54,6 +63,11 @@ namespace GUI.Controls
             var statsTab = new TabPage("Statistics");
             CreateStatisticsTab(statsTab);
             tabControl.TabPages.Add(statsTab);
+
+            // Solution tab
+            var solutionTab = new TabPage("Solution");
+            CreateSolutionTab(solutionTab);
+            tabControl.TabPages.Add(solutionTab);
 
             this.Controls.Add(tabControl);
             this.ResumeLayout();
@@ -401,12 +415,171 @@ namespace GUI.Controls
             statisticsTextBox.AppendText("═══════════════════════════════════════════════\n");
         }
 
+        private void CreateSolutionTab(TabPage tab)
+        {
+            // Top info panel
+            var topPanel = new Panel { Dock = DockStyle.Top, Height = 90, Padding = new Padding(8) };
+
+            solutionStatusLabel = new Label
+            {
+                Text = "No solution",
+                Font = new Font("Segoe UI", 11, FontStyle.Bold),
+                AutoSize = true,
+                Location = new System.Drawing.Point(8, 8)
+            };
+            solutionObjectiveLabel = new Label { Text = "", AutoSize = true, Location = new System.Drawing.Point(8, 32) };
+            solutionTimeLabel = new Label { Text = "", AutoSize = true, Location = new System.Drawing.Point(8, 52) };
+            solutionMipGapLabel = new Label { Text = "", AutoSize = true, Location = new System.Drawing.Point(8, 72) };
+
+            topPanel.Controls.AddRange(new Control[]
+            {
+                solutionStatusLabel, solutionObjectiveLabel, solutionTimeLabel, solutionMipGapLabel
+            });
+
+            // Split container for the two grids
+            var splitContainer = new SplitContainer
+            {
+                Dock = DockStyle.Fill,
+                Orientation = Orientation.Vertical,
+                SplitterDistance = 50,
+                Panel1MinSize = 100,
+                Panel2MinSize = 100
+            };
+
+            // Variable values grid (left)
+            solutionVariablesGrid = new DataGridView
+            {
+                Dock = DockStyle.Fill,
+                ReadOnly = true,
+                AllowUserToAddRows = false,
+                AllowUserToDeleteRows = false,
+                RowHeadersVisible = false,
+                AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.Fill,
+                Font = new Font("Consolas", 9),
+                SelectionMode = DataGridViewSelectionMode.FullRowSelect,
+                BackgroundColor = Color.FromArgb(250, 250, 250)
+            };
+            solutionVariablesGrid.Columns.Add("VarName", "Variable");
+            solutionVariablesGrid.Columns.Add("VarValue", "Value");
+            solutionVariablesGrid.Columns["VarValue"].DefaultCellStyle.Alignment = DataGridViewContentAlignment.MiddleRight;
+            splitContainer.Panel1.Controls.Add(solutionVariablesGrid);
+            splitContainer.Panel1.Controls.Add(new Label
+            {
+                Text = "Variable Values",
+                Dock = DockStyle.Top,
+                Font = new Font("Segoe UI", 9, FontStyle.Bold),
+                Height = 20,
+                TextAlign = System.Drawing.ContentAlignment.MiddleLeft,
+                Padding = new Padding(2, 0, 0, 0)
+            });
+
+            // Constraint slacks grid (right)
+            solutionSlacksGrid = new DataGridView
+            {
+                Dock = DockStyle.Fill,
+                ReadOnly = true,
+                AllowUserToAddRows = false,
+                AllowUserToDeleteRows = false,
+                RowHeadersVisible = false,
+                AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.Fill,
+                Font = new Font("Consolas", 9),
+                SelectionMode = DataGridViewSelectionMode.FullRowSelect,
+                BackgroundColor = Color.FromArgb(250, 250, 250)
+            };
+            solutionSlacksGrid.Columns.Add("ConName", "Constraint");
+            solutionSlacksGrid.Columns.Add("ConSlack", "Slack");
+            solutionSlacksGrid.Columns["ConSlack"].DefaultCellStyle.Alignment = DataGridViewContentAlignment.MiddleRight;
+            solutionSlacksGrid.Columns.Add("ConBinding", "Binding");
+            solutionSlacksGrid.Columns["ConBinding"].DefaultCellStyle.Alignment = DataGridViewContentAlignment.MiddleCenter;
+            splitContainer.Panel2.Controls.Add(solutionSlacksGrid);
+            splitContainer.Panel2.Controls.Add(new Label
+            {
+                Text = "Constraint Slacks",
+                Dock = DockStyle.Top,
+                Font = new Font("Segoe UI", 9, FontStyle.Bold),
+                Height = 20,
+                TextAlign = System.Drawing.ContentAlignment.MiddleLeft,
+                Padding = new Padding(2, 0, 0, 0)
+            });
+
+            tab.Controls.Add(splitContainer);
+            tab.Controls.Add(topPanel);
+        }
+
+        /// <summary>
+        /// Populates the Solution tab with solve results.
+        /// </summary>
+        public void ShowSolution(SolveResult? result)
+        {
+            solutionVariablesGrid.Rows.Clear();
+            solutionSlacksGrid.Rows.Clear();
+
+            if (result == null)
+            {
+                solutionStatusLabel.Text = "No solution";
+                solutionStatusLabel.ForeColor = Color.Gray;
+                solutionObjectiveLabel.Text = "";
+                solutionTimeLabel.Text = "";
+                solutionMipGapLabel.Text = "";
+                return;
+            }
+
+            // Status
+            (string statusText, Color statusColor) = result.Status switch
+            {
+                SolveStatus.Optimal => ("Optimal", Color.Green),
+                SolveStatus.Feasible => ("Feasible (time/node limit)", Color.DarkOrange),
+                SolveStatus.Infeasible => ("Infeasible", Color.Red),
+                SolveStatus.Unbounded => ("Unbounded", Color.DarkRed),
+                _ => ($"Error — {result.StatusMessage}", Color.Red)
+            };
+            solutionStatusLabel.Text = statusText;
+            solutionStatusLabel.ForeColor = statusColor;
+
+            // Objective / time / gap
+            solutionObjectiveLabel.Text = result.ObjectiveValue.HasValue
+                ? $"Objective: {result.ObjectiveValue.Value:G}"
+                : "";
+            solutionTimeLabel.Text = $"Solve time: {result.SolveTime.TotalSeconds:F2} s";
+            solutionMipGapLabel.Text = result.MipGap.HasValue && result.MipGap.Value > 1e-10
+                ? $"MIP gap: {result.MipGap.Value * 100:F4} %"
+                : "";
+
+            // Variable values — skip near-zero (< 1e-9) to reduce clutter
+            foreach (var kv in result.VariableValues.OrderBy(x => x.Key))
+            {
+                if (Math.Abs(kv.Value) >= 1e-9)
+                    solutionVariablesGrid.Rows.Add(kv.Key, $"{kv.Value:G}");
+            }
+
+            // Constraint slacks
+            foreach (var kv in result.ConstraintSlacks.OrderBy(x => x.Key))
+            {
+                bool binding = Math.Abs(kv.Value) < 1e-6;
+                solutionSlacksGrid.Rows.Add(kv.Key, $"{kv.Value:G}", binding ? "Active" : "");
+                if (binding)
+                    solutionSlacksGrid.Rows[solutionSlacksGrid.Rows.Count - 1].DefaultCellStyle.ForeColor
+                        = Color.DarkGreen;
+            }
+
+            // Switch to Solution tab if we have a result
+            if (result.Status is SolveStatus.Optimal or SolveStatus.Feasible)
+                tabControl.SelectedIndex = 4;
+        }
+
         public void Clear()
         {
             outputTextBox.Clear();
             errorsListView.Items.Clear();
             modelTreeView.Nodes.Clear();
             statisticsTextBox.Clear();
+            solutionVariablesGrid.Rows.Clear();
+            solutionSlacksGrid.Rows.Clear();
+            solutionStatusLabel.Text = "No solution";
+            solutionStatusLabel.ForeColor = Color.Gray;
+            solutionObjectiveLabel.Text = "";
+            solutionTimeLabel.Text = "";
+            solutionMipGapLabel.Text = "";
             tabControl.TabPages[1].Text = "Errors";
         }
 

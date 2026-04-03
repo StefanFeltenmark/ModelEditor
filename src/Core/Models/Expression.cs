@@ -194,6 +194,10 @@ namespace Core.Models
                 BinaryOperator.Subtract => leftValue - rightValue,
                 BinaryOperator.Multiply => leftValue * rightValue,
                 BinaryOperator.Divide => leftValue / rightValue,
+                BinaryOperator.Modulo => leftValue % rightValue,
+                BinaryOperator.Div => Math.Truncate(leftValue / rightValue),
+                BinaryOperator.Power => Math.Pow(leftValue, rightValue),
+                BinaryOperator.LogicalOr => (leftValue != 0 || rightValue != 0) ? 1.0 : 0.0,
                 _ => throw new InvalidOperationException($"Unknown operator: {Operator}")
             };
         }
@@ -206,6 +210,10 @@ namespace Core.Models
                 BinaryOperator.Subtract => "-",
                 BinaryOperator.Multiply => "*",
                 BinaryOperator.Divide => "/",
+                BinaryOperator.Modulo => "%",
+                BinaryOperator.Div => " div ",
+                BinaryOperator.Power => "^",
+                BinaryOperator.LogicalOr => " || ",
                 _ => "?"
             };
 
@@ -230,6 +238,10 @@ namespace Core.Models
                     BinaryOperator.Subtract => leftConst.Value - rightConst.Value,
                     BinaryOperator.Multiply => leftConst.Value * rightConst.Value,
                     BinaryOperator.Divide => leftConst.Value / rightConst.Value,
+                    BinaryOperator.Modulo => leftConst.Value % rightConst.Value,
+                    BinaryOperator.Div => Math.Truncate(leftConst.Value / rightConst.Value),
+                    BinaryOperator.Power => Math.Pow(leftConst.Value, rightConst.Value),
+                    BinaryOperator.LogicalOr => (leftConst.Value != 0 || rightConst.Value != 0) ? 1.0 : 0.0,
                     _ => throw new InvalidOperationException($"Unknown operator: {Operator}")
                 };
                 return new ConstantExpression(result);
@@ -301,6 +313,7 @@ namespace Core.Models
             return Operator switch
             {
                 UnaryOperator.Negate => -value,
+                UnaryOperator.LogicalNot => value == 0 ? 1.0 : 0.0,
                 _ => throw new InvalidOperationException($"Unknown operator: {Operator}")
             };
         }
@@ -308,6 +321,7 @@ namespace Core.Models
         public override string ToString() => Operator switch
         {
             UnaryOperator.Negate => $"-{Operand}",
+            UnaryOperator.LogicalNot => $"!{Operand}",
             _ => $"?{Operand}"
         };
 
@@ -323,6 +337,7 @@ namespace Core.Models
                 double result = Operator switch
                 {
                     UnaryOperator.Negate => -constExpr.Value,
+                    UnaryOperator.LogicalNot => constExpr.Value == 0 ? 1.0 : 0.0,
                     _ => throw new InvalidOperationException($"Unknown operator: {Operator}")
                 };
                 return new ConstantExpression(result);
@@ -609,17 +624,22 @@ namespace Core.Models
         Subtract,
         Multiply,
         Divide,
+        Modulo,
+        Div,
+        Power,
         Equal,
         NotEqual,
         LessThan,
         LessThanOrEqual,
         GreaterThan,
-        GreaterThanOrEqual
+        GreaterThanOrEqual,
+        LogicalOr
     }
 
     public enum UnaryOperator
     {
-        Negate
+        Negate,
+        LogicalNot
     }
 
     /// <summary>
@@ -1376,8 +1396,25 @@ namespace Core.Models
             };
         }
         
-        public override string ToString() => $"{Function}({string.Join(", ", Arguments.AsEnumerable())})";
+        public override string ToString() => $"{Function.ToString().ToLowerInvariant()}({string.Join(", ", Arguments.AsEnumerable())})";
         public override bool IsConstant => Arguments.All(a => a.IsConstant);
+
+        public override Expression Simplify(ModelManager? modelManager = null)
+        {
+            var simplifiedArgs = Arguments.Select(a => a.Simplify(modelManager)).ToArray();
+            if (simplifiedArgs.All(a => a is ConstantExpression))
+            {
+                try
+                {
+                    var expr = new MathFunctionExpression { Function = Function, Arguments = simplifiedArgs };
+                    return new ConstantExpression(expr.Evaluate(modelManager!));
+                }
+                catch { }
+            }
+            if (!simplifiedArgs.SequenceEqual(Arguments))
+                return new MathFunctionExpression { Function = Function, Arguments = simplifiedArgs };
+            return this;
+        }
     }
 
     /// <summary>

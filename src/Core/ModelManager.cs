@@ -30,6 +30,7 @@ namespace Core
         // Add to existing ModelManager class
 
         public List<ForallStatement> ForallStatements { get; } = new List<ForallStatement>();
+        public List<LogicalConstraint> LogicalConstraints { get; } = new List<LogicalConstraint>();
 
         public void AddForallStatement(ForallStatement forall)
         {
@@ -81,6 +82,7 @@ namespace Core
         public List<LinearEquation> Equations { get; } = new List<LinearEquation>();
 
         public Objective? Objective { get; set; }
+        public MultiObjective? MultiObjective { get; set; }
 
       
 
@@ -231,6 +233,21 @@ namespace Core
             }
         }
 
+        /// <summary>
+        /// Evaluates all assertions and returns warning messages for those that fail or cannot be evaluated.
+        /// Does not throw — violations are returned as warnings in the result.
+        /// </summary>
+        public List<string> EvaluateAssertions()
+        {
+            var warnings = new List<string>();
+            foreach (var assertion in Assertions)
+            {
+                if (!assertion.Validate(this, out string error))
+                    warnings.Add(error);
+            }
+            return warnings;
+        }
+
         public void Clear()
         {
             Parameters.Clear();
@@ -242,7 +259,8 @@ namespace Core
             IndexedEquationTemplates.Clear();
             Objective = null; 
             DecisionExpressions.Clear();
-            Assertions.Clear(); 
+            Assertions.Clear();
+            LogicalConstraints.Clear();
             TupleSchemas.Clear();
             TupleSets.Clear();
             TupleSchemas.Clear();

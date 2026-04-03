@@ -128,7 +128,87 @@ namespace Core.Parsing
 
             parameter = new Parameter(paramName, paramType, indexSetNames, isExternal);
 
+            if (!isExternal && indexSetNames.Count == 2)
+            {
+                // Attempt to parse inline 2-D matrix: [[v00, v01], [v10, v11], ...]
+                if ((valueStr.StartsWith("[[") && valueStr.EndsWith("]]")) ||
+                    (valueStr.StartsWith("{") && valueStr.EndsWith("}")))
+                {
+                    string inner = valueStr.TrimStart('{', '[').TrimEnd('}', ']').Trim();
+                    if (!ParseInlineMatrix(parameter, inner, paramType, indexSetNames, out error))
+                        return false;
+                }
+            }
+
             return true;
+        }
+
+        private bool ParseInlineMatrix(Parameter param, string matrixStr, ParameterType type,
+            List<string> indexSetNames, out string error)
+        {
+            error = string.Empty;
+            if (!modelManager.IndexSets.TryGetValue(indexSetNames[0], out var set1) ||
+                !modelManager.IndexSets.TryGetValue(indexSetNames[1], out var set2))
+            {
+                error = "Index set not found for inline matrix";
+                return false;
+            }
+
+            var rows1 = set1.GetIndices().ToList();
+            var rows2 = set2.GetIndices().ToList();
+
+            // Split rows: each row is enclosed in [...]
+            var rows = new List<string>();
+            int depth = 0;
+            var current = new System.Text.StringBuilder();
+            foreach (char c in matrixStr)
+            {
+                if (c == '[') { if (depth++ > 0) current.Append(c); }
+                else if (c == ']') { if (--depth == 0) { rows.Add(current.ToString()); current.Clear(); } else current.Append(c); }
+                else if (depth > 0) current.Append(c);
+            }
+
+            if (rows.Count == 0)
+            {
+                error = "Empty inline matrix";
+                return false;
+            }
+            if (rows.Count != rows1.Count)
+            {
+                error = $"Inline matrix has {rows.Count} rows but index set '{indexSetNames[0]}' has {rows1.Count} elements";
+                return false;
+            }
+
+            for (int i = 0; i < rows.Count; i++)
+            {
+                var cells = rows[i].Split(',').Select(v => v.Trim()).ToList();
+                if (cells.Count != rows2.Count)
+                {
+                    error = $"Row {i + 1} has {cells.Count} values but index set '{indexSetNames[1]}' has {rows2.Count} elements";
+                    return false;
+                }
+                for (int j = 0; j < cells.Count; j++)
+                {
+                    object? val = ParseCell(cells[j], type, out error);
+                    if (val == null) return false;
+                    param.SetIndexedValue(rows1[i], rows2[j], val);
+                }
+            }
+            return true;
+        }
+
+        private static object? ParseCell(string cell, ParameterType type, out string error)
+        {
+            error = string.Empty;
+            return type switch
+            {
+                ParameterType.Integer when int.TryParse(cell, out int iv) => iv,
+                ParameterType.Float when double.TryParse(cell, System.Globalization.NumberStyles.Float,
+                    System.Globalization.CultureInfo.InvariantCulture, out double dv) => dv,
+                ParameterType.Boolean when bool.TryParse(cell, out bool bv) => bv,
+                ParameterType.String => cell.Trim('"'),
+                _ => (error = $"Cannot parse '{cell}' as {type}") is string ? null : null
+            };
         }
 
         private bool IsKnownSet(string name)

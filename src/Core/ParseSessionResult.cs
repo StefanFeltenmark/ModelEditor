@@ -9,12 +9,20 @@ namespace Core
     public class ParseSessionResult
     {
         public List<(string Message, int LineNumber, string? FilePath)> Errors { get; private set; } = new List<(string, int, string?)>();
+        public List<string> Warnings { get; private set; } = new List<string>();
         public int SuccessCount { get; private set; } = 0;
 
         public void AddError(string error, int lineNumber, string? filePath = null)
         {
             Errors.Add((error, lineNumber, filePath));
         }
+
+        public void AddWarning(string warning)
+        {
+            Warnings.Add(warning);
+        }
+
+        public bool HasWarnings => Warnings.Count > 0;
 
         public void IncrementSuccess()
         {

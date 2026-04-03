@@ -277,6 +277,16 @@ namespace Core.Export
                 {
                     sb.AppendLine($" LI {boundName,-10} {colName}");
                 }
+
+                // Semi-continuous variables: SC bound for each non-zero range segment
+                if (varInfo.IsSemiContinuous && varInfo.SemiContinuousRanges != null)
+                {
+                    foreach (var (lo, hi) in varInfo.SemiContinuousRanges)
+                    {
+                        if (hi > 1e-10) // skip the 0..0 segment
+                            sb.AppendLine($" SC {boundName,-10} {colName,-10} {hi,12:G}");
+                    }
+                }
             }
         }
         

@@ -1,4 +1,5 @@
 using Core.Models;
+using Core.Solving;
 
 namespace Core
 {
@@ -143,6 +144,21 @@ namespace Core
                     : result.TotalSuccess > 0
                         ? $"Parsed with errors: {result.TotalSuccess} statements, {result.TotalErrors} errors"
                         : $"Parse failed: {result.TotalErrors} errors";
+
+                // STEP 5: Solve (only if no parse errors and an objective is defined)
+                if (result.TotalErrors == 0 && modelManager.Objective != null)
+                {
+                    try
+                    {
+                        result.SolveResult = new ModelSolver().Solve(modelManager);
+                        if (result.SolveResult.Status is SolveStatus.Optimal or SolveStatus.Feasible)
+                            result.SummaryMessage += $" | Objective: {result.SolveResult.ObjectiveValue:G}";
+                    }
+                    catch (Exception ex)
+                    {
+                        result.Warnings.Add($"Solver error: {ex.Message}");
+                    }
+                }
 
                 return result;
             }

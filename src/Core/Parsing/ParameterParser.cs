@@ -186,9 +186,21 @@ namespace Core.Parsing
 
             if (!isExternal)
             {
-                // TODO: Parse inline values like {10, 20, 30}
-                error = "Inline indexed parameter values not yet supported";
-                return false;
+                if (valueStr.StartsWith("{") && valueStr.EndsWith("}"))
+                {
+                    string valuesStr = valueStr.Substring(1, valueStr.Length - 2);
+                    return ParseInlineIndexedValues(valuesStr, param, out error);
+                }
+                else if (valueStr.StartsWith("[") && valueStr.EndsWith("]"))
+                {
+                    string valuesStr = valueStr.Substring(1, valueStr.Length - 2);
+                    return ParseInlineIndexedValues(valuesStr, param, out error);
+                }
+                else
+                {
+                    error = "Indexed parameter values must be in {...} or [...] format";
+                    return false;
+                }
             }
 
             return true;

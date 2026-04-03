@@ -14,6 +14,7 @@ public class TokenizationOrchestrator
         strategies = new List<ITokenizationStrategy>
         {
             new ItemExpressionTokenizer(),
+            new MathFunctionTokenizer(),
             new TupleFieldAccessTokenizer(),
             new TwoDimensionalIndexTokenizer(),
             new SingleDimensionalIndexTokenizer(),

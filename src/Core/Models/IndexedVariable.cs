@@ -43,6 +43,14 @@
         public bool HasBounds => LowerBound.HasValue || UpperBound.HasValue;
 
         /// <summary>
+        /// Non-null for semi-continuous variables: the variable is either 0 or within one of these ranges.
+        /// OPL: dvar float+ x in 0..0 | 10..20;
+        /// </summary>
+        public List<(double Lo, double Hi)>? SemiContinuousRanges { get; set; }
+
+        public bool IsSemiContinuous => SemiContinuousRanges != null;
+
+        /// <summary>
         /// Gets the dimensionality of the variable (0 for scalar, 1 for single index, 2 for double index)
         /// </summary>
         public int Dimensionality

@@ -1,3 +1,5 @@
+using Core.Solving;
+
 namespace Core
 {
     /// <summary>
@@ -11,7 +13,8 @@ namespace Core
         public List<string> Errors { get; set; } = new List<string>();
         public List<string> Warnings { get; set; } = new List<string>();
         public string SummaryMessage { get; set; } = string.Empty;
-        
+        public SolveResult? SolveResult { get; set; }
+
         public bool HasErrors => TotalErrors > 0;
         public bool HasWarnings => Warnings.Count > 0;
     }

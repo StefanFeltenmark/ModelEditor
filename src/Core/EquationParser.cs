@@ -122,9 +122,14 @@ namespace Core
         {
             // 1. Expand indexed equation templates (simple forall, bracket notation)
             ExpandIndexedEquations(result);
-            
+
             // 2. Expand forall statements (advanced forall with filters)
             ExpandForallStatements(result);
+
+            // 3. Evaluate assert statements — emit warnings for violations
+            var assertWarnings = modelManager.EvaluateAssertions();
+            foreach (var warning in assertWarnings)
+                result.AddWarning(warning);
         }
 
         /// <summary>
@@ -404,7 +409,10 @@ namespace Core
                     braceDepth = 0;
                     if (!string.IsNullOrWhiteSpace(currentStatement))
                     {
-                        statements.Add((currentStatement.Trim(), statementStartLine));
+                        // Strip trailing semicolon so parsers see consistent input (same as Split(';') path)
+                        string blockContent = currentStatement.Trim().TrimEnd(';').Trim();
+                        if (!string.IsNullOrWhiteSpace(blockContent))
+                            statements.Add((blockContent, statementStartLine));
                     }
                     currentStatement = "";
                     continue;
@@ -735,6 +743,12 @@ namespace Core
                     result.IncrementSuccess();
                     return;
                 }
+                else if (string.IsNullOrEmpty(error))
+                {
+                    // Set operation stored directly in ModelManager.Sets (no IndexSet object returned)
+                    result.IncrementSuccess();
+                    return;
+                }
                 else
                 {
                     result.AddError($"\"{statement}\"\n  Error: {error}", lineNumber);
@@ -920,6 +934,23 @@ namespace Core
             }
             error = string.Empty;
 
+            // 8.5. Logical / disjunctive / indicator constraints
+            if (TryParseLogicalConstraint(statement, out var logicalConstraint, out error))
+            {
+                if (logicalConstraint != null)
+                {
+                    modelManager.LogicalConstraints.Add(logicalConstraint);
+                    result.IncrementSuccess();
+                    return;
+                }
+                if (!string.IsNullOrEmpty(error))
+                {
+                    result.AddError($"\"{statement}\"\n  Error: {error}", lineNumber);
+                    return;
+                }
+            }
+            error = string.Empty;
+
             // 9. Regular equations
             if (TryParseEquation(statement, out var equation, out error))
             {
@@ -945,6 +976,14 @@ namespace Core
                 return;
             }
             error = string.Empty;
+
+            // 9.5. Assert statements
+            if (TryParseAssert(statement, out var assertStmt))
+            {
+                modelManager.AddAssertion(assertStmt!);
+                result.IncrementSuccess();
+                return;
+            }
 
             // 10. Objective function
             if (TryParseObjective(statement, out var objective, out error))
@@ -1117,8 +1156,9 @@ namespace Core
             }
 
             // Pattern 2: Non-indexed tuple set: {SchemaName} setName = ...;
+            // Singleline allows .+ to capture multi-line inline data
             string pattern = @"^\s*\{([a-zA-Z][a-zA-Z0-9_]*)\}\s+([a-zA-Z][a-zA-Z0-9_]*)\s*=\s*(.+)$";
-            var match = Regex.Match(statement.Trim(), pattern);
+            var match = Regex.Match(statement.Trim(), pattern, RegexOptions.Singleline);
 
             if (!match.Success)
             {
@@ -2209,6 +2249,78 @@ private Dictionary<string, Expression> CombineCoefficients(
     return combined;
 }
 
+        private bool TryParseLogicalConstraint(string statement, out LogicalConstraint? result, out string error)
+        {
+            result = null;
+            error = string.Empty;
+
+            string s = statement.Trim().TrimEnd(';');
+
+            // Disjunctive: (C1) || (C2)
+            // Both sides must be parenthesized constraint expressions
+            var disjMatch = Regex.Match(s, @"^\s*\((.+)\)\s*\|\|\s*\((.+)\)\s*$");
+            if (disjMatch.Success)
+            {
+                if (TryParseEquation(disjMatch.Groups[1].Value.Trim(), out var left, out error) && left != null &&
+                    TryParseEquation(disjMatch.Groups[2].Value.Trim(), out var right, out error) && right != null)
+                {
+                    result = new LogicalConstraint(LogicalConstraintType.Disjunctive, left, right);
+                    return true;
+                }
+                error = string.Empty; // Reset — not a recognized logical constraint
+                return false;
+            }
+
+            // Implication: (condition) => constraint
+            var implMatch = Regex.Match(s, @"^(.+)\s*=>\s*(.+)$");
+            if (implMatch.Success)
+            {
+                string leftStr = implMatch.Groups[1].Value.Trim().Trim('(', ')');
+                string rightStr = implMatch.Groups[2].Value.Trim();
+
+                if (TryParseEquation(leftStr, out var leftEq, out error) && leftEq != null &&
+                    TryParseEquation(rightStr, out var rightEq, out error) && rightEq != null)
+                {
+                    // Determine if it's an indicator (left side is `varName == 1` or `varName == 0`)
+                    var type = LogicalConstraintType.Implication;
+                    if (leftEq.Coefficients.Count == 1 && leftEq.Operator == RelationalOperator.Equal)
+                        type = LogicalConstraintType.Indicator;
+
+                    result = new LogicalConstraint(type, leftEq, rightEq);
+                    return true;
+                }
+                error = string.Empty;
+                return false;
+            }
+
+            return false;
+        }
+
+        private bool TryParseAssert(string statement, out AssertStatement? assertStmt)
+        {
+            assertStmt = null;
+            var m = Regex.Match(statement.Trim(), @"^assert\s+(.+)$", RegexOptions.IgnoreCase);
+            if (!m.Success) return false;
+
+            string conditionStr = m.Groups[1].Value.Trim().TrimEnd(';');
+            string? message = null;
+
+            // Optional message: assert "msg" expr
+            if (conditionStr.StartsWith("\""))
+            {
+                int end = conditionStr.IndexOf('"', 1);
+                if (end > 0)
+                {
+                    message = conditionStr.Substring(1, end - 1);
+                    conditionStr = conditionStr.Substring(end + 1).Trim();
+                }
+            }
+
+            var expr = ParseExpression(conditionStr);
+            assertStmt = new AssertStatement(conditionStr, message) { ParsedCondition = expr };
+            return true;
+        }
+
         private bool TryParseObjective(string statement, out Objective? objective, out string error)
         {
             objective = null;
@@ -2231,6 +2343,29 @@ private Dictionary<string, Expression> CombineCoefficients(
             ObjectiveSense sense = senseStr == "minimize"
                 ? ObjectiveSense.Minimize
                 : ObjectiveSense.Maximize;
+
+            // Check for staticLex(...) multi-objective
+            var lexMatch = Regex.Match(expression.Trim(), @"^staticLex\s*\((.+)\)$", RegexOptions.IgnoreCase);
+            if (lexMatch.Success)
+            {
+                var parts = SplitByCommaTopLevel(lexMatch.Groups[1].Value);
+                var objectives = new List<Objective>();
+                foreach (var part in parts)
+                {
+                    string partExpr = summationExpander.ExpandSummations(part.Trim(), out _);
+                    partExpr = parenthesesExpander.ExpandParenthesesMultiplication(partExpr);
+                    string cleaned2 = Regex.Replace(partExpr, @"\s+", "");
+                    if (expressionParser.TryParseExpression(cleaned2, out var pCoeffs, out var pConst, out _))
+                        objectives.Add(new Objective(sense, pCoeffs, pConst, null));
+                }
+                if (objectives.Count > 0)
+                {
+                    modelManager.MultiObjective = new MultiObjective(MultiObjectiveType.Lexicographic, sense, objectives);
+                    // Also set primary objective to first one for MPS export compatibility
+                    objective = objectives[0];
+                    return true;
+                }
+            }
 
             // Check if expression is a dexpr name reference
             string exprTrimmed = expression.Trim();
@@ -2531,6 +2666,14 @@ private Dictionary<string, Expression> CombineCoefficients(
                 return new TupleKeyExpression(inner);
             }
             
+            // Check for math function calls: abs(...), sin(...), etc.
+            if (TryParseMathFunction(exprStr, out var mathFuncExpr))
+                return mathFuncExpr!;
+
+            // Check for prod() aggregation: prod(i in Set) body
+            if (TryParseProdAggregation(exprStr, out var prodExpr))
+                return prodExpr!;
+
             // Check for item() function FIRST
             if (exprStr.StartsWith("item("))
             {
@@ -2756,6 +2899,73 @@ private Dictionary<string, Expression> CombineCoefficients(
             return true;
         }
 
+        private static readonly Dictionary<string, MathFunction> MathFunctionNames = new(StringComparer.OrdinalIgnoreCase)
+        {
+            ["abs"]   = MathFunction.Abs,
+            ["ceil"]  = MathFunction.Ceil,
+            ["floor"] = MathFunction.Floor,
+            ["round"] = MathFunction.Round,
+            ["sqrt"]  = MathFunction.Sqrt,
+            ["pow"]   = MathFunction.Pow,
+            ["log"]   = MathFunction.Log,
+            ["exp"]   = MathFunction.Exp,
+            ["sin"]   = MathFunction.Sin,
+            ["cos"]   = MathFunction.Cos,
+            ["tan"]   = MathFunction.Tan,
+            ["min"]   = MathFunction.Min,
+            ["max"]   = MathFunction.Max,
+        };
+
+        private bool TryParseMathFunction(string exprStr, out Expression? result)
+        {
+            result = null;
+            // Pattern: funcName(args)
+            var m = Regex.Match(exprStr, @"^([a-zA-Z][a-zA-Z0-9_]*)\s*\((.+)\)$");
+            if (!m.Success) return false;
+
+            string name = m.Groups[1].Value;
+            if (!MathFunctionNames.TryGetValue(name, out var func)) return false;
+
+            string argsStr = m.Groups[2].Value;
+            var argParts = SplitByCommaTopLevel(argsStr);
+            var args = argParts.Select(a => ParseExpression(a.Trim())).ToArray();
+
+            result = new MathFunctionExpression { Function = func, Arguments = args };
+            return true;
+        }
+
+        private bool TryParseProdAggregation(string exprStr, out Expression? result)
+        {
+            result = null;
+            var m = Regex.Match(exprStr, @"^\s*prod\s*\(([^)]+)\)\s*(.+)$", RegexOptions.IgnoreCase);
+            if (!m.Success) return false;
+
+            string iteratorsPart = m.Groups[1].Value;
+            string bodyStr = m.Groups[2].Value.Trim();
+
+            int colonIndex = FindTopLevelChar(iteratorsPart, ':');
+            string? filterPart = null;
+            if (colonIndex > 0)
+            {
+                filterPart = iteratorsPart.Substring(colonIndex + 1).Trim();
+                iteratorsPart = iteratorsPart.Substring(0, colonIndex).Trim();
+            }
+
+            var iterators = ParseSummationIterators(iteratorsPart, out _);
+            if (iterators == null || iterators.Count == 0) return false;
+
+            Expression? filter = filterPart != null ? ParseExpression(filterPart) : null;
+            Expression bodyExpr = ParseExpression(bodyStr);
+
+            // Build a product as a nested AggregationExpression if single iterator; fall back for multi
+            result = new AggregationExpression(
+                AggregationExpression.AggregationType.Product,
+                iterators[0].varName,
+                iterators[0].setName,
+                bodyExpr);
+            return true;
+        }
+
         /// <summary>
         /// Parses summation iterators (could be multiple)
         /// Example: "i in Set1" or "i in Set1, j in Set2"
@@ -2925,6 +3135,26 @@ private bool TryParseComparisonExpression(string exprStr, out Expression? result
         return true;
     }
 
+    // Check for logical OR (||)
+    int orIdx = FindComparisonOperatorIndex(exprStr, "||");
+    if (orIdx > 0 && orIdx + 2 < exprStr.Length)
+    {
+        string leftPart = exprStr.Substring(0, orIdx).Trim();
+        string rightPart = exprStr.Substring(orIdx + 2).Trim();
+        var left = ParseExpression(leftPart);
+        var right = ParseExpression(rightPart);
+        result = new BinaryExpression(left, BinaryOperator.LogicalOr, right);
+        return true;
+    }
+
+    // Check for logical NOT (!)
+    if (exprStr.StartsWith("!") && exprStr.Length > 1)
+    {
+        string operand = exprStr.Substring(1).Trim();
+        result = new UnaryExpression(UnaryOperator.LogicalNot, ParseExpression(operand));
+        return true;
+    }
+
     return false;
 }
 
@@ -2973,6 +3203,45 @@ private int FindComparisonOperatorIndex(string expr, string op)
 private bool TryParseBinaryExpression(string exprStr, out Expression? result)
 {
     result = null;
+
+    // Power operator ^
+    int powIdx = FindOperatorIndex(exprStr, "^");
+    if (powIdx > 0 && powIdx < exprStr.Length - 1)
+    {
+        var left = ParseExpression(exprStr.Substring(0, powIdx).Trim());
+        var right = ParseExpression(exprStr.Substring(powIdx + 1).Trim());
+        result = new BinaryExpression(left, BinaryOperator.Power, right);
+        return true;
+    }
+
+    // Modulo operator %
+    int modIdx = FindOperatorIndex(exprStr, "%");
+    if (modIdx > 0 && modIdx < exprStr.Length - 1)
+    {
+        var left = ParseExpression(exprStr.Substring(0, modIdx).Trim());
+        var right = ParseExpression(exprStr.Substring(modIdx + 1).Trim());
+        result = new BinaryExpression(left, BinaryOperator.Modulo, right);
+        return true;
+    }
+
+    // Keyword operators: mod, div (word-boundary match)
+    var modMatch = Regex.Match(exprStr, @"^(.+?)\bmod\b(.+)$", RegexOptions.IgnoreCase);
+    if (modMatch.Success)
+    {
+        var left = ParseExpression(modMatch.Groups[1].Value.Trim());
+        var right = ParseExpression(modMatch.Groups[2].Value.Trim());
+        result = new BinaryExpression(left, BinaryOperator.Modulo, right);
+        return true;
+    }
+
+    var divMatch = Regex.Match(exprStr, @"^(.+?)\bdiv\b(.+)$", RegexOptions.IgnoreCase);
+    if (divMatch.Success)
+    {
+        var left = ParseExpression(divMatch.Groups[1].Value.Trim());
+        var right = ParseExpression(divMatch.Groups[2].Value.Trim());
+        result = new BinaryExpression(left, BinaryOperator.Div, right);
+        return true;
+    }
 
     // Simple binary operations: +, -, *, /
     var operators = new[] { "+", "-", "*", "/" };

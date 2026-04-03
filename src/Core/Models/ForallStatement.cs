@@ -99,13 +99,23 @@ namespace Core.Models
                 }
                 else if (filter is BinaryExpression binary)
                 {
-                    // Handle logical AND (&&)
-                    if (binary.Operator == BinaryOperator.Multiply) // Sometimes && is parsed as *
+                    if (binary.Operator == BinaryOperator.LogicalOr)
+                    {
+                        bool left = EvaluateFilter(manager, binary.Left, context);
+                        bool right = EvaluateFilter(manager, binary.Right, context);
+                        return left || right;
+                    }
+                    // Backward-compat: && was sometimes parsed as Multiply
+                    if (binary.Operator == BinaryOperator.Multiply)
                     {
                         bool left = EvaluateFilter(manager, binary.Left, context);
                         bool right = EvaluateFilter(manager, binary.Right, context);
                         return left && right;
                     }
+                }
+                else if (filter is UnaryExpression unary && unary.Operator == UnaryOperator.LogicalNot)
+                {
+                    return !EvaluateFilter(manager, unary.Operand, context);
                 }
 
                 double result = filter.Evaluate(manager);
