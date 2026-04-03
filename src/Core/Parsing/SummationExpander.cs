@@ -21,10 +21,10 @@ namespace Core.Parsing
         {
             error = string.Empty;
 
-            // Check for empty sum bodies first
+            // Check for empty sum bodies first (unfiltered only)
             var emptySumPattern = @"sum\s*\(\s*([a-zA-Z][a-zA-Z0-9_]*)\s+in\s+([a-zA-Z][a-zA-Z0-9_]*)\s*\)(?:\s*(?:$|<=|>=|==|<|>|;|\)|,))";
             var emptyMatch = Regex.Match(expression, emptySumPattern);
-            
+
             if (emptyMatch.Success)
             {
                 string indexVar = emptyMatch.Groups[1].Value;
@@ -36,19 +36,57 @@ namespace Core.Parsing
             // Process sums from left to right
             while (true)
             {
-                var sumPattern = @"sum\s*\(\s*([a-zA-Z][a-zA-Z0-9_]*)\s+in\s+([a-zA-Z][a-zA-Z0-9_]*)\s*\)";
-                var match = Regex.Match(expression, sumPattern);
-                
+                // Match any sum( — then use depth tracking to extract arg and body
+                var sumStartPattern = @"sum\s*\(";
+                var match = Regex.Match(expression, sumStartPattern);
+
                 if (!match.Success)
                     break;
-                
-                string iterVar = match.Groups[1].Value;
-                string setName = match.Groups[2].Value;
-                int sumEndIndex = match.Index + match.Length;
-                
+
+                int openParenIdx = match.Index + match.Length - 1;
+
+                // Find matching close paren
+                int depth = 1;
+                int closeParenIdx = -1;
+                for (int i = openParenIdx + 1; i < expression.Length; i++)
+                {
+                    if (expression[i] == '(') depth++;
+                    else if (expression[i] == ')') { depth--; if (depth == 0) { closeParenIdx = i; break; } }
+                }
+
+                if (closeParenIdx < 0)
+                    break;
+
+                string argsPart = expression.Substring(openParenIdx + 1, closeParenIdx - openParenIdx - 1);
+                int sumEndIndex = closeParenIdx + 1;
+
+                // Determine if filtered: look for ':' at top level of argsPart
+                string iterVar, setName, filterStr;
+                int colonIdx = FindTopLevelColon(argsPart);
+                if (colonIdx >= 0)
+                {
+                    string itersPart = argsPart.Substring(0, colonIdx).Trim();
+                    filterStr = argsPart.Substring(colonIdx + 1).Trim();
+                    // Parse "var in Set"
+                    var simpleMatch = Regex.Match(itersPart, @"^\s*([a-zA-Z][a-zA-Z0-9_]*)\s+in\s+([a-zA-Z][a-zA-Z0-9_]*)\s*$");
+                    if (!simpleMatch.Success)
+                        break; // Complex iterator — leave unexpanded
+                    iterVar = simpleMatch.Groups[1].Value;
+                    setName = simpleMatch.Groups[2].Value;
+                }
+                else
+                {
+                    filterStr = "";
+                    var simpleMatch = Regex.Match(argsPart, @"^\s*([a-zA-Z][a-zA-Z0-9_]*)\s+in\s+([a-zA-Z][a-zA-Z0-9_]*)\s*$");
+                    if (!simpleMatch.Success)
+                        break; // Complex args — leave unexpanded
+                    iterVar = simpleMatch.Groups[1].Value;
+                    setName = simpleMatch.Groups[2].Value;
+                }
+
                 // Extract the body
                 string body = ExtractSumBody(expression, sumEndIndex, out int bodyLength);
-                
+
                 if (string.IsNullOrWhiteSpace(body))
                 {
                     error = $"Empty sum expression: 'sum({iterVar} in {setName})' has no body";
@@ -71,23 +109,30 @@ namespace Core.Parsing
                     return expression;
                 }
 
-                // Expand
+                // Expand — optionally applying filter
                 var expandedTerms = new List<string>();
                 foreach (int index in indices)
                 {
+                    if (!string.IsNullOrEmpty(filterStr))
+                    {
+                        string concreteFilter = SubstituteIteratorBare(filterStr, iterVar, index);
+                        if (!EvaluateSimpleFilter(concreteFilter))
+                            continue;
+                    }
+
                     string expandedTerm = SubstituteIterator(body, iterVar, index);
                     expandedTerms.Add(expandedTerm);
                 }
 
                 if (expandedTerms.Count == 0)
                 {
-                    // Set/range is empty (e.g., depends on external data).
-                    // Leave the sum expression unexpanded so symbolic parsing can proceed.
+                    // Set/range is empty or all filtered out.
+                    // Leave unexpanded so symbolic parsing can proceed.
                     break;
                 }
 
                 string expandedSum = string.Join("+", expandedTerms);
-                
+
                 // Wrap in parentheses if multiple terms
                 if (expandedTerms.Count > 1)
                 {
@@ -97,13 +142,180 @@ namespace Core.Parsing
                 // Replace
                 int sumStartIndex = match.Index;
                 int totalLength = sumEndIndex - sumStartIndex + bodyLength;
-                
-                expression = expression.Substring(0, sumStartIndex) + 
-                            expandedSum + 
+
+                expression = expression.Substring(0, sumStartIndex) +
+                            expandedSum +
                             expression.Substring(sumStartIndex + totalLength);
             }
 
             return expression;
+        }
+
+        /// <summary>
+        /// Finds the index of ':' at depth 0 (not inside parentheses) in a string.
+        /// Returns -1 if not found.
+        /// </summary>
+        private static int FindTopLevelColon(string s)
+        {
+            int depth = 0;
+            for (int i = 0; i < s.Length; i++)
+            {
+                if (s[i] == '(' || s[i] == '[') depth++;
+                else if (s[i] == ')' || s[i] == ']') depth--;
+                else if (s[i] == ':' && depth == 0)
+                    return i;
+            }
+            return -1;
+        }
+
+        /// <summary>
+        /// Substitutes the bare integer value for an iterator variable (no variable-lookup logic).
+        /// Used for filter evaluation where the expression is pure arithmetic.
+        /// </summary>
+        private static string SubstituteIteratorBare(string expression, string iteratorVar, int value)
+        {
+            return Regex.Replace(expression, $@"\b{Regex.Escape(iteratorVar)}\b", value.ToString());
+        }
+
+        /// <summary>
+        /// Returns true only if the string is wrapped in a matching outer pair of parentheses.
+        /// e.g. "(a && b)" → true, "(a) && (b)" → false
+        /// </summary>
+        private static bool OuterParensMatch(string s)
+        {
+            if (s.Length < 2 || s[0] != '(' || s[s.Length - 1] != ')') return false;
+            int depth = 0;
+            for (int i = 0; i < s.Length; i++)
+            {
+                if (s[i] == '(') depth++;
+                else if (s[i] == ')') depth--;
+                if (depth == 0 && i < s.Length - 1) return false;
+            }
+            return depth == 0;
+        }
+
+        /// <summary>
+        /// Evaluates a simple arithmetic/boolean filter string that may contain &&, ||, >, <, >=, <=.
+        /// All variables must already be substituted with concrete integer values.
+        /// Returns true if the filter is satisfied (non-zero).
+        /// </summary>
+        private static bool EvaluateSimpleFilter(string filter)
+        {
+            try
+            {
+                // Remove surrounding whitespace and parentheses
+                filter = filter.Trim();
+                while (OuterParensMatch(filter))
+                    filter = filter.Substring(1, filter.Length - 2).Trim();
+
+                // Handle &&
+                int andIdx = FindTopLevelOp(filter, "&&");
+                if (andIdx >= 0)
+                {
+                    return EvaluateSimpleFilter(filter.Substring(0, andIdx)) &&
+                           EvaluateSimpleFilter(filter.Substring(andIdx + 2));
+                }
+
+                // Handle ||
+                int orIdx = FindTopLevelOp(filter, "||");
+                if (orIdx >= 0)
+                {
+                    return EvaluateSimpleFilter(filter.Substring(0, orIdx)) ||
+                           EvaluateSimpleFilter(filter.Substring(orIdx + 2));
+                }
+
+                // Handle comparison operators (two-char before single-char)
+                foreach (var op in new[] { ">=", "<=", "==", "!=", ">", "<" })
+                {
+                    int opIdx = FindTopLevelOp(filter, op);
+                    if (opIdx > 0)
+                    {
+                        double left = EvalArith(filter.Substring(0, opIdx).Trim());
+                        double right = EvalArith(filter.Substring(opIdx + op.Length).Trim());
+                        return op switch
+                        {
+                            ">=" => left >= right,
+                            "<=" => left <= right,
+                            "==" => Math.Abs(left - right) < 1e-10,
+                            "!=" => Math.Abs(left - right) >= 1e-10,
+                            ">" => left > right,
+                            "<" => left < right,
+                            _ => false
+                        };
+                    }
+                }
+
+                // Scalar: non-zero = true
+                return Math.Abs(EvalArith(filter)) > 1e-10;
+            }
+            catch
+            {
+                return false;
+            }
+        }
+
+        private static int FindTopLevelOp(string s, string op)
+        {
+            int depth = 0;
+            for (int i = 0; i <= s.Length - op.Length; i++)
+            {
+                if (s[i] == '(' || s[i] == '[') depth++;
+                else if (s[i] == ')' || s[i] == ']') depth--;
+                else if (depth == 0 && s.Substring(i, op.Length) == op)
+                {
+                    if (op == ">" && i + 1 < s.Length && s[i + 1] == '=') continue;
+                    if (op == "<" && i + 1 < s.Length && s[i + 1] == '=') continue;
+                    return i;
+                }
+            }
+            return -1;
+        }
+
+        /// <summary>
+        /// Evaluates a simple arithmetic expression containing +, -, *, / and integer literals.
+        /// </summary>
+        private static double EvalArith(string s)
+        {
+            s = s.Trim();
+            while (OuterParensMatch(s))
+                s = s.Substring(1, s.Length - 2).Trim();
+
+            // +/-  (lowest precedence, rightmost at depth 0)
+            for (int i = s.Length - 1; i >= 0; i--)
+            {
+                if (s[i] == ')' || s[i] == ']') { /* track depth backwards would complicate; skip */ }
+            }
+            // Forward scan with depth for + and -
+            int depth2 = 0;
+            int lastAdd = -1, lastSub = -1;
+            for (int i = 0; i < s.Length; i++)
+            {
+                if (s[i] == '(' || s[i] == '[') depth2++;
+                else if (s[i] == ')' || s[i] == ']') depth2--;
+                else if (depth2 == 0 && s[i] == '+' && i > 0) lastAdd = i;
+                else if (depth2 == 0 && s[i] == '-' && i > 0) lastSub = i;
+            }
+            int lastAddSub = Math.Max(lastAdd, lastSub);
+            if (lastAddSub > 0)
+            {
+                double left = EvalArith(s.Substring(0, lastAddSub));
+                double right = EvalArith(s.Substring(lastAddSub + 1));
+                return s[lastAddSub] == '+' ? left + right : left - right;
+            }
+
+            // * and /
+            depth2 = 0;
+            for (int i = 0; i < s.Length; i++)
+            {
+                if (s[i] == '(' || s[i] == '[') depth2++;
+                else if (s[i] == ')' || s[i] == ']') depth2--;
+                else if (depth2 == 0 && s[i] == '*')
+                    return EvalArith(s.Substring(0, i)) * EvalArith(s.Substring(i + 1));
+                else if (depth2 == 0 && s[i] == '/')
+                    return EvalArith(s.Substring(0, i)) / EvalArith(s.Substring(i + 1));
+            }
+
+            return double.Parse(s, System.Globalization.CultureInfo.InvariantCulture);
         }
 
         /// <summary>

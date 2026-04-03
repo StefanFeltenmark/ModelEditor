@@ -2606,14 +2606,16 @@ private Dictionary<string, Expression> CombineCoefficients(
             // Remove trailing semicolon
             constraintPart = constraintPart.TrimEnd(';').Trim();
 
-            // Parse as regular constraint but create template
-            var relOps = new[] { "<=", ">=", "==", "<", ">" };
+            // Parse as regular constraint but create template.
+            // Use FindOperatorAtTopLevel so operators inside nested parentheses
+            // (e.g. sum filter expressions) are not matched accidentally.
+            var relOps = new[] { "==", "<=", ">=", "<", ">" };
             string? foundOp = null;
             int opIndex = -1;
 
             foreach (var op in relOps)
             {
-                opIndex = constraintPart.IndexOf(op);
+                opIndex = FindOperatorAtTopLevel(constraintPart, op);
                 if (opIndex >= 0)
                 {
                     foundOp = op;
@@ -2701,14 +2703,8 @@ private Dictionary<string, Expression> CombineCoefficients(
                 }
             }
             
-            var sumMatch = Regex.Match(exprStr, 
-                @"^\s*sum\s*\(([^)]+)\)\s*(.+)$",
-                RegexOptions.IgnoreCase);
-    
-            if (sumMatch.Success)
+            if (TryExtractSumComponents(exprStr, out string iteratorsPart, out string bodyStr))
             {
-                string iteratorsPart = sumMatch.Groups[1].Value;
-                string bodyStr = sumMatch.Groups[2].Value.Trim();
         
                 // Check if there's a filter (colon inside the parentheses)
                 int colonIndex = FindTopLevelChar(iteratorsPart, ':');
@@ -2753,31 +2749,6 @@ private Dictionary<string, Expression> CombineCoefficients(
                     // Filtered/multi-iterator summation
                     return new FilteredSummationExpression(iterators, filter, bodyExpr);
                 }
-            }
-
-           
-            // CHECK: Is this a summation expression?
-            var sumMatch1 = Regex.Match(exprStr, 
-                @"^\s*sum\s*\(\s*([a-zA-Z][a-zA-Z0-9_]*)\s+in\s+([a-zA-Z][a-zA-Z0-9_]*)\s*\)\s*(.+)$",
-                RegexOptions.IgnoreCase);
-            
-            if (sumMatch1.Success)
-            {
-                string indexVar = sumMatch1.Groups[1].Value;
-                string setName = sumMatch1.Groups[2].Value;
-                string bodyStr = sumMatch1.Groups[3].Value.Trim();
-                
-                // Remove surrounding parentheses if present
-                if (bodyStr.StartsWith("(") && bodyStr.EndsWith(")"))
-                {
-                    bodyStr = bodyStr.Substring(1, bodyStr.Length - 2).Trim();
-                }
-                
-                // Recursively parse the body
-                Expression bodyExpr = ParseExpression(bodyStr);
-                
-                // Create a SummationExpression
-                return new SummationExpression(indexVar, setName, bodyExpr);
             }
 
             // Check for tuple field access FIRST
@@ -2857,6 +2828,38 @@ private Dictionary<string, Expression> CombineCoefficients(
 
             // Fallback: return as a parameter expression (might be an iterator variable)
             return new ParameterExpression(exprStr);
+        }
+
+        /// <summary>
+        /// Extracts the iterator/filter part and body from a sum(...) expression,
+        /// using depth tracking to handle nested parentheses in the argument list.
+        /// </summary>
+        private static bool TryExtractSumComponents(string exprStr, out string iteratorsPart, out string bodyStr)
+        {
+            iteratorsPart = "";
+            bodyStr = "";
+
+            var startMatch = Regex.Match(exprStr, @"^\s*sum\s*\(", RegexOptions.IgnoreCase);
+            if (!startMatch.Success)
+                return false;
+
+            int openIdx = startMatch.Index + startMatch.Length - 1; // index of '('
+
+            int depth = 1;
+            int closeIdx = -1;
+            for (int i = openIdx + 1; i < exprStr.Length; i++)
+            {
+                if (exprStr[i] == '(') depth++;
+                else if (exprStr[i] == ')') { depth--; if (depth == 0) { closeIdx = i; break; } }
+            }
+
+            if (closeIdx < 0)
+                return false;
+
+            iteratorsPart = exprStr.Substring(openIdx + 1, closeIdx - openIdx - 1);
+            bodyStr = exprStr.Substring(closeIdx + 1).Trim();
+
+            return !string.IsNullOrWhiteSpace(bodyStr);
         }
 
         private bool TryParseIndexedDexpr(string exprStr, out Expression? result)
@@ -3089,6 +3092,33 @@ private bool TryParseComparisonExpression(string exprStr, out Expression? result
 {
     result = null;
 
+    // Check logical operators first — they have lower precedence than comparisons,
+    // so they must be the outermost operator when present at top level.
+
+    // Check for logical OR (||) — lowest precedence
+    int orIdx = FindComparisonOperatorIndex(exprStr, "||");
+    if (orIdx > 0 && orIdx + 2 < exprStr.Length)
+    {
+        string leftPart = exprStr.Substring(0, orIdx).Trim();
+        string rightPart = exprStr.Substring(orIdx + 2).Trim();
+        var left = ParseExpression(leftPart);
+        var right = ParseExpression(rightPart);
+        result = new BinaryExpression(left, BinaryOperator.LogicalOr, right);
+        return true;
+    }
+
+    // Check for logical AND (&&) — lower precedence than comparisons
+    int andIdx = FindComparisonOperatorIndex(exprStr, "&&");
+    if (andIdx > 0 && andIdx + 2 < exprStr.Length)
+    {
+        string leftPart = exprStr.Substring(0, andIdx).Trim();
+        string rightPart = exprStr.Substring(andIdx + 2).Trim();
+        var left = ParseExpression(leftPart);
+        var right = ParseExpression(rightPart);
+        result = new LogicalAndExpression(left, right);
+        return true;
+    }
+
     // Check for comparison operators at the top level (outside parens/brackets)
     // Order matters: check two-char operators before single-char
     string[] compOps = [">=", "<=", "==", "!=", ">", "<"];
@@ -3121,30 +3151,6 @@ private bool TryParseComparisonExpression(string exprStr, out Expression? result
             result = new ComparisonExpression(left, binaryOp, right);
             return true;
         }
-    }
-
-    // Check for logical AND (&&)
-    int andIdx = FindComparisonOperatorIndex(exprStr, "&&");
-    if (andIdx > 0 && andIdx + 2 < exprStr.Length)
-    {
-        string leftPart = exprStr.Substring(0, andIdx).Trim();
-        string rightPart = exprStr.Substring(andIdx + 2).Trim();
-        var left = ParseExpression(leftPart);
-        var right = ParseExpression(rightPart);
-        result = new LogicalAndExpression(left, right);
-        return true;
-    }
-
-    // Check for logical OR (||)
-    int orIdx = FindComparisonOperatorIndex(exprStr, "||");
-    if (orIdx > 0 && orIdx + 2 < exprStr.Length)
-    {
-        string leftPart = exprStr.Substring(0, orIdx).Trim();
-        string rightPart = exprStr.Substring(orIdx + 2).Trim();
-        var left = ParseExpression(leftPart);
-        var right = ParseExpression(rightPart);
-        result = new BinaryExpression(left, BinaryOperator.LogicalOr, right);
-        return true;
     }
 
     // Check for logical NOT (!)

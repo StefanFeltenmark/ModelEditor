@@ -1,6 +1,7 @@
 using Xunit;
 using Core;
 using Core.Models;
+using Core.Solving;
 
 namespace Tests
 {
@@ -171,6 +172,57 @@ subject to
             AssertNoErrors(result);
             Assert.True(manager.Parameters.ContainsKey("c"),
                 "2D parameter with comma-separated dimensions should be registered");
+        }
+
+        // Uses the exact syntax from Data/Transport.mod + Data/Transport.dat
+        private const string TransportModFile = @"
+int N = 4;
+int M = 4;
+
+range I = 1..N;
+range J = 1..M;
+
+float c[I,J] = ...;
+
+dvar float+ x[I,J];
+
+minimize sum(i in I) sum(j in J) c[i,j]*x[i,j];
+
+subject to
+{
+ forall(j in J)
+   sum(i in I) x[i,j] == 1;
+
+ forall(i in I)
+   sum(j in J) x[i,j] == 1;
+}
+";
+
+        private const string TransportDatFile = @"
+c = [[1 2 3 4]
+[3 4 5 6]
+[3 4 5 4]
+[3 4 5 6]
+];
+";
+
+        [Fact]
+        public void Transport_Solve_ShouldReturnOptimalResult()
+        {
+            var manager = new ModelManager();
+            var parser = new EquationParser(manager);
+            var dataParser = new DataFileParser(manager);
+            var service = new ModelParsingService(manager, parser, dataParser);
+
+            var result = service.ParseModel(
+                new List<string> { TransportModFile },
+                new List<string> { TransportDatFile });
+
+            Assert.True(result.TotalErrors == 0,
+                $"Parse errors: {string.Join("; ", result.Errors)}\nWarnings: {string.Join("; ", result.Warnings)}");
+            Assert.NotNull(result.SolveResult);
+            Assert.Equal(SolveStatus.Optimal, result.SolveResult.Status);
+            Assert.NotNull(result.SolveResult.ObjectiveValue);
         }
     }
 }

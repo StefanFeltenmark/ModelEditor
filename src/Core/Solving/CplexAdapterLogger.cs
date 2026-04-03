@@ -13,13 +13,13 @@ namespace Core.Solving
         public void Debug(string message) { }
         public void Debug(string message, Exception exception) { }
         public void Info(string message) => _messages.Add(message);
-        public void Info(string message, Exception e) => _messages.Add(message);
+        public void Info(string message, Exception e) => _messages.Add($"{message} — {e.Message}");
         public void Warn(string message) => _messages.Add($"WARN: {message}");
-        public void Warn(string message, Exception e) => _messages.Add($"WARN: {message}");
+        public void Warn(string message, Exception e) => _messages.Add($"WARN: {message} — {e.Message}");
         public void Error(string message) => _messages.Add($"ERROR: {message}");
-        public void Error(string message, Exception e) => _messages.Add($"ERROR: {message}");
+        public void Error(string message, Exception e) => _messages.Add($"ERROR: {message} — {e.Message}");
         public void Fatal(string message) => _messages.Add($"FATAL: {message}");
-        public void Fatal(string message, Exception e) => _messages.Add($"FATAL: {message}");
+        public void Fatal(string message, Exception e) => _messages.Add($"FATAL: {message} — {e.Message}");
         public void InitializeTask(Guid logId, string title) { }
     }
 }

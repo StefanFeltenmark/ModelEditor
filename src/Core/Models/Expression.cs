@@ -677,7 +677,20 @@ namespace Core.Models
             return result ? 1.0 : 0.0;
         }
 
-        public override string ToString() => $"({Left} {Operator} {Right})";
+        public override string ToString()
+        {
+            string opStr = Operator switch
+            {
+                BinaryOperator.GreaterThan => ">",
+                BinaryOperator.GreaterThanOrEqual => ">=",
+                BinaryOperator.LessThan => "<",
+                BinaryOperator.LessThanOrEqual => "<=",
+                BinaryOperator.Equal => "==",
+                BinaryOperator.NotEqual => "!=",
+                _ => Operator.ToString()
+            };
+            return $"({Left} {opStr} {Right})";
+        }
 
         public override bool IsConstant => Left.IsConstant && Right.IsConstant;
 

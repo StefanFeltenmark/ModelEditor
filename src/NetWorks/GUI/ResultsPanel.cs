@@ -20,12 +20,14 @@ namespace GUI.Controls
         private RichTextBox statisticsTextBox;
 
         // Solution tab controls
+        private TabPage solutionTab;
         private Label solutionStatusLabel;
         private Label solutionObjectiveLabel;
         private Label solutionTimeLabel;
         private Label solutionMipGapLabel;
         private DataGridView solutionVariablesGrid;
         private DataGridView solutionSlacksGrid;
+        private static readonly Font ConsolasFont = new("Consolas", 9);
         
         public event EventHandler<ErrorNavigationEventArgs> ErrorDoubleClicked;
 
@@ -65,7 +67,7 @@ namespace GUI.Controls
             tabControl.TabPages.Add(statsTab);
 
             // Solution tab
-            var solutionTab = new TabPage("Solution");
+            solutionTab = new TabPage("Solution");
             CreateSolutionTab(solutionTab);
             tabControl.TabPages.Add(solutionTab);
 
@@ -447,60 +449,22 @@ namespace GUI.Controls
             };
 
             // Variable values grid (left)
-            solutionVariablesGrid = new DataGridView
-            {
-                Dock = DockStyle.Fill,
-                ReadOnly = true,
-                AllowUserToAddRows = false,
-                AllowUserToDeleteRows = false,
-                RowHeadersVisible = false,
-                AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.Fill,
-                Font = new Font("Consolas", 9),
-                SelectionMode = DataGridViewSelectionMode.FullRowSelect,
-                BackgroundColor = Color.FromArgb(250, 250, 250)
-            };
+            solutionVariablesGrid = CreateReadOnlyGrid();
             solutionVariablesGrid.Columns.Add("VarName", "Variable");
             solutionVariablesGrid.Columns.Add("VarValue", "Value");
             solutionVariablesGrid.Columns["VarValue"].DefaultCellStyle.Alignment = DataGridViewContentAlignment.MiddleRight;
             splitContainer.Panel1.Controls.Add(solutionVariablesGrid);
-            splitContainer.Panel1.Controls.Add(new Label
-            {
-                Text = "Variable Values",
-                Dock = DockStyle.Top,
-                Font = new Font("Segoe UI", 9, FontStyle.Bold),
-                Height = 20,
-                TextAlign = System.Drawing.ContentAlignment.MiddleLeft,
-                Padding = new Padding(2, 0, 0, 0)
-            });
+            splitContainer.Panel1.Controls.Add(CreateGridHeader("Variable Values"));
 
             // Constraint slacks grid (right)
-            solutionSlacksGrid = new DataGridView
-            {
-                Dock = DockStyle.Fill,
-                ReadOnly = true,
-                AllowUserToAddRows = false,
-                AllowUserToDeleteRows = false,
-                RowHeadersVisible = false,
-                AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.Fill,
-                Font = new Font("Consolas", 9),
-                SelectionMode = DataGridViewSelectionMode.FullRowSelect,
-                BackgroundColor = Color.FromArgb(250, 250, 250)
-            };
+            solutionSlacksGrid = CreateReadOnlyGrid();
             solutionSlacksGrid.Columns.Add("ConName", "Constraint");
             solutionSlacksGrid.Columns.Add("ConSlack", "Slack");
             solutionSlacksGrid.Columns["ConSlack"].DefaultCellStyle.Alignment = DataGridViewContentAlignment.MiddleRight;
             solutionSlacksGrid.Columns.Add("ConBinding", "Binding");
             solutionSlacksGrid.Columns["ConBinding"].DefaultCellStyle.Alignment = DataGridViewContentAlignment.MiddleCenter;
             splitContainer.Panel2.Controls.Add(solutionSlacksGrid);
-            splitContainer.Panel2.Controls.Add(new Label
-            {
-                Text = "Constraint Slacks",
-                Dock = DockStyle.Top,
-                Font = new Font("Segoe UI", 9, FontStyle.Bold),
-                Height = 20,
-                TextAlign = System.Drawing.ContentAlignment.MiddleLeft,
-                Padding = new Padding(2, 0, 0, 0)
-            });
+            splitContainer.Panel2.Controls.Add(CreateGridHeader("Constraint Slacks"));
 
             tab.Controls.Add(splitContainer);
             tab.Controls.Add(topPanel);
@@ -562,10 +526,32 @@ namespace GUI.Controls
                         = Color.DarkGreen;
             }
 
-            // Switch to Solution tab if we have a result
             if (result.Status is SolveStatus.Optimal or SolveStatus.Feasible)
-                tabControl.SelectedIndex = 4;
+                tabControl.SelectedTab = solutionTab;
         }
+
+        private static DataGridView CreateReadOnlyGrid() => new DataGridView
+        {
+            Dock = DockStyle.Fill,
+            ReadOnly = true,
+            AllowUserToAddRows = false,
+            AllowUserToDeleteRows = false,
+            RowHeadersVisible = false,
+            AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.Fill,
+            Font = ConsolasFont,
+            SelectionMode = DataGridViewSelectionMode.FullRowSelect,
+            BackgroundColor = Color.FromArgb(250, 250, 250)
+        };
+
+        private static Label CreateGridHeader(string text) => new Label
+        {
+            Text = text,
+            Dock = DockStyle.Top,
+            Font = new Font("Segoe UI", 9, FontStyle.Bold),
+            Height = 20,
+            TextAlign = System.Drawing.ContentAlignment.MiddleLeft,
+            Padding = new Padding(2, 0, 0, 0)
+        };
 
         public void Clear()
         {

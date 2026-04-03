@@ -40,9 +40,6 @@ namespace Core.Solving
                     varSet.Add(k);
 
             _colToVarName = varSet.OrderBy(x => x).ToList();
-            var varNameToCol = _colToVarName
-                .Select((name, idx) => (name, idx))
-                .ToDictionary(t => t.name, t => t.idx);
 
             var model = new CplexModel();
             model.OptSense = objective.Sense == ObjectiveSense.Maximize
@@ -92,12 +89,18 @@ namespace Core.Solving
                 }
                 model.AddColumn(rowIndices, rowValues);
 
-                double lb = GetLowerBound(varName);
-                double ub = GetUpperBound(varName);
+                var info = FindVariableInfo(varName);
+                double lb = info?.LowerBound ?? 0.0;
+                double ub = info?.UpperBound ?? CplexInfinity;
                 double objCoeff = objective.Coefficients.TryGetValue(varName, out var objExpr)
                     ? objExpr.Evaluate(_manager)
                     : 0.0;
-                char type = GetVariableType(varName);
+                char type = info == null ? 'C' : info.Type switch
+                {
+                    VariableType.Integer => 'I',
+                    VariableType.Boolean => 'B',
+                    _ => 'C'
+                };
 
                 model.AddVariable(col, lb, ub, objCoeff, type, varName);
             }
@@ -107,8 +110,6 @@ namespace Core.Solving
         }
 
         public void UpdateModel() { }
-
-        // --- helpers ---
 
         private IndexedVariable? FindVariableInfo(string expandedName)
         {
@@ -120,32 +121,6 @@ namespace Core.Solving
                     return v;
             }
             return null;
-        }
-
-        private double GetLowerBound(string varName)
-        {
-            var info = FindVariableInfo(varName);
-            if (info == null) return 0.0;
-            return info.LowerBound ?? 0.0;
-        }
-
-        private double GetUpperBound(string varName)
-        {
-            var info = FindVariableInfo(varName);
-            if (info == null) return CplexInfinity;
-            return info.UpperBound ?? CplexInfinity;
-        }
-
-        private char GetVariableType(string varName)
-        {
-            var info = FindVariableInfo(varName);
-            if (info == null) return 'C';
-            return info.Type switch
-            {
-                VariableType.Integer => 'I',
-                VariableType.Boolean => 'B',
-                _ => 'C'
-            };
         }
     }
 }

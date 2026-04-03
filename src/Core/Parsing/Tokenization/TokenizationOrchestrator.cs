@@ -16,6 +16,7 @@ public class TokenizationOrchestrator
             new ItemExpressionTokenizer(),
             new MathFunctionTokenizer(),
             new TupleFieldAccessTokenizer(),
+            new ThreeDimensionalIndexTokenizer(),
             new TwoDimensionalIndexTokenizer(),
             new SingleDimensionalIndexTokenizer(),
             new ParameterTokenizationStrategy()

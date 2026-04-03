@@ -701,16 +701,20 @@ For help, press F1 or visit the documentation.
                 foreach (var err in result.Errors)
                     sessionResult.AddError(err, 0);
 
+                foreach (var warning in result.Warnings)
+                    sessionResult.AddError($"[Warning] {warning}", 0);
+
                 resultsPanel.ShowResults(sessionResult, modelManager);
                 resultsPanel.ShowSolution(result.SolveResult);
 
-                statusLabel.Text = result.SolveResult?.Status == Core.Solving.SolveStatus.Optimal
-                    ? $"Solved: objective = {result.SolveResult.ObjectiveValue:G}"
-                    : result.SolveResult?.Status == Core.Solving.SolveStatus.Feasible
-                        ? $"Feasible: objective = {result.SolveResult.ObjectiveValue:G}"
-                        : result.Success
-                            ? $"Configuration '{config.Name}' completed successfully"
-                            : $"Configuration '{config.Name}' failed with {result.TotalErrors} errors";
+                statusLabel.Text = result.SolveResult?.Status switch
+                {
+                    Core.Solving.SolveStatus.Optimal  => $"Solved: objective = {result.SolveResult.ObjectiveValue:G}",
+                    Core.Solving.SolveStatus.Feasible => $"Feasible: objective = {result.SolveResult.ObjectiveValue:G}",
+                    _ => result.Success
+                        ? $"Configuration '{config.Name}' completed successfully"
+                        : $"Configuration '{config.Name}' failed with {result.TotalErrors} errors"
+                };
             }
             catch (Exception ex)
             {

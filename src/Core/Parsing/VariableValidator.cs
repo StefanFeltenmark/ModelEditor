@@ -68,8 +68,17 @@ namespace Core.Parsing
                 return variableName.Substring(0, idxPos);
             }
 
+            // Pattern for 3D numeric indices: z1_2_3
+            var match = Regex.Match(variableName, @"^([a-zA-Z][a-zA-Z0-9_]*?)(\d+_\d+_\d+)$");
+            if (match.Success)
+            {
+                string baseName = match.Groups[1].Value;
+                if (modelManager.IndexedVariables.ContainsKey(baseName))
+                    return baseName;
+            }
+
             // Pattern for 2D numeric indices: x1_2
-            var match = Regex.Match(variableName, @"^([a-zA-Z][a-zA-Z0-9_]*?)(\d+_\d+)$");
+            match = Regex.Match(variableName, @"^([a-zA-Z][a-zA-Z0-9_]*?)(\d+_\d+)$");
             if (match.Success)
             {
                 string baseName = match.Groups[1].Value;

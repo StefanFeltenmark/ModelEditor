@@ -308,6 +308,42 @@ public class TupleFieldAccessTokenizer : ITokenizationStrategy
    
     
     /// <summary>
+    /// Tokenizes three-dimensional indexed variables: x[i,j,k] → xi_j_k
+    /// Must run before TwoDimensionalIndexTokenizer so 3D patterns are matched first.
+    /// </summary>
+    public class ThreeDimensionalIndexTokenizer : ITokenizationStrategy
+    {
+        public int Priority => 2;
+        public string Name => "ThreeDimensionalIndex";
+
+        public string Tokenize(string expression, TokenManager tokenManager, ModelManager modelManager)
+        {
+            string pattern = @"([a-zA-Z][a-zA-Z0-9_]*)\[([a-zA-Z0-9]+),([a-zA-Z0-9]+),([a-zA-Z0-9]+)\]";
+
+            return Regex.Replace(expression, pattern, m =>
+            {
+                string name = m.Groups[1].Value;
+                string index1Str = m.Groups[2].Value;
+                string index2Str = m.Groups[3].Value;
+                string index3Str = m.Groups[4].Value;
+
+                if (!modelManager.IndexedVariables.TryGetValue(name, out var indexedVar) ||
+                    indexedVar.Dimensionality < 3)
+                    return m.Value;
+
+                if (int.TryParse(index1Str, out int idx1) &&
+                    int.TryParse(index2Str, out int idx2) &&
+                    int.TryParse(index3Str, out int idx3))
+                {
+                    return $"{name}{idx1}_{idx2}_{idx3}";
+                }
+
+                return $"{name}_idx_{index1Str}_{index2Str}_{index3Str}";
+            });
+        }
+    }
+
+    /// <summary>
     /// Tokenizes two-dimensional indexed parameters and variables: x[i,j]
     /// </summary>
     public class TwoDimensionalIndexTokenizer : ITokenizationStrategy
