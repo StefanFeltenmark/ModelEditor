@@ -46,15 +46,17 @@ namespace Core
                 // For indexed variables, create an object with metadata
                 if (!string.IsNullOrEmpty(variable.IndexSetName))
                 {
-                    var indexSet = modelManager.IndexSets[variable.IndexSetName];
                     var varInfo = new Dictionary<string, object>
                     {
                         ["name"] = variable.BaseName,
                         ["type"] = variable.Type.ToString(),
                         ["indexSet"] = variable.IndexSetName,
-                        ["startIndex"] = indexSet.StartIndex,
-                        ["endIndex"] = indexSet.EndIndex
                     };
+                    if (modelManager.IndexSets.TryGetValue(variable.IndexSetName, out var indexSet))
+                    {
+                        varInfo["startIndex"] = indexSet.StartIndex;
+                        varInfo["endIndex"] = indexSet.EndIndex;
+                    }
                     varObject[variable.BaseName] = varInfo;
                 }
                 else

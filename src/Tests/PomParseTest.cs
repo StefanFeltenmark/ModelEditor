@@ -84,6 +84,34 @@ namespace Tests
                     output.WriteLine($"  [{i + 1}] {result.Warnings[i]}");
                 }
             }
+
+            // Write results to a file so they can be read even when test passes
+            var lines = new List<string>
+            {
+                "=== PARSE SUMMARY ===",
+                $"Success: {result.Success}",
+                $"TotalSuccess: {result.TotalSuccess}",
+                $"TotalErrors: {result.TotalErrors}",
+                $"SummaryMessage: {result.SummaryMessage}",
+                "",
+                $"=== ERRORS ({result.Errors.Count}) ==="
+            };
+            if (result.Errors.Count == 0)
+                lines.Add("  (none)");
+            else
+                for (int i = 0; i < result.Errors.Count; i++)
+                    lines.Add($"  [{i + 1}] {result.Errors[i]}");
+
+            lines.Add("");
+            lines.Add($"=== WARNINGS ({result.Warnings.Count}) ===");
+            if (result.Warnings.Count == 0)
+                lines.Add("  (none)");
+            else
+                for (int i = 0; i < result.Warnings.Count; i++)
+                    lines.Add($"  [{i + 1}] {result.Warnings[i]}");
+
+            var outPath = Path.Combine(Path.GetTempPath(), "pom_parse_result.txt");
+            File.WriteAllLines(outPath, lines);
         }
     }
 }

@@ -3,7 +3,12 @@
     "allow": [
       "Bash(find:*)",
       "Bash(dotnet build:*)",
-      "Bash(dotnet test:*)"
+      "Bash(dotnet test:*)",
+      "Read(//tmp/**)",
+      "Read(//c/Users/stefan.feltenmark/AppData/Local/Temp/**)",
+      "Bash(grep -n \"external\\\\|= \\\\.\\\\.\\\\.\\\\|\\\\\"\\\\\\\\.\\\\\\\\.\\\\\\\\.\\\\\"\\\\|dots\\\\|isExtern\" \"C:\\\\Users\\\\stefan.feltenmark\\\\Documents\\\\ModelEditor\\\\src\\\\Core\\\\EquationParser.cs\")",
+      "Bash(grep -v \"//\\\\|^\\\\s*//\")",
+      "Bash(grep:*)"
     ]
   }
 }

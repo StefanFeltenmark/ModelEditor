@@ -548,6 +548,31 @@ namespace Core
             return Ranges.ContainsKey(name);
         }
 
+        /// <summary>
+        /// Re-evaluates all OplRanges and updates (or creates) their corresponding IndexSets.
+        /// Call this after external parameter values have been loaded from data files,
+        /// so that ranges depending on external parameters (e.g. range T = 1..nT) are correct.
+        /// </summary>
+        public void ReevaluateRanges()
+        {
+            foreach (var range in Ranges.Values)
+            {
+                range.InvalidateCache();
+                int start = range.GetStart(this);
+                int end = range.GetEnd(this);
+                if (IndexSets.TryGetValue(range.Name, out var indexSet))
+                {
+                    indexSet.StartIndex = start;
+                    indexSet.EndIndex = end;
+                }
+                else
+                {
+                    // Range has no corresponding IndexSet yet — create one now
+                    IndexSets[range.Name] = new IndexSet(range.Name, start, end);
+                }
+            }
+        }
+
         // Add this property
         public Dictionary<string, ComputedSet> ComputedSets { get; } = new Dictionary<string, ComputedSet>();
 

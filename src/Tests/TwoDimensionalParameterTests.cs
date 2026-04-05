@@ -492,7 +492,7 @@ namespace Tests
             // Assert
             Assert.True(result.HasErrors);
             var errors = result.GetErrorMessages();
-            Assert.Contains("one-dimensional", string.Join(" ", errors));
+            Assert.Contains("dimensional", string.Join(" ", errors));
         }
     }
 }

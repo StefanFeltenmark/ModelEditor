@@ -54,7 +54,17 @@ namespace Core
                     }
                 }
 
-                // STEP 2: Parse data files (populate parameter values)
+                // STEP 2a: Pre-scan data files for scalar values so that range-defining
+                // parameters (e.g. nT) are resolved before indexed data is loaded.
+                if (dataTexts != null)
+                    foreach (var text in dataTexts)
+                        if (!string.IsNullOrWhiteSpace(text))
+                            dataParser.ParseScalarsOnly(text);
+
+                // Re-evaluate ranges immediately so indexed parameters see the correct sizes.
+                modelManager.ReevaluateRanges();
+
+                // STEP 2: Parse data files (populate all parameter values)
                 if (dataTexts != null)
                 {
                     foreach (var text in dataTexts)
@@ -73,6 +83,10 @@ namespace Core
                         }
                     }
                 }
+
+                // STEP 2b: Re-evaluate ranges once more in case data files themselves define
+                // parameters that influence other ranges.
+                modelManager.ReevaluateRanges();
 
                 // STEP 3: Check for missing external parameter values
                 var missingParams = modelManager.Parameters.Values

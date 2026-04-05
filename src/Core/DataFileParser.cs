@@ -34,48 +34,7 @@ namespace Core
             // **Remove block comments FIRST**
             text = RemoveBlockComments(text);
 
-            // Split by lines and handle comments
-            string[] lines = text.Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries);
-            var processedLines = new List<(string content, int lineNumber)>();
-            
-            int lineNumber = 1;
-            foreach (string line in lines)
-            {
-                string lineWithoutComment = line.Split(new[] { "//" }, StringSplitOptions.None)[0].Trim();
-                if (!string.IsNullOrWhiteSpace(lineWithoutComment))
-                {
-                    processedLines.Add((lineWithoutComment, lineNumber));
-                }
-                lineNumber++;
-            }
-
-            // Group by statements (split by semicolons)
-            var statements = new List<(string content, int lineNumber)>();
-            string currentStatement = "";
-            int statementStartLine = 0;
-
-            foreach (var (content, lineNum) in processedLines)
-            {
-                if (string.IsNullOrEmpty(currentStatement))
-                {
-                    statementStartLine = lineNum;
-                }
-                
-                currentStatement += " " + content;
-                
-                if (content.Contains(';'))
-                {
-                    var parts = currentStatement.Split(';', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
-                    foreach (var part in parts)
-                    {
-                        if (!string.IsNullOrWhiteSpace(part))
-                        {
-                            statements.Add((part.Trim(), statementStartLine));
-                        }
-                    }
-                    currentStatement = "";
-                }
-            }
+            var statements = BuildStatements(text);
 
             // Process each statement
             foreach (var (statement, lineNum) in statements)
@@ -87,6 +46,56 @@ namespace Core
             }
 
             return result;
+        }
+
+        /// <summary>
+        /// Parses only scalar parameter assignments from the data text.
+        /// Call this before the full Parse() to ensure range-defining scalars (e.g. nT)
+        /// are resolved before indexed parameters are loaded.
+        /// </summary>
+        public void ParseScalarsOnly(string text)
+        {
+            if (string.IsNullOrWhiteSpace(text)) return;
+            text = RemoveBlockComments(text);
+
+            var statements = BuildStatements(text);
+            foreach (var (statement, _) in statements)
+            {
+                if (!string.IsNullOrWhiteSpace(statement))
+                    TryParseScalarAssignment(statement, out _);
+            }
+        }
+
+        private List<(string content, int lineNumber)> BuildStatements(string text)
+        {
+            string[] lines = text.Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries);
+            var processedLines = new List<(string content, int lineNumber)>();
+            int lineNumber = 1;
+            foreach (string line in lines)
+            {
+                string lineWithoutComment = line.Split(new[] { "//" }, StringSplitOptions.None)[0].Trim();
+                if (!string.IsNullOrWhiteSpace(lineWithoutComment))
+                    processedLines.Add((lineWithoutComment, lineNumber));
+                lineNumber++;
+            }
+
+            var statements = new List<(string content, int lineNumber)>();
+            string current = "";
+            int startLine = 0;
+            foreach (var (content, lineNum) in processedLines)
+            {
+                if (string.IsNullOrEmpty(current)) startLine = lineNum;
+                current += " " + content;
+                if (content.Contains(';'))
+                {
+                    var parts = current.Split(';', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+                    foreach (var part in parts)
+                        if (!string.IsNullOrWhiteSpace(part))
+                            statements.Add((part.Trim(), startLine));
+                    current = "";
+                }
+            }
+            return statements;
         }
 
         private void ProcessStatement(string statement, int lineNumber, ParseSessionResult result)
@@ -258,81 +267,77 @@ namespace Core
         {
             error = string.Empty;
 
-            if (param.IsTwoDimensional)
+            if (param.IsMultiDimensional)
             {
-                error = $"Parameter '{param.Name}' is two-dimensional. Use matrix notation: [[row1], [row2], ...]";
+                error = $"Parameter '{param.Name}' is multi-dimensional. Use matrix notation: [[row1], [row2], ...]";
                 return false;
             }
 
-            // Parse the values
             var values = ParseValueList(valuesStr, param.Type, out error);
-            if (values == null)
-            {
-                return false;
-            }
+            if (values == null) return false;
 
-            // Get the index set to determine valid indices
-            if (!modelManager.IndexSets.TryGetValue(param.IndexSetName, out var indexSet))
-            {
-                error = $"Index set '{param.IndexSetName}' not found";
-                return false;
-            }
+            var indices = ResolveIndices(param.IndexSetName!, out error);
+            if (indices == null) return false;
 
-            var indices = indexSet.GetIndices().ToList();
-
-            // Check if the number of values matches the index set size
             if (values.Count != indices.Count)
             {
-                error = $"Parameter '{param.Name}' expects {indices.Count} values (index set '{param.IndexSetName}' range: {indexSet.StartIndex}..{indexSet.EndIndex}), but {values.Count} were provided";
+                error = $"Parameter '{param.Name}' expects {indices.Count} values (index set '{param.IndexSetName}'), but {values.Count} were provided";
                 return false;
             }
 
-            // Assign values to the indexed parameter
             for (int i = 0; i < values.Count; i++)
-            {
                 param.SetIndexedValue(indices[i], values[i]);
-            }
 
             return true;
+        }
+
+        /// <summary>
+        /// Resolves an index dimension name to a list of integer indices.
+        /// Checks IndexSets, then TupleSets (positional 1..N), then OplRanges directly.
+        /// </summary>
+        private List<int>? ResolveIndices(string name, out string error)
+        {
+            error = string.Empty;
+            if (modelManager.IndexSets.TryGetValue(name, out var indexSet))
+                return indexSet.GetIndices().ToList();
+            if (modelManager.TupleSets.TryGetValue(name, out var tupleSet))
+                return Enumerable.Range(1, tupleSet.Count).ToList();
+            if (modelManager.Ranges.TryGetValue(name, out var range))
+            {
+                int start = range.GetStart(modelManager);
+                int end = range.GetEnd(modelManager);
+                return Enumerable.Range(start, Math.Max(0, end - start + 1)).ToList();
+            }
+            error = $"Index set '{name}' not found";
+            return null;
         }
 
         private bool ParseMatrixAssignment(Parameter param, string matrixStr, out string error)
         {
             error = string.Empty;
 
-            if (!param.IsTwoDimensional)
+            if (!param.IsMultiDimensional)
             {
-                error = $"Parameter '{param.Name}' is one-dimensional. Use vector notation: [value1, value2, ...]";
+                error = $"Parameter '{param.Name}' is not multi-dimensional. Use vector notation: [value1, value2, ...]";
                 return false;
             }
 
-            // Get the index sets
-            if (!modelManager.IndexSets.TryGetValue(param.IndexSetName, out var indexSet1))
-            {
-                error = $"Index set '{param.IndexSetName}' not found";
-                return false;
-            }
+            if (param.Dimensionality == 3)
+                return Parse3DMatrixAssignment(param, matrixStr, out error);
 
-            if (!modelManager.IndexSets.TryGetValue(param.SecondIndexSetName!, out var indexSet2))
-            {
-                error = $"Index set '{param.SecondIndexSetName}' not found";
-                return false;
-            }
-
-            var indices1 = indexSet1.GetIndices().ToList();
-            var indices2 = indexSet2.GetIndices().ToList();
+            var indices1 = ResolveIndices(param.IndexSetNames![0], out error);
+            if (indices1 == null) return false;
+            var indices2 = ResolveIndices(param.IndexSetNames![1], out error);
+            if (indices2 == null) return false;
 
             // Parse the matrix: [[row1], [row2], ...]
             var rows = ParseMatrixRows(matrixStr, out error);
-            if (rows == null)
-            {
-                return false;
-            }
+            if (rows == null) return false;
 
             // Validate row count
             if (rows.Count != indices1.Count)
             {
-                error = $"Parameter '{param.Name}' expects {indices1.Count} rows (index set '{indexSet1.Name}' range: {indexSet1.StartIndex}..{indexSet1.EndIndex}), but {rows.Count} were provided";
+                error = $"Parameter '{param.Name}' expects {indices1.Count} rows (index set '{param.IndexSetNames[0]}'), but {rows.Count} were provided";
                 return false;
             }
 
@@ -348,14 +353,71 @@ namespace Core
 
                 if (rowValues.Count != indices2.Count)
                 {
-                    error = $"Row {i + 1}: Expected {indices2.Count} values (index set '{param.SecondIndexSetName}' range: {indexSet2.StartIndex}..{indexSet2.EndIndex}), but {rowValues.Count} were provided";
+                    error = $"Row {i + 1}: Expected {indices2.Count} values (index set '{param.IndexSetNames[1]}'), but {rowValues.Count} were provided";
                     return false;
                 }
 
-                // Assign values for this row
                 for (int j = 0; j < rowValues.Count; j++)
-                {
                     param.SetIndexedValue(indices1[i], indices2[j], rowValues[j]);
+            }
+
+            return true;
+        }
+
+        private bool Parse3DMatrixAssignment(Parameter param, string matrixStr, out string error)
+        {
+            error = string.Empty;
+
+            var indices1 = ResolveIndices(param.IndexSetNames![0], out error);
+            if (indices1 == null) return false;
+            var indices2 = ResolveIndices(param.IndexSetNames![1], out error);
+            if (indices2 == null) return false;
+            var indices3 = ResolveIndices(param.IndexSetNames![2], out error);
+            if (indices3 == null) return false;
+
+            // Outer level: slices for dimension 1
+            var slices = ParseMatrixRows(matrixStr, out error);
+            if (slices == null) return false;
+
+            if (slices.Count != indices1.Count)
+            {
+                error = $"Parameter '{param.Name}' expects {indices1.Count} slices (index set '{param.IndexSetNames[0]}'), but {slices.Count} were provided";
+                return false;
+            }
+
+            for (int i = 0; i < slices.Count; i++)
+            {
+                // Each slice is a 2D matrix for dimension 2×3
+                var rows = ParseMatrixRows(slices[i], out error);
+                if (rows == null)
+                {
+                    error = $"Error in slice {i + 1}: {error}";
+                    return false;
+                }
+
+                if (rows.Count != indices2.Count)
+                {
+                    error = $"Slice {i + 1}: expected {indices2.Count} rows, got {rows.Count}";
+                    return false;
+                }
+
+                for (int j = 0; j < rows.Count; j++)
+                {
+                    var cellValues = ParseValueList(rows[j], param.Type, out error);
+                    if (cellValues == null)
+                    {
+                        error = $"Slice {i + 1}, row {j + 1}: {error}";
+                        return false;
+                    }
+
+                    if (cellValues.Count != indices3.Count)
+                    {
+                        error = $"Slice {i + 1}, row {j + 1}: expected {indices3.Count} values, got {cellValues.Count}";
+                        return false;
+                    }
+
+                    for (int k = 0; k < cellValues.Count; k++)
+                        param.SetMultiDimValue(new[] { indices1[i], indices2[j], indices3[k] }, cellValues[k]);
                 }
             }
 
@@ -460,6 +522,43 @@ namespace Core
             }
 
             return values;
+        }
+
+        /// <summary>
+        /// Splits a tuple instance body (inside &lt;...&gt;) into individual field values.
+        /// Handles quoted strings, comma-separated, or space-separated fields.
+        /// </summary>
+        private string[] SplitTupleFields(string input)
+        {
+            var fields = new List<string>();
+            var current = new System.Text.StringBuilder();
+            bool inQuotes = false;
+
+            for (int i = 0; i < input.Length; i++)
+            {
+                char c = input[i];
+                if (c == '"')
+                {
+                    inQuotes = !inQuotes;
+                    current.Append(c);
+                }
+                else if (!inQuotes && (c == ',' || c == ' ' || c == '\t'))
+                {
+                    string token = current.ToString().Trim();
+                    if (token.Length > 0)
+                        fields.Add(token);
+                    current.Clear();
+                }
+                else
+                {
+                    current.Append(c);
+                }
+            }
+            string last = current.ToString().Trim();
+            if (last.Length > 0)
+                fields.Add(last);
+
+            return fields.ToArray();
         }
 
         private List<string> SplitByCommaOrWhitespace(string input)
@@ -794,10 +893,10 @@ namespace Core
                 return false;
             }
 
-            // Get the schema
-            if (!modelManager.TupleSchemas.TryGetValue(tupleSet.Name, out var schema))
+            // Get the schema (keyed by the tuple type name, not the set variable name)
+            if (!modelManager.TupleSchemas.TryGetValue(tupleSet.SchemaName, out var schema))
             {
-                error = $"Tuple schema '{tupleSet.Name}' is not found";
+                error = $"Tuple schema '{tupleSet.SchemaName}' is not found";
                 return false;
             }
 
@@ -808,9 +907,12 @@ namespace Core
             foreach (Match tupleMatch in tupleMatches)
             {
                 string instanceData = tupleMatch.Groups[1].Value;
-                var values = instanceData.Split(',').Select(v => v.Trim()).ToArray();
+                // Support both comma-separated and space-separated fields (OPL uses spaces)
+                var values = SplitTupleFields(instanceData);
 
-                if (values.Length != schema.Fields.Count)
+                // Accept tuples with extra trailing fields (data files often contain
+                // additional columns not declared in the schema — ignore them).
+                if (values.Length < schema.Fields.Count)
                 {
                     error = $"Tuple instance has {values.Length} values but schema '{schema.Name}' requires {schema.Fields.Count} fields";
                     return false;

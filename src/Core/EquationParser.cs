@@ -38,6 +38,7 @@ namespace Core
         private readonly MultiDimensionalParameterParser multiDimParamParser;
 
         private readonly TupleParameterParser tupleParamParser;
+        private readonly RangeParser rangeParser;
 
         public EquationParser(ModelManager manager)
         {
@@ -48,6 +49,7 @@ namespace Core
             // Initialize specialized parsers
             parameterParser = new ParameterParser(manager, evaluator);
             indexSetParser = new IndexSetParser(manager, evaluator);
+            rangeParser = new RangeParser(manager, evaluator);
             variableParser = new VariableDeclarationParser(manager, evaluator);
             dexprParser = new DecisionExpressionParser(manager, evaluator);  // ADD THIS
             expressionParser = new ExpressionParser(manager);
@@ -730,13 +732,23 @@ namespace Core
                 {
                     modelManager.AddIndexSet(indexSet);
 
-                    // Also register as an OplRange so it's accessible via Ranges dictionary
+                    // Also register as an OplRange so it's accessible via Ranges dictionary.
+                    // Use the RangeParser to get a lazy OplRange (with ParameterExpression
+                    // for references like 1..nT) so that ReevaluateRanges() can fix it later.
                     if (!modelManager.Ranges.ContainsKey(indexSet.Name))
                     {
-                        var rangeObj = new OplRange(
-                            indexSet.Name,
-                            new ConstantExpression(indexSet.StartIndex),
-                            new ConstantExpression(indexSet.EndIndex));
+                        OplRange rangeObj;
+                        if (rangeParser.TryParse(statement, out var lazyRange, out _) && lazyRange != null)
+                        {
+                            rangeObj = lazyRange;
+                        }
+                        else
+                        {
+                            rangeObj = new OplRange(
+                                indexSet.Name,
+                                new ConstantExpression(indexSet.StartIndex),
+                                new ConstantExpression(indexSet.EndIndex));
+                        }
                         modelManager.AddRange(rangeObj);
                     }
 
