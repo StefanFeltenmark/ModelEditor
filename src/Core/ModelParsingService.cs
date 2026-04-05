@@ -108,11 +108,11 @@ namespace Core
                     allResults.Add(errorResult);
                 }
 
-                // STEP 4: Expand indexed equations (after data is loaded)
+                // STEP 4: Expand all templates (indexed equations + forall statements) after data is loaded
                 if (!missingParams.Any())
                 {
                     var expansionResult = new ParseSessionResult();
-                    parser.ExpandIndexedEquations(expansionResult);
+                    parser.ExpandAllTemplates(expansionResult);
                     allResults.Add(expansionResult);
 
                     if (expansionResult.HasErrors)

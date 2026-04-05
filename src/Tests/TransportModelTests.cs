@@ -224,5 +224,31 @@ c = [[1 2 3 4]
             Assert.Equal(SolveStatus.Optimal, result.SolveResult.Status);
             Assert.NotNull(result.SolveResult.ObjectiveValue);
         }
+
+        [Fact]
+        public void Transport_Solve_ShouldHaveNonZeroVariableValues()
+        {
+            var manager = new ModelManager();
+            var parser = new EquationParser(manager);
+            var dataParser = new DataFileParser(manager);
+            var service = new ModelParsingService(manager, parser, dataParser);
+
+            var result = service.ParseModel(
+                new List<string> { TransportModFile },
+                new List<string> { TransportDatFile });
+
+            Assert.NotNull(result.SolveResult);
+            Assert.Equal(SolveStatus.Optimal, result.SolveResult.Status);
+
+            // With 4 rows and 4 columns and all-equality constraints (assignment problem),
+            // exactly 4 variables should be non-zero (= 1) — one per row and one per column
+            var nonZero = result.SolveResult.VariableValues
+                .Where(kv => Math.Abs(kv.Value) >= 1e-6)
+                .ToList();
+            Assert.True(nonZero.Count > 0,
+                "Expected non-zero variable values but all variables are zero — constraints may not have been expanded");
+            Assert.True(nonZero.Count == 4,
+                $"Expected exactly 4 non-zero variables (one per row/column), got {nonZero.Count}: {string.Join(", ", nonZero.Select(kv => $"{kv.Key}={kv.Value}"))}");
+        }
     }
 }

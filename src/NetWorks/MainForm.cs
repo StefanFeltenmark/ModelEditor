@@ -37,7 +37,7 @@ namespace GUI
             mainSplitContainer = new SplitContainer
             {
                 Dock = DockStyle.Fill,
-                SplitterDistance = 300,
+                SplitterDistance = 450,
                 FixedPanel = FixedPanel.Panel1
             };
 

@@ -108,13 +108,27 @@ namespace Core
             }
             error = string.Empty;
 
+            // Try three-dimensional indexed parameter: paramName[i,j,k] = value
+            if (TryParseThreeDimensionalAssignment(statement, out error))
+            {
+                result.IncrementSuccess();
+                return;
+            }
+
+            if (!string.IsNullOrEmpty(error) && !IsNotRecognizedError(error))
+            {
+                result.AddError($"\"{statement}\"\n  Error: {error}", lineNumber);
+                return;
+            }
+            error = string.Empty;
+
             // Try two-dimensional indexed parameter: paramName[i,j] = value
             if (TryParseTwoDimensionalAssignment(statement, out error))
             {
                 result.IncrementSuccess();
                 return;
             }
-            
+
             if (!string.IsNullOrEmpty(error) && !IsNotRecognizedError(error))
             {
                 result.AddError($"\"{statement}\"\n  Error: {error}", lineNumber);
@@ -190,6 +204,7 @@ namespace Core
                 return true;
             
             return error.Contains("Not a vector", StringComparison.OrdinalIgnoreCase) ||
+                   error.Contains("Not a 3D indexed", StringComparison.OrdinalIgnoreCase) ||
                    error.Contains("Not a 2D indexed", StringComparison.OrdinalIgnoreCase) ||
                    error.Contains("Not a 1D indexed", StringComparison.OrdinalIgnoreCase) ||
                    error.Contains("Not a scalar", StringComparison.OrdinalIgnoreCase) ||
@@ -508,6 +523,67 @@ namespace Core
             }
 
             return result;
+        }
+
+        private bool TryParseThreeDimensionalAssignment(string statement, out string error)
+        {
+            error = string.Empty;
+
+            // Pattern: paramName[i,j,k] = value
+            string pattern = @"^\s*([a-zA-Z][a-zA-Z0-9_]*)\s*\[\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)\s*\]\s*=\s*(.+)$";
+            var match = Regex.Match(statement.Trim(), pattern);
+
+            if (!match.Success)
+            {
+                error = "Not a 3D indexed parameter assignment";
+                return false;
+            }
+
+            string paramName = match.Groups[1].Value;
+            string valueStr = match.Groups[5].Value.Trim();
+
+            if (!int.TryParse(match.Groups[2].Value, out int index1) ||
+                !int.TryParse(match.Groups[3].Value, out int index2) ||
+                !int.TryParse(match.Groups[4].Value, out int index3))
+            {
+                error = "Invalid index format";
+                return false;
+            }
+
+            if (!modelManager.Parameters.TryGetValue(paramName, out var param))
+            {
+                error = $"Parameter '{paramName}' is not declared";
+                return false;
+            }
+
+            if (param.Dimensionality != 3)
+            {
+                error = $"Not a 3D indexed parameter assignment — '{paramName}' has {param.Dimensionality} dimension(s)";
+                return false;
+            }
+
+            var indexSetNames = param.IndexSetNames!;
+            for (int dim = 0; dim < 3; dim++)
+            {
+                int idx = dim == 0 ? index1 : dim == 1 ? index2 : index3;
+                if (!modelManager.IndexSets.TryGetValue(indexSetNames[dim], out var indexSet))
+                {
+                    error = $"Index set '{indexSetNames[dim]}' not found";
+                    return false;
+                }
+                if (!indexSet.Contains(idx))
+                {
+                    error = $"Index {idx} is out of range for dimension {dim + 1} of '{paramName}' (set '{indexSetNames[dim]}': {indexSet.StartIndex}..{indexSet.EndIndex})";
+                    return false;
+                }
+            }
+
+            object? value = ParseValueForType(valueStr, param.Type, out error);
+            if (!string.IsNullOrEmpty(error))
+                return false;
+
+            param.SetMultiDimValue(new[] { index1, index2, index3 }, value!);
+            return true;
         }
 
         private bool TryParseTwoDimensionalAssignment(string statement, out string error)

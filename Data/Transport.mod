@@ -13,9 +13,11 @@ minimize sum(i in I) sum(j in J) c[i,j]*x[i,j];
 subject to
 {
  forall(j in J)
+origin:
    sum(i in I) x[i,j] == 1;
 
  forall(i in I)
+destination:
    sum(j in J) x[i,j] == 1;
 
 
